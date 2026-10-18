@@ -1,0 +1,29 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "aysu-rezervasyon",
+  "main": "src/index.js",
+  "compatibility_date": "2026-10-01",
+
+  // Statik sayfalar (sohbet ekranı)
+  "assets": { "directory": "./public", "binding": "ASSETS" },
+
+  // Rezervasyon deposu: işlemleri sıraya sokar, çift rezervasyonu engeller
+  "durable_objects": {
+    "bindings": [{ "name": "REZERVASYON_DEPOSU", "class_name": "RezervasyonDeposu" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RezervasyonDeposu"] }],
+
+  // IP başına dakikada en fazla 20 mesaj
+  "ratelimits": [
+    { "name": "SINIR", "namespace_id": "1001", "simple": { "limit": 20, "period": 60 } }
+  ],
+
+  "observability": { "enabled": true }
+
+  // Gizli değerler (wrangler secret put ile girilir, buraya YAZILMAZ):
+  //   ANTHROPIC_API_KEY
+  //   SHEET_ID
+  //   GOOGLE_SERVICE_ACCOUNT_EMAIL
+  //   GOOGLE_PRIVATE_KEY
+  //   TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID   (isteğe bağlı bildirimler)
+}

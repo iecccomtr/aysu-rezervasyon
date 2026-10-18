@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Rezervasyon · Aysu Halı Saha</title>
+<meta name="description" content="Aysu Halı Saha online rezervasyon: boş saatleri sorun, maçınızı ayırtın.">
+<meta name="theme-color" content="#14532d">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --cim: #14532d;        /* saha yeşili */
+    --cim-koyu: #0d3b20;
+    --tebesir: #f4f7f1;    /* çizgi beyazı */
+    --isik: #f5d90a;       /* projektör sarısı */
+    --murekkep: #13261b;
+    --gri: #5d6b62;
+    --cizgi: #dfe6dc;
+    --kart: #ffffff;
+    --zemin: #eef2ec;
+    --hata: #a4161a;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font: 400 16px/1.5 "Barlow", system-ui, sans-serif;
+    color: var(--murekkep);
+    background: var(--zemin);
+    display: flex; flex-direction: column;
+    height: 100dvh;
+  }
+
+  /* ---------- Saha başlığı ---------- */
+  .saha {
+    position: relative; overflow: hidden;
+    background:
+      repeating-linear-gradient(90deg, var(--cim) 0 44px, #175e33 44px 88px);
+    color: var(--tebesir);
+    padding: 14px 16px 16px;
+    padding-top: max(14px, env(safe-area-inset-top));
+    flex: none;
+  }
+  .saha svg.cizgiler {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    pointer-events: none; opacity: .32;
+  }
+  .saha-ic {
+    position: relative; max-width: 720px; margin: 0 auto;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .saha h1 {
+    font: 700 28px/1 "Barlow Condensed", sans-serif;
+    letter-spacing: .01em; margin: 0;
+  }
+  .saha p { margin: 2px 0 0; font-size: 14px; opacity: .85; }
+  .ara {
+    margin-left: auto; flex: none;
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--tebesir); color: var(--cim-koyu);
+    font: 600 15px/1 "Barlow", sans-serif; text-decoration: none;
+    padding: 10px 14px; border-radius: 999px;
+  }
+  .ara svg { width: 16px; height: 16px; }
+
+  /* ---------- Sohbet ---------- */
+  main { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .akis {
+    max-width: 720px; margin: 0 auto; padding: 20px 16px 8px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .mesaj {
+    max-width: 85%; padding: 10px 14px; border-radius: 18px;
+    white-space: pre-wrap; overflow-wrap: anywhere;
+    animation: gel .18s ease-out;
+  }
+  .asistan { align-self: flex-start; background: var(--kart); border-bottom-left-radius: 6px; border: 1px solid var(--cizgi); }
+  .kullanici { align-self: flex-end; background: var(--isik); color: #1d1a00; border-bottom-right-radius: 6px; }
+  .mesaj.hata { background: #fff1f1; border-color: #f2c4c4; color: var(--hata); }
+  .mesaj a { color: var(--cim); font-weight: 600; }
+  .mesaj strong { font-weight: 600; }
+  @keyframes gel { from { opacity: 0; transform: translateY(4px); } }
+
+  .kayit-no {
+    display: inline-block; font: 700 18px/1 "Barlow Condensed", sans-serif;
+    letter-spacing: .06em; background: var(--cim); color: var(--tebesir);
+    padding: 4px 8px; border-radius: 6px;
+  }
+  .kopyala {
+    font: 600 13px/1 "Barlow", sans-serif; margin-left: 6px; vertical-align: 2px;
+    border: 1px solid var(--cim); color: var(--cim); background: transparent;
+    padding: 4px 8px; border-radius: 999px; cursor: pointer;
+  }
+
+  .yaziyor { align-self: flex-start; display: flex; gap: 5px; padding: 14px 16px; }
+  .yaziyor i {
+    width: 8px; height: 8px; border-radius: 50%; background: var(--cim);
+    animation: zipla 1s infinite ease-in-out;
+  }
+  .yaziyor i:nth-child(2) { animation-delay: .15s; }
+  .yaziyor i:nth-child(3) { animation-delay: .3s; }
+  @keyframes zipla { 0%, 80%, 100% { opacity: .25; transform: none; } 40% { opacity: 1; transform: translateY(-4px); } }
+
+  /* ---------- Giriş ---------- */
+  .alt {
+    flex: none; background: var(--zemin);
+    padding: 8px 16px; padding-bottom: max(12px, env(safe-area-inset-bottom));
+  }
+  .alt-ic { max-width: 720px; margin: 0 auto; }
+  .oneriler { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 8px; scrollbar-width: none; }
+  .oneriler::-webkit-scrollbar { display: none; }
+  .oneriler[hidden] { display: none; }
+  .oneriler button {
+    flex: none; font: 500 14px/1 "Barlow", sans-serif; color: var(--cim-koyu);
+    background: var(--kart); border: 1px solid var(--cizgi);
+    padding: 9px 12px; border-radius: 999px; cursor: pointer;
+  }
+  form {
+    display: flex; gap: 8px; align-items: flex-end;
+    background: var(--kart); border: 1px solid var(--cizgi); border-radius: 24px; padding: 6px 6px 6px 16px;
+  }
+  form:focus-within { border-color: var(--cim); box-shadow: 0 0 0 2px var(--cim); }
+  textarea:focus-visible { outline: none; }
+  textarea {
+    flex: 1; border: 0; outline: 0; resize: none; background: transparent;
+    font: inherit; color: inherit; padding: 8px 0; max-height: 120px;
+  }
+  .gonder {
+    flex: none; width: 42px; height: 42px; border: 0; border-radius: 50%;
+    background: var(--cim); color: var(--tebesir); cursor: pointer;
+    display: grid; place-items: center;
+  }
+  .gonder:disabled { opacity: .4; cursor: default; }
+  .gonder svg { width: 20px; height: 20px; }
+  .bilgi { font-size: 12px; color: var(--gri); text-align: center; margin: 8px 0 0; }
+  .bilgi a { color: inherit; }
+
+  :focus-visible { outline: 3px solid var(--isik); outline-offset: 2px; }
+  .gonder:focus-visible, .ara:focus-visible { outline-color: var(--murekkep); }
+  @media (prefers-reduced-motion: reduce) {
+    .mesaj, .yaziyor i { animation: none; }
+  }
+  @media (min-width: 640px) {
+    .saha h1 { font-size: 34px; }
+    .akis { padding-top: 28px; }
+  }
+</style>
+</head>
+<body>
+  <header class="saha">
+    <!-- Saha çizgileri: orta saha çizgisi ve orta yuvarlak -->
+    <svg class="cizgiler" viewBox="0 0 400 100" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <g fill="none" stroke="#fff" stroke-width="2">
+        <line x1="290" y1="-10" x2="290" y2="110"/>
+        <circle cx="290" cy="50" r="34"/>
+        <circle cx="290" cy="50" r="2.5" fill="#fff"/>
+        <rect x="-60" y="18" width="110" height="64"/>
+        <rect x="350" y="18" width="110" height="64"/>
+      </g>
+    </svg>
+    <div class="saha-ic">
+      <div>
+        <h1>Aysu Halı Saha</h1>
+        <p>Online rezervasyon</p>
+      </div>
+      <a class="ara" href="tel:+905555102626" aria-label="Aysu Halı Saha'yı ara">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1A17 17 0 0 1 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1z"/></svg>
+        Ara
+      </a>
+    </div>
+  </header>
+
+  <main id="kaydir">
+    <div class="akis" id="akis" aria-live="polite"></div>
+  </main>
+
+  <div class="alt">
+    <div class="alt-ic">
+      <div class="oneriler" id="oneriler">
+        <button type="button">Bu akşam boş saat var mı?</button>
+        <button type="button">Yarın için rezervasyon</button>
+        <button type="button">Ücret ne kadar?</button>
+        <button type="button">Rezervasyonumu iptal et</button>
+      </div>
+      <form id="form">
+        <label for="girdi" class="sr" style="position:absolute;left:-9999px">Mesajınız</label>
+        <textarea id="girdi" rows="1" maxlength="1000" placeholder="Gün ve saat yazın…" autocomplete="off"></textarea>
+        <button class="gonder" id="gonder" type="submit" aria-label="Gönder" disabled>
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3.4 20.4 21 12 3.4 3.6 3.4 10l12.6 2-12.6 2z"/></svg>
+        </button>
+      </form>
+      <p class="bilgi">Ad ve telefonunuz yalnızca rezervasyon için kullanılır. <a href="/kvkk.html">Aydınlatma metni</a></p>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const akis = document.getElementById("akis");
+  const kaydir = document.getElementById("kaydir");
+  const form = document.getElementById("form");
+  const girdi = document.getElementById("girdi");
+  const gonder = document.getElementById("gonder");
+  const oneriler = document.getElementById("oneriler");
+
+  const KARSILAMA = "Merhaba! Aysu Halı Saha'ya hoş geldiniz ⚽\nHangi gün ve saatte oynamak istersiniz? Boş saatlere bakıp hemen ayırabilirim.";
+  const ANAHTAR = "aysu-sohbet";
+
+  // Sohbet sekme kapanana kadar saklanır; tarayıcı izin vermezse sadece hafızada kalır.
+  let mesajlar = [];
+  try { mesajlar = JSON.parse(sessionStorage.getItem(ANAHTAR) || "[]"); } catch { mesajlar = []; }
+  const kaydet = () => { try { sessionStorage.setItem(ANAHTAR, JSON.stringify(mesajlar)); } catch {} };
+
+  const kacis = (s) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+  // Asistan metnini güvenli HTML'e çevirir: kalın yazı, bağlantılar, telefon, kayıt no, IBAN.
+  function bicimle(metin) {
+    let h = kacis(metin);
+    h = h.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+    h = h.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
+    h = h.replace(/\b(AY-[A-Z0-9]{5})\b/g, '<span class="kayit-no">$1</span>');
+    h = h.replace(/\b(TR\d{2}(?: ?\d{4}){5} ?\d{2})\b/g,
+      '<strong>$1</strong><button type="button" class="kopyala" data-kopyala="$1">Kopyala</button>');
+    h = h.replace(/(?<![\d>])(0 ?5\d{2} ?\d{3} ?\d{2} ?\d{2})(?!\d)/g, (m) =>
+      `<a href="tel:+9${m.replace(/\D/g, "")}">${m}</a>`);
+    return h;
+  }
+
+  function ekle(rol, metin, ek = "") {
+    const d = document.createElement("div");
+    d.className = `mesaj ${rol === "user" ? "kullanici" : "asistan"} ${ek}`;
+    if (rol === "user") d.textContent = metin;
+    else d.innerHTML = bicimle(metin);
+    akis.appendChild(d);
+    kaydir.scrollTop = kaydir.scrollHeight;
+    return d;
+  }
+
+  function yaziyor(goster) {
+    let el = document.getElementById("yaziyor");
+    if (goster && !el) {
+      el = document.createElement("div");
+      el.id = "yaziyor"; el.className = "mesaj asistan yaziyor";
+      el.setAttribute("aria-label", "Yazıyor");
+      el.innerHTML = "<i></i><i></i><i></i>";
+      akis.appendChild(el);
+      kaydir.scrollTop = kaydir.scrollHeight;
+    } else if (!goster && el) el.remove();
+  }
+
+  let bekliyor = false;
+  async function gonderMesaj(metin) {
+    metin = metin.trim();
+    if (!metin || bekliyor) return;
+    bekliyor = true;
+    girdi.value = ""; boyutla(); gonder.disabled = true;
+    oneriler.hidden = true;
+    mesajlar.push({ role: "user", content: metin });
+    kaydet();
+    ekle("user", metin);
+    yaziyor(true);
+    try {
+      const res = await fetch("/api/sohbet", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ mesajlar: [{ role: "assistant", content: KARSILAMA }, ...mesajlar] }),
+      });
+      const veri = await res.json().catch(() => ({}));
+      const cevap = veri.cevap || "Şu an cevap veremiyorum. Lütfen 0 555 510 26 26 numarasını arayın.";
+      yaziyor(false);
+      if (res.ok) {
+        mesajlar.push({ role: "assistant", content: cevap });
+        kaydet();
+        ekle("assistant", cevap);
+      } else {
+        // Başarısız mesajı geçmişten çıkar ki tekrar denenebilsin.
+        mesajlar.pop(); kaydet();
+        ekle("assistant", cevap, "hata");
+      }
+    } catch {
+      yaziyor(false);
+      mesajlar.pop(); kaydet();
+      ekle("assistant", "Bağlantı kurulamadı. İnternetinizi kontrol edip tekrar gönderin.", "hata");
+    } finally {
+      bekliyor = false;
+      gonder.disabled = !girdi.value.trim();
+      girdi.focus();
+    }
+  }
+
+  function boyutla() {
+    girdi.style.height = "auto";
+    girdi.style.height = Math.min(girdi.scrollHeight, 120) + "px";
+  }
+
+  form.addEventListener("submit", (e) => { e.preventDefault(); gonderMesaj(girdi.value); });
+  girdi.addEventListener("input", () => { boyutla(); gonder.disabled = bekliyor || !girdi.value.trim(); });
+  girdi.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); form.requestSubmit(); }
+  });
+  oneriler.addEventListener("click", (e) => { if (e.target.matches("button")) gonderMesaj(e.target.textContent); });
+  akis.addEventListener("click", async (e) => {
+    const b = e.target.closest("[data-kopyala]");
+    if (!b) return;
+    try { await navigator.clipboard.writeText(b.dataset.kopyala.replace(/\s/g, "")); b.textContent = "Kopyalandı"; }
+    catch { b.textContent = "Kopyalanamadı"; }
+  });
+
+  // Açılış
+  ekle("assistant", KARSILAMA);
+  for (const m of mesajlar) ekle(m.role, m.content);
+  if (mesajlar.length) oneriler.hidden = true;
+})();
+</script>
+</body>
+</html>

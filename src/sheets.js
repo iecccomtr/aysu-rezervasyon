@@ -79,16 +79,37 @@ async function onlineSekmeHazirla(env) {
   sekmeHazir = true;
 }
 
+// Haftalık tablo için metinle birlikte YAZI RENGİ de okunur
+// (siyah "ABONE" = abone bu hafta gelmiyor).
+const HAFTALIK_ALANLAR = "sheets(data(rowData(values(formattedValue,"
+  + "effectiveFormat/textFormat/foregroundColor,effectiveFormat/textFormat/foregroundColorStyle,"
+  + "textFormatRuns(format/foregroundColor,format/foregroundColorStyle)))))";
+
+function yaziRengi(hucre) {
+  const run = hucre.textFormatRuns?.[0]?.format;
+  const tf = hucre.effectiveFormat?.textFormat || {};
+  const stil = run?.foregroundColorStyle || run?.foregroundColor
+    ? { rgbColor: run.foregroundColorStyle?.rgbColor || run.foregroundColor, themeColor: run.foregroundColorStyle?.themeColor }
+    : { rgbColor: tf.foregroundColorStyle?.rgbColor || tf.foregroundColor, themeColor: tf.foregroundColorStyle?.themeColor };
+  return stil;
+}
+
 /**
- * Haftalık tabloyu ve online rezervasyonları tek istekte okur.
- * Dönüş: { haftalik: string[][], online: [{hucreler, satirNo}] }
+ * Haftalık tabloyu (metin + yazı rengi) ve online rezervasyonları okur.
+ * Dönüş: { haftalik: {metin, renk}[][], online: [{hucreler, satirNo}] }
  */
 export async function oku(env) {
   await onlineSekmeHazirla(env);
-  const q = [aralik(HAFTALIK_SEKME, "A1:L30"), aralik(ONLINE_SEKME, "A1:J")]
-    .map((r) => `ranges=${r}`).join("&");
-  const data = await api(env, `/values:batchGet?${q}&valueRenderOption=FORMATTED_VALUE`);
-  const [haftalik, online] = data.valueRanges.map((v) => v.values || []);
+  const [izgara, onlineVeri] = await Promise.all([
+    api(env, `?ranges=${aralik(HAFTALIK_SEKME, "A1:L30")}&fields=${encodeURIComponent(HAFTALIK_ALANLAR)}`),
+    api(env, `/values/${aralik(ONLINE_SEKME, "A1:J")}?valueRenderOption=FORMATTED_VALUE`),
+  ]);
+  const satirlar = izgara.sheets?.[0]?.data?.[0]?.rowData || [];
+  const haftalik = satirlar.map((r) => (r.values || []).map((h) => ({
+    metin: h.formattedValue || "",
+    renk: yaziRengi(h),
+  })));
+  const online = onlineVeri.values || [];
   return {
     haftalik,
     online: online.slice(1).map((hucreler, i) => ({ hucreler, satirNo: i + 2 })),

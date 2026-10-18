@@ -4,7 +4,8 @@
 //
 // Doluluk iki kaynaktan hesaplanır:
 //   1) Haftalık tablo (REZERVASYON sekmesi, sadece okunur):
-//        - "ABONE" yazan hücreler her hafta dolu sayılır.
+//        - "ABONE" yazan hücreler her hafta dolu sayılır; ancak yazı rengi SİYAHSA abone
+//          bu hafta gelmiyor demektir → bu hafta boş, sonraki haftalar dolu.
 //        - Diğer dolu hücreler (tek seferlik) sadece İÇİNDE BULUNULAN hafta için dolu sayılır,
 //          çünkü hafta sonunda siliniyorlar.
 //   2) Online Rezervasyonlar sekmesi: asistanın yazdığı tarihli kayıtlar.
@@ -104,9 +105,15 @@ export class RezervasyonDeposu extends DurableObject {
     const ig = isletmeGunu(tarih, saat);
     const hucre = haftalik.get(`${gunNo(ig)}|${saat}`);
     if (!hucre) return false;
-    if (aboneMi(hucre)) return true;
     const n = simdi();
-    return haftaBasi(ig) === haftaBasi(isletmeGunu(n.tarih, n.saat));
+    const buHafta = haftaBasi(ig) === haftaBasi(isletmeGunu(n.tarih, n.saat));
+    if (aboneMi(hucre.metin)) {
+      // Siyah yazılmış ABONE = abone bu hafta gelmiyor → bu hafta boş, diğer haftalar dolu.
+      // (Sadece renk okunabildiğinde geçerli; demo/düz metinde renk yoktur.)
+      if (hucre.renkli && hucre.siyah && buHafta) return false;
+      return true;
+    }
+    return buHafta;
   }
 
   // ---------- Asistanın kullandığı işlemler (RPC) ----------

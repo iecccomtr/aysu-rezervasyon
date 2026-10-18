@@ -21,6 +21,8 @@ Müşteri ──SMS linki──▶ Sohbet sayfası (Cloudflare)
 
 **Doluluk kuralı:**
 - Haftalık tabloda **ABONE** yazan hücreler her hafta dolu sayılır.
+  - **İstisna:** ABONE yazısı **siyahsa**, abone bu hafta gelmiyor demektir. O saat **bu hafta boş** sayılır ve satılabilir, gelecek hafta yine dolu sayılır.
+  - Renk kodu: mavi, kırmızı veya başka bir renk "abone geliyor", siyah "bu hafta gelmiyor" anlamına gelir. Hiç renk verilmemiş yazı da siyah sayılır. Yani aktif aboneleri **mutlaka renkli** yazın.
 - İsimli tek seferlik hücreler (ör. "EREN - 1200/2500 TL") sadece **içinde bulunulan hafta** için dolu sayılır, çünkü hafta sonunda siliniyorlar.
 - "Online Rezervasyonlar" sekmesinde durumu **İptal** olmayan her satır dolu sayılır.
 - Gece maçları (00:00, 01:00, 02:00) o günün gecesidir. Tablodaki "Cuma 01:00" hücresi, Cumartesi sabahı 01:00 demektir.

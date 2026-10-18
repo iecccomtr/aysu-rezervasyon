@@ -13,20 +13,35 @@ function sadelestir(s) {
     .replace(/[^a-z0-9]/g, "");
 }
 
+/** Hücre ya düz metin ya da {metin, renk} olabilir (Google'dan renkli okunduğunda). */
+const metinOf = (h) => (h && typeof h === "object" ? h.metin : h);
+
 /**
- * @param {string[][]} satirlar  Tablonun ham hücreleri
- * @returns {Map<string,string>} anahtar: "gunNo|HH:MM" (gunNo 0 = pazartesi), değer: hücre metni
+ * Yazı rengi siyah (veya varsayılan) mı?  Google renkleri 0–1 aralığında verir;
+ * hiç renk yoksa varsayılan siyahtır.
+ */
+export function siyahMi(renk) {
+  if (!renk) return true;
+  if (renk.themeColor && renk.themeColor !== "TEXT") return false;
+  const c = renk.rgbColor || {};
+  return (c.red || 0) <= 0.25 && (c.green || 0) <= 0.25 && (c.blue || 0) <= 0.25;
+}
+
+/**
+ * @param {(string|{metin:string, renk?:object})[][]} satirlar  Tablonun hücreleri
+ * @returns {Map<string,{metin:string, siyah:boolean}>} anahtar: "gunNo|HH:MM" (gunNo 0 = pazartesi)
  */
 export function haftalikTabloyuCoz(satirlar) {
   const dolu = new Map();
-  const baslikIdx = satirlar.findIndex((r) => (r || []).some((h) => sadelestir(h) === "pazartesi"));
+  satirlar = satirlar.map((r) => r || []);
+  const baslikIdx = satirlar.findIndex((r) => r.some((h) => sadelestir(metinOf(h)) === "pazartesi"));
   if (baslikIdx === -1) return dolu;
 
   const baslik = satirlar[baslikIdx];
   const gunSutunu = {}; // gunNo -> sütun indeksi
   let saatSutunu = -1;
   baslik.forEach((h, i) => {
-    const s = sadelestir(h);
+    const s = sadelestir(metinOf(h));
     const g = GUN_ADLARI.indexOf(s);
     if (g !== -1 && gunSutunu[g] === undefined) gunSutunu[g] = i;
     if (s === "saat" && saatSutunu === -1) saatSutunu = i;
@@ -34,15 +49,19 @@ export function haftalikTabloyuCoz(satirlar) {
   if (saatSutunu === -1) return dolu;
 
   for (let r = baslikIdx + 1; r < satirlar.length; r++) {
-    const satir = satirlar[r] || [];
-    const saat = saatNormalize(satir[saatSutunu]);
+    const satir = satirlar[r];
+    const saatHucresi = metinOf(satir[saatSutunu]);
+    const saat = saatNormalize(saatHucresi);
     if (!saat) {
-      if (sadelestir(satir[saatSutunu]) === "saat") break; // alt başlık satırı: tablo bitti
+      if (sadelestir(saatHucresi) === "saat") break; // alt başlık satırı: tablo bitti
       continue;
     }
     for (const [g, i] of Object.entries(gunSutunu)) {
-      const metin = String(satir[i] || "").trim();
-      if (metin) dolu.set(`${g}|${saat}`, metin);
+      const h = satir[i];
+      const metin = String(metinOf(h) || "").trim();
+      if (!metin) continue;
+      const renkli = Boolean(h && typeof h === "object"); // renk bilgisi okunabildi mi
+      dolu.set(`${g}|${saat}`, { metin, renkli, siyah: renkli ? siyahMi(h.renk) : false });
     }
   }
   return dolu;

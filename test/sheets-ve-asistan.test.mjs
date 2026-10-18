@@ -32,8 +32,17 @@ function sahteGoogle(haftalik) {
       sekmeler.push(t);
       return cevap({});
     }
-    if (u.includes("values:batchGet")) {
-      return cevap({ valueRanges: [{ values: haftalik }, { values: online }] });
+    if (u.includes("?ranges='REZERVASYON'") && u.includes("fields=")) {
+      assert.match(u, /foregroundColor/, "yazı rengi istenmeli");
+      const rowData = haftalik.map((r) => ({
+        values: r.map((c) => (c && typeof c === "object"
+          ? { formattedValue: c.metin, effectiveFormat: { textFormat: c.renk ? { foregroundColorStyle: c.renk } : {} } }
+          : c ? { formattedValue: c, effectiveFormat: { textFormat: {} } } : {})),
+      }));
+      return cevap({ sheets: [{ data: [{ rowData }] }] });
+    }
+    if (u.includes("/values/'Online Rezervasyonlar'!A1:J?")) {
+      return cevap({ values: online });
     }
     if (u.includes(":append")) {
       online.push(JSON.parse(init.body).values[0]);
@@ -57,7 +66,8 @@ test("Google E-Tablo: sekme oluşturur, haftalık tabloyu okur, satır ekler ve 
     GOOGLE_SERVICE_ACCOUNT_EMAIL: "bot@proje.iam.gserviceaccount.com",
     GOOGLE_PRIVATE_KEY: privateKey.export({ type: "pkcs8", format: "pem" }).replace(/\n/g, "\\n"),
   };
-  const google = sahteGoogle(haftalikTablo({ "ÇARŞAMBA|21:00": "ABONE - 8" }));
+  const MAVI = { rgbColor: { red: 0.07, green: 0.2, blue: 0.85 } };
+  const google = sahteGoogle(haftalikTablo({ "ÇARŞAMBA|21:00": { metin: "ABONE - 8", renk: MAVI } }));
   const d = demoDepo(env);
 
   const car = await d.musaitlik("2026-10-21");
@@ -171,4 +181,35 @@ test("Sohbet geçmişi temizlenir (rol, uzunluk, sıra)", () => {
   assert.equal(t.length, 1);
   assert.equal(t[0].role, "user");
   assert.ok(t[0].content.length <= 1001 + "ikinci".length);
+});
+
+test("Google E-Tablo: SİYAH yazılmış ABONE bu hafta boş, gelecek hafta dolu", async () => {
+  const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+  const env = {
+    SHEET_ID: "test-sheet",
+    GOOGLE_SERVICE_ACCOUNT_EMAIL: "bot@proje.iam.gserviceaccount.com",
+    GOOGLE_PRIVATE_KEY: privateKey.export({ type: "pkcs8", format: "pem" }),
+  };
+  const MAVI = { rgbColor: { blue: 0.8, green: 0.2 } };
+  const SIYAH = { rgbColor: {} };
+  sahteGoogle(haftalikTablo({
+    "PAZARTESİ|21:00": { metin: "ABONE - 15", renk: SIYAH },   // bu hafta gelmiyor
+    "PAZARTESİ|22:00": { metin: "ABONE - 10", renk: MAVI },    // geliyor
+    "PAZARTESİ|23:00": { metin: "ABONE - 3" },                 // renk yok = varsayılan siyah
+    "PAZARTESİ|20:00": { metin: "ABONE - 6", renk: { themeColor: "ACCENT1" } }, // tema rengi = renkli
+  }));
+  const d = demoDepo(env);
+  const buPzt = await d.musaitlik("2026-10-19");
+  assert.ok(buPzt.bosSaatler.includes("21:00"), "siyah abone: bu hafta boş");
+  assert.ok(buPzt.bosSaatler.includes("23:00"), "renksiz (siyah) abone: bu hafta boş");
+  assert.ok(!buPzt.bosSaatler.includes("22:00"), "mavi abone: dolu");
+  assert.ok(!buPzt.bosSaatler.includes("20:00"), "tema renkli abone: dolu");
+  const sonrakiPzt = await d.musaitlik("2026-10-26");
+  assert.ok(!sonrakiPzt.bosSaatler.includes("21:00"), "siyah abone: gelecek hafta dolu");
+  assert.ok(!sonrakiPzt.bosSaatler.includes("23:00"));
+
+  const r = await d.olustur({ gunTarihi: "2026-10-19", saat: "21:00", ad: "Ali Veli", telefon: "05321112233" });
+  assert.ok(r.basarili, "siyah abonenin boşalttığı saat bu hafta satılabilir");
+  const r2 = await d.olustur({ gunTarihi: "2026-10-26", saat: "21:00", ad: "Ali Veli", telefon: "05321112233" });
+  assert.match(r2.hata, /dolu/);
 });

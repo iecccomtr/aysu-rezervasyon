@@ -42,9 +42,10 @@ export const IBAN = { no: "TR70 0015 7000 0000 0154 8342 35", alici: "Ahmet Aysu
 
 // Saha olanakları — müşteri sorarsa asistan bunları söyler.  KONTROL ET
 export const OLANAKLAR = [
-  "Kapalı saha",
-  "Soyunma odası ve duş",
-  "Otopark",
+  "Kapalı (balon) saha, her havada oynanır",
+  "Soyunma odası ve duşlar",
+  "Televizyonlu kafeterya / dinlenme salonu",
+  "Tesis önünde otopark",
 ];
 
 export const KURALLAR = {

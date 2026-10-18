@@ -1,0 +1,12 @@
+Bu klasöre tesis fotoğraflarını şu adlarla koyun (JPG, yaklaşık 1600 px genişlik yeterli):
+
+  saha-genis.jpg  → ana sayfanın büyük arka plan fotoğrafı (sahanın geniş açı iç görünümü)
+  saha.jpg        → galeri: saha (içeriden)
+  soyunma.jpg     → galeri: soyunma odası
+  dus.jpg         → galeri: duşlar
+  kafeterya.jpg   → galeri: kafeterya
+  korner.jpg      → galeri: yapay çim / köşe çizgisi
+  giris.jpg       → galeri: tesis girişi ve otopark
+
+Bir fotoğraf burada yoksa site onu eski siteden (aysuhalisaha.com/app/dn_content/...) yükler.
+Eski hosting kapatılmadan ÖNCE fotoğrafları buraya koymayı unutmayın.

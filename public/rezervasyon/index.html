@@ -161,7 +161,7 @@
     </svg>
     <div class="saha-ic">
       <div>
-        <h1>Aysu Halı Saha</h1>
+        <h1><a href="/" style="color:inherit;text-decoration:none">Aysu Halı Saha</a></h1>
         <p>Online rezervasyon</p>
       </div>
       <a class="ara" href="tel:+905555102626" aria-label="Aysu Halı Saha'yı ara">
@@ -310,6 +310,16 @@
   ekle("assistant", KARSILAMA);
   for (const m of mesajlar) ekle(m.role, m.content);
   if (mesajlar.length) oneriler.hidden = true;
+
+  // Ana sayfadaki tabeladan gelindiyse mesajı hazır yaz (gönderme kararı kullanıcıda).
+  try {
+    const hazir = new URLSearchParams(location.search).get("mesaj");
+    if (hazir) {
+      girdi.value = hazir.slice(0, 200); boyutla(); gonder.disabled = false;
+      history.replaceState(null, "", location.pathname);
+      girdi.focus();
+    }
+  } catch {}
 })();
 </script>
 </body>

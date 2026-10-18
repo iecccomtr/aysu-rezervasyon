@@ -2,12 +2,425 @@
 <html lang="tr">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Aysu Halı Saha</title>
-<meta http-equiv="refresh" content="0; url=/rezervasyon/">
-<link rel="canonical" href="/rezervasyon/">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Aysu Halı Saha · Eskişehir Batıkent kapalı halı saha</title>
+<meta name="description" content="Eskişehir Batıkent'te kapalı halı saha. Her gün 08:00–02:00 açık, maç ücreti 3700 TL. Boş saatleri görün, online rezervasyon yapın.">
+<meta name="theme-color" content="#14532d">
+<link rel="canonical" href="https://www.aysuhalisaha.com/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Aysu Halı Saha · Eskişehir kapalı halı saha">
+<meta property="og:description" content="Boş saatleri görün, maçınızı online ayırtın. Her gün 08:00–02:00.">
+<meta property="og:image" content="https://www.aysuhalisaha.com/galeri/saha.jpg">
+<meta property="og:locale" content="tr_TR">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SportsActivityLocation",
+  "name": "Aysu Halı Saha",
+  "url": "https://www.aysuhalisaha.com/",
+  "telephone": "+905555102626",
+  "email": "aysuhalisaha@gmail.com",
+  "image": "https://www.aysuhalisaha.com/galeri/saha.jpg",
+  "priceRange": "3700 TL / maç",
+  "address": {
+    "@type": "PostalAddress",
+    "streetAddress": "Batıkent Mah. Ertürk Sk. No:2",
+    "addressLocality": "Tepebaşı",
+    "addressRegion": "Eskişehir",
+    "addressCountry": "TR"
+  },
+  "geo": { "@type": "GeoCoordinates", "latitude": 39.7909, "longitude": 30.4660 },
+  "openingHoursSpecification": [{
+    "@type": "OpeningHoursSpecification",
+    "dayOfWeek": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"],
+    "opens": "08:00", "closes": "03:00"
+  }],
+  "sameAs": ["https://www.instagram.com/aysuhalisahacom", "https://www.facebook.com/aysuhalisahaa"]
+}
+</script>
+<style>
+  :root {
+    --cim: #14532d;
+    --cim-koyu: #0b331b;
+    --kirmizi: #c4161c;      /* balon çatının kırmızı şeritleri */
+    --tebesir: #f4f7f1;
+    --murekkep: #13261b;
+    --gri: #55645a;
+    --zemin: #eef2ec;
+    --cizgi: #d6dfd3;
+    --isik: #f5d90a;
+    --gutter: 16px;
+    --en: 1120px;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; font: 400 17px/1.55 "Barlow", system-ui, sans-serif; color: var(--murekkep); background: var(--zemin); }
+  img { max-width: 100%; display: block; }
+  a { color: inherit; }
+  h1, h2, h3 { font-family: "Barlow Condensed", sans-serif; font-weight: 700; line-height: 1.05; margin: 0; }
+  h2 { font-size: clamp(32px, 5vw, 46px); }
+  h3 { font-size: 24px; }
+  p { margin: 0; }
+  .kap { max-width: var(--en); margin: 0 auto; padding: 0 var(--gutter); }
+  section { padding: 72px 0; }
+  :focus-visible { outline: 3px solid var(--isik); outline-offset: 3px; }
+
+  /* ---------- Üst menü ---------- */
+  .ust {
+    position: absolute; inset: 0 0 auto; z-index: 3; color: var(--tebesir);
+    padding-top: env(safe-area-inset-top);
+  }
+  .ust .kap { display: flex; align-items: center; gap: 24px; height: 68px; }
+  .marka { font: 700 26px/1 "Barlow Condensed", sans-serif; text-decoration: none; letter-spacing: .01em; }
+  .ust nav { display: flex; gap: 22px; margin-left: auto; font-weight: 500; }
+  .ust nav a { text-decoration: none; opacity: .9; }
+  .ust nav a:hover { opacity: 1; text-decoration: underline; text-underline-offset: 4px; }
+  .ust .tel { font-weight: 600; text-decoration: none; }
+  @media (max-width: 760px) { .ust nav { display: none; } .ust .tel { margin-left: auto; } }
+
+  /* ---------- Giriş ---------- */
+  .giris {
+    position: relative; color: var(--tebesir); min-height: min(92vh, 760px);
+    display: flex; align-items: flex-end; padding: 120px 0 0; overflow: hidden;
+    background: var(--cim-koyu);
+  }
+  .giris img.arka {
+    position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+  }
+  .giris::after {
+    content: ""; position: absolute; inset: 0;
+    background: linear-gradient(180deg, rgba(8,30,16,.55) 0%, rgba(8,30,16,.25) 35%, rgba(8,30,16,.85) 78%, var(--cim-koyu) 100%);
+  }
+  .giris .kap { position: relative; z-index: 1; width: 100%; }
+  .giris h1 { font-size: clamp(54px, 11vw, 132px); letter-spacing: -.01em; max-width: 9ch; }
+  .giris .alt-baslik { font-size: clamp(18px, 2.4vw, 22px); max-width: 34ch; margin-top: 14px; opacity: .92; }
+  .eylemler { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
+  .dugme {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    font: 600 17px/1 "Barlow", sans-serif; text-decoration: none; cursor: pointer;
+    padding: 16px 22px; border-radius: 999px; border: 2px solid transparent;
+  }
+  .dugme.ana { background: var(--kirmizi); color: #fff; }
+  .dugme.ana:hover { background: #a91217; }
+  .dugme.ikinci { border-color: rgba(244,247,241,.7); color: var(--tebesir); }
+  .dugme.ikinci:hover { background: rgba(244,247,241,.1); }
+
+  /* ---------- Saha tabelası (boş saatler) ---------- */
+  .tabela-alan { position: relative; z-index: 1; margin-top: 48px; padding-bottom: 40px; }
+  .tabela {
+    background: #082414; border: 2px solid #1f6b3d; border-radius: 14px;
+    padding: 18px 18px 20px; box-shadow: 0 0 0 6px rgba(8,36,20,.6);
+  }
+  .tabela-ust { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; margin-bottom: 14px; }
+  .tabela h2 { font-size: 28px; color: var(--tebesir); }
+  .sekmeler { display: flex; gap: 6px; margin-left: auto; }
+  .sekmeler button {
+    font: 600 15px/1 "Barlow", sans-serif; color: #b9d3c1; background: transparent;
+    border: 1px solid #2c6e45; border-radius: 999px; padding: 8px 14px; cursor: pointer;
+  }
+  .sekmeler button[aria-selected="true"] { background: var(--tebesir); color: var(--cim-koyu); border-color: var(--tebesir); }
+  .saatler { display: grid; grid-template-columns: repeat(auto-fill, minmax(68px, 1fr)); gap: 6px; }
+  .saatler a, .saatler span {
+    display: grid; place-items: center; height: 54px; border-radius: 8px;
+    font: 700 24px/1 "Barlow Condensed", sans-serif; letter-spacing: .03em; text-decoration: none;
+  }
+  .saatler a { background: #10391f; color: var(--isik); border: 1px solid #2c6e45; text-shadow: 0 0 10px rgba(245,217,10,.35); }
+  .saatler a:hover { background: var(--isik); color: #1d1a00; text-shadow: none; }
+  .saatler span { color: #3f6a4f; border: 1px dashed #24563a; text-decoration: line-through; font-weight: 600; }
+  .tabela-not { color: #9fbca9; font-size: 14px; margin-top: 12px; }
+  .tabela-not b { color: var(--isik); font-weight: 600; }
+
+  /* ---------- Bilgi şeridi ---------- */
+  .bilgiler { background: var(--tebesir); padding: 56px 0; border-bottom: 1px solid var(--cizgi); }
+  .bilgiler .kap { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; }
+  .bilgi dt { color: var(--gri); font-size: 15px; }
+  .bilgi dd { margin: 4px 0 0; font: 700 40px/1 "Barlow Condensed", sans-serif; }
+  .bilgi p { color: var(--gri); font-size: 15px; margin-top: 8px; max-width: 30ch; }
+  @media (max-width: 760px) { .bilgiler .kap { grid-template-columns: 1fr; gap: 28px; } }
+
+  /* ---------- Tesis ---------- */
+  .tesis-ust { display: flex; justify-content: space-between; align-items: end; gap: 24px; flex-wrap: wrap; margin-bottom: 28px; }
+  .tesis-ust p { max-width: 46ch; color: var(--gri); }
+  .izgara {
+    display: grid; gap: 10px;
+    grid-template-columns: repeat(6, 1fr); grid-auto-rows: 170px;
+  }
+  .izgara figure { margin: 0; position: relative; overflow: hidden; border-radius: 10px; background: #cfd8cc; }
+  .izgara img { width: 100%; height: 100%; object-fit: cover; }
+  .izgara figcaption {
+    position: absolute; left: 10px; bottom: 10px; background: rgba(11,51,27,.85); color: var(--tebesir);
+    font-size: 14px; font-weight: 500; padding: 4px 10px; border-radius: 999px;
+  }
+  .f1 { grid-column: span 4; grid-row: span 2; }
+  .f2, .f3 { grid-column: span 2; }
+  .f4, .f5, .f6 { grid-column: span 2; }
+  @media (max-width: 760px) {
+    .izgara { grid-template-columns: 1fr 1fr; grid-auto-rows: 140px; }
+    .f1 { grid-column: span 2; grid-row: span 2; }
+    .f2, .f3, .f4, .f5 { grid-column: span 1; }
+    .f6 { grid-column: span 2; }
+  }
+
+  /* ---------- Nasıl rezervasyon ---------- */
+  .adimlar-bolum { background: var(--cim); color: var(--tebesir); }
+  .adimlar { list-style: none; padding: 0; margin: 32px 0 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; counter-reset: adim; }
+  .adimlar li { counter-increment: adim; border-top: 2px solid rgba(244,247,241,.35); padding-top: 18px; }
+  .adimlar li::before { content: counter(adim); display: block; font: 700 48px/1 "Barlow Condensed", sans-serif; color: var(--isik); margin-bottom: 10px; }
+  .adimlar p { opacity: .88; margin-top: 6px; }
+  .adimlar-bolum .eylemler { margin-top: 36px; }
+  @media (max-width: 760px) { .adimlar { grid-template-columns: 1fr; } }
+
+  /* ---------- Hakkımızda + Konum ---------- */
+  .iki { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: start; }
+  @media (max-width: 860px) { .iki { grid-template-columns: 1fr; } }
+  .metin p + p { margin-top: 14px; }
+  .metin p { max-width: 60ch; }
+  .metin h2 { margin-bottom: 18px; }
+  .harita { width: 100%; aspect-ratio: 4 / 3; border: 0; border-radius: 12px; background: #d9e1d6; }
+  .adres { margin-top: 18px; display: grid; gap: 6px; }
+  .adres a { font-weight: 600; }
+
+  .franchise { background: var(--tebesir); border-top: 1px solid var(--cizgi); }
+  .franchise .kap { display: flex; gap: 24px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+  .franchise p { color: var(--gri); max-width: 56ch; margin-top: 8px; }
+  .dugme.koyu { background: var(--murekkep); color: var(--tebesir); }
+
+  footer { background: var(--cim-koyu); color: #b9d3c1; padding: 40px 0 calc(40px + env(safe-area-inset-bottom)); font-size: 15px; }
+  footer .kap { display: flex; gap: 24px; flex-wrap: wrap; justify-content: space-between; }
+  footer a { color: var(--tebesir); }
+  footer nav { display: flex; gap: 18px; flex-wrap: wrap; }
+
+  /* Mobilde altta sabit rezervasyon düğmesi */
+  .sabit {
+    display: none; position: fixed; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 5;
+    box-shadow: 0 8px 24px rgba(0,0,0,.25);
+  }
+  .sabit { opacity: 0; transform: translateY(16px); pointer-events: none; transition: opacity .2s, transform .2s; }
+  .sabit.gorunur { opacity: 1; transform: none; pointer-events: auto; }
+  @media (max-width: 760px) { .sabit { display: flex; } footer { padding-bottom: 100px; } }
+  @media (prefers-reduced-motion: reduce) { .sabit { transition: none; } }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+</style>
 </head>
 <body>
-<p><a href="/rezervasyon/">Online rezervasyon sayfasına gidin</a></p>
+
+<header class="ust">
+  <div class="kap">
+    <a class="marka" href="/">Aysu Halı Saha</a>
+    <nav aria-label="Ana menü">
+      <a href="#tesis">Tesis</a>
+      <a href="#rezervasyon">Rezervasyon</a>
+      <a href="#konum">Konum</a>
+      <a href="#franchise">Franchise</a>
+    </nav>
+    <a class="tel" href="tel:+905555102626">0 555 510 26 26</a>
+  </div>
+</header>
+
+<main>
+  <section class="giris" aria-labelledby="baslik">
+    <img class="arka" src="/galeri/saha-genis.jpg" data-yedek="https://www.aysuhalisaha.com/app/dn_content/5d873a9f2a848.jpg"
+         alt="Aysu Halı Saha'nın kırmızı-beyaz balon çatılı kapalı sahası" fetchpriority="high">
+    <div class="kap">
+      <h1 id="baslik">Aysu Halı Saha</h1>
+      <p class="alt-baslik">Batıkent'te kapalı halı saha. Yağmurda, karda, gece 2'ye kadar maç sizi bekliyor.</p>
+      <div class="eylemler" id="giris-eylem">
+        <a class="dugme ana" href="/rezervasyon/">Online rezervasyon yap</a>
+        <a class="dugme ikinci" href="tel:+905555102626">Ara: 0 555 510 26 26</a>
+      </div>
+
+      <div class="tabela-alan">
+        <div class="tabela" id="tabela">
+          <div class="tabela-ust">
+            <h2>Boş saatler</h2>
+            <div class="sekmeler" role="tablist" aria-label="Gün seçimi">
+              <button type="button" role="tab" aria-selected="true" data-gun="bugun">Bugün</button>
+              <button type="button" role="tab" aria-selected="false" data-gun="yarin">Yarın</button>
+            </div>
+          </div>
+          <div class="saatler" id="saatler" role="tabpanel" aria-live="polite">
+            <p class="tabela-not">Saatler yükleniyor…</p>
+          </div>
+          <p class="tabela-not">Sarı saatler boş. Birine dokunun, rezervasyon o saatle başlasın. Gece 00:00–02:00 maçları seçilen günün gecesidir.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="bilgiler" aria-label="Fiyat ve saatler">
+    <dl class="kap">
+      <div class="bilgi">
+        <dt>Maç ücreti</dt>
+        <dd>3700 TL</dd>
+        <p>1200 TL kapora ile yeriniz kesinleşir, kalanı sahada ödenir.</p>
+      </div>
+      <div class="bilgi">
+        <dt>Her gün açık</dt>
+        <dd>08:00 – 02:00</dd>
+        <p>Son maç gece 02:00'de başlar. Her maç bir saattir.</p>
+      </div>
+      <div class="bilgi">
+        <dt>Saha</dt>
+        <dd>Kapalı, balon çatı</dd>
+        <p>Hava ne olursa olsun maç iptal olmaz.</p>
+      </div>
+    </dl>
+  </section>
+
+  <section id="tesis" aria-labelledby="tesis-baslik">
+    <div class="kap">
+      <div class="tesis-ust">
+        <h2 id="tesis-baslik">Maçtan önce ve sonra</h2>
+        <p>Sahanın yanında soyunma odası, duşlar ve maç sonrası oturup çay içebileceğiniz televizyonlu bir kafeterya var. Arabanızı tesisin önüne bırakabilirsiniz.</p>
+      </div>
+      <div class="izgara">
+        <figure class="f1">
+          <img src="/galeri/saha.jpg" data-yedek="https://www.aysuhalisaha.com/app/dn_content/5d873c9ebd44f.jpg" alt="Balon çatılı kapalı saha, içeriden" loading="lazy">
+          <figcaption>Saha</figcaption>
+        </figure>
+        <figure class="f2">
+          <img src="/galeri/soyunma.jpg" data-yedek="https://www.aysuhalisaha.com/app/dn_content/5d873bd02d43a.jpg" alt="Banklar ve dolaplarla soyunma alanı" loading="lazy">
+          <figcaption>Soyunma odası</figcaption>
+        </figure>
+        <figure class="f3">
+          <img src="/galeri/dus.jpg" data-yedek="https://www.aysuhalisaha.com/app/dn_content/5d873b63a6a22.jpg" alt="Duş kabinleri ve lavabo" loading="lazy">
+          <figcaption>Duşlar</figcaption>
+        </figure>
+        <figure class="f4">
+          <img src="/galeri/kafeterya.jpg" data-yedek="https://www.aysuhalisaha.com/app/dn_content/5d873aefaf71a.jpg" alt="Koltuklu ve televizyonlu kafeterya" loading="lazy">
+          <figcaption>Kafeterya</figcaption>
+        </figure>
+        <figure class="f5">
+          <img src="/galeri/korner.jpg" data-yedek="https://www.aysuhalisaha.com/app/dn_content/5d873a2fcd7d4.jpg" alt="Sahanın köşe çizgisi, yakın plan" loading="lazy">
+          <figcaption>Yapay çim</figcaption>
+        </figure>
+        <figure class="f6">
+          <img src="/galeri/giris.jpg" data-yedek="https://www.aysuhalisaha.com/app/dn_content/5d8739b039a02.jpg" alt="Tesis girişi ve önündeki otopark" loading="lazy">
+          <figcaption>Giriş ve otopark</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="adimlar-bolum" id="rezervasyon" aria-labelledby="rez-baslik">
+    <div class="kap">
+      <h2 id="rez-baslik">Rezervasyon iki dakika sürer</h2>
+      <ol class="adimlar">
+        <li>
+          <h3>Saati seçin</h3>
+          <p>Yukarıdaki tabeladan boş saate dokunun ya da sohbette "cuma akşam 9" yazın.</p>
+        </li>
+        <li>
+          <h3>Bilgilerinizi verin</h3>
+          <p>Ad soyad ve cep telefonu yeterli. Asistan özeti gösterir, siz onaylarsınız.</p>
+        </li>
+        <li>
+          <h3>Kaporayı gönderin</h3>
+          <p>1200 TL'yi IBAN'a gönderin, açıklamaya kayıt numaranızı yazın. Ödeme görülünce yeriniz kesinleşir.</p>
+        </li>
+      </ol>
+      <div class="eylemler">
+        <a class="dugme ana" href="/rezervasyon/">Online rezervasyon yap</a>
+        <a class="dugme ikinci" href="tel:+905555102626">Telefonla ayırt</a>
+      </div>
+    </div>
+  </section>
+
+  <section id="konum" aria-labelledby="hakkimizda-baslik">
+    <div class="kap iki">
+      <div class="metin">
+        <h2 id="hakkimizda-baslik">2016'dan beri Batıkent'te</h2>
+        <p>Aysu Halı Saha, Eskişehir'de 1975'ten bu yana mühendislik ve inşaat alanında çalışan Aysu Grup'un hizmet sektöründeki ilk adımı olarak 2016'da açıldı.</p>
+        <p>Kapalı sahamızı her gün sabah 8'den gece 2'ye kadar açık tutuyoruz. Haftalık sabit saatinizi almak isterseniz abonelik için bizi arayın.</p>
+        <div class="adres">
+          <span>Batıkent Mah. Ertürk Sk. No:2, Tepebaşı / Eskişehir</span>
+          <a href="tel:+905555102626">0 555 510 26 26</a>
+          <a href="tel:+902223353555">0 222 335 35 55</a>
+          <a href="mailto:aysuhalisaha@gmail.com">aysuhalisaha@gmail.com</a>
+          <a href="https://www.google.com/maps/search/?api=1&query=Aysu+Hal%C4%B1saha+Eski%C5%9Fehir" target="_blank" rel="noopener">Yol tarifi al</a>
+        </div>
+      </div>
+      <iframe class="harita" title="Aysu Halı Saha harita konumu" loading="lazy" referrerpolicy="no-referrer-when-downgrade"
+        src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3065.7175426821414!2d30.463828615432124!3d39.790893779442776!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x14cc176721b0be67%3A0xc0ca03e4e85a520f!2sAysu+Hal%C4%B1saha!5e0!3m2!1str!2str!4v1566475882254!5m2!1str!2str"></iframe>
+    </div>
+  </section>
+
+  <section class="franchise" id="franchise" aria-labelledby="franchise-baslik">
+    <div class="kap">
+      <div>
+        <h2 id="franchise-baslik">Kendi şehrinizde Aysu Halı Saha</h2>
+        <p>Arsanız varsa, Aysu Halı Saha modelini birlikte kuralım. Başvuru formunu doldurun, sizi arayalım.</p>
+      </div>
+      <a class="dugme koyu" href="https://aysuhalisaha.com/form/form-view/1">Franchise başvurusu</a>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="kap">
+    <span>© <span id="yil">2026</span> Aysu Halı Saha</span>
+    <nav aria-label="Alt menü">
+      <a href="https://www.instagram.com/aysuhalisahacom" target="_blank" rel="noopener">Instagram</a>
+      <a href="https://www.facebook.com/aysuhalisahaa" target="_blank" rel="noopener">Facebook</a>
+      <a href="/kvkk.html">Aydınlatma metni</a>
+    </nav>
+  </div>
+</footer>
+
+<a class="dugme ana sabit" id="sabit" href="/rezervasyon/" tabindex="-1" aria-hidden="true">Online rezervasyon yap</a>
+
+<script>
+(() => {
+  document.getElementById("yil").textContent = new Date().getFullYear();
+
+  // Fotoğraf yeni sitede yoksa eski siteden yükle.
+  document.querySelectorAll("img[data-yedek]").forEach((img) => {
+    const yedek = () => { if (img.src !== img.dataset.yedek) img.src = img.dataset.yedek; };
+    img.addEventListener("error", yedek, { once: true });
+    if (img.complete && img.naturalWidth === 0) yedek();
+  });
+
+  // Mobil sabit düğme: sadece giriş düğmeleri ve tabela ekrandan çıkınca görünür.
+  const sabit = document.getElementById("sabit");
+  const gozlenen = [document.getElementById("giris-eylem"), document.getElementById("tabela"), document.querySelector("footer")];
+  const gorunenler = new Set();
+  if ("IntersectionObserver" in window) {
+    const io = new IntersectionObserver((girdiler) => {
+      girdiler.forEach((g) => g.isIntersecting ? gorunenler.add(g.target) : gorunenler.delete(g.target));
+      const goster = gorunenler.size === 0;
+      sabit.classList.toggle("gorunur", goster);
+      sabit.setAttribute("aria-hidden", String(!goster));
+      sabit.tabIndex = goster ? 0 : -1;
+    });
+    gozlenen.forEach((el) => el && io.observe(el));
+  }
+
+  // Boş saatler tabelası
+  const kutu = document.getElementById("saatler");
+  const sekmeler = document.querySelectorAll(".sekmeler button");
+  let veri = null, secili = "bugun";
+
+  function ciz() {
+    const gun = veri && veri[secili];
+    if (!gun) { kutu.innerHTML = '<p class="tabela-not">Boş saatler şu an gösterilemiyor. Sohbetten sorabilir ya da arayabilirsiniz.</p>'; return; }
+    if (!gun.saatler.length) { kutu.innerHTML = '<p class="tabela-not">Bu gün için kalan saat yok. Yarına bakın.</p>'; return; }
+    const ad = secili === "bugun" ? "Bugün" : "Yarın";
+    kutu.innerHTML = gun.saatler.map((s) => s.bos
+      ? `<a href="/rezervasyon/?mesaj=${encodeURIComponent(`${ad} (${gun.gun}) ${s.saat} için rezervasyon yapmak istiyorum`)}" aria-label="${ad} ${s.saat} boş, rezervasyon yap">${s.saat}</a>`
+      : `<span aria-label="${s.saat} dolu">${s.saat}</span>`).join("");
+  }
+
+  sekmeler.forEach((b) => b.addEventListener("click", () => {
+    secili = b.dataset.gun;
+    sekmeler.forEach((x) => x.setAttribute("aria-selected", String(x === b)));
+    ciz();
+  }));
+
+  fetch("/api/bos-saatler").then((r) => r.ok ? r.json() : null).then((v) => { veri = v; ciz(); }).catch(() => ciz());
+})();
+</script>
 </body>
 </html>

@@ -1,4 +1,18 @@
-# Aysu Halı Saha — Online Rezervasyon Asistanı
+# Aysu Halı Saha — Web Sitesi ve Online Rezervasyon Asistanı
+
+Bu proje iki parçadan oluşur ve ikisi de aynı Cloudflare kurulumunda çalışır:
+
+| Adres | Ne |
+|---|---|
+| `/` | Yeni web sitesi: tanıtım, fiyat ve saatler, **canlı boş saatler tabelası**, tesis galerisi, konum, franchise |
+| `/rezervasyon/` | Yapay zekâlı rezervasyon sohbeti (SMS'teki link buraya gider) |
+| `/kvkk.html` | Aydınlatma metni (taslak) |
+
+Ana sayfadaki tabela bugünün ve yarının boş saatlerini tablodan okuyup gösterir. Bu kısım yapay zekâ kullanmaz, ücretsizdir. Ziyaretçi boş bir saate dokununca sohbet o saat yazılı halde açılır.
+
+**Fotoğraflar:** Site fotoğrafları `public/galeri/` klasöründen yükler. Klasörde olmayan fotoğrafı eski siteden çeker. **Alastyr'i kapatmadan önce** fotoğrafları bu klasöre koyun, dosya adları `public/galeri/BENIOKU.txt` içinde.
+
+---
 
 Müşteri SMS'teki linke tıklar, sohbet sayfası açılır. Yapay zekâ boş saatlere bakar, rezervasyonu alır ve **Google E-Tablo'daki "Online Rezervasyonlar" sekmesine** yazar. Çalışanların kullandığı haftalık **REZERVASYON** tablosu sadece okunur, asla değiştirilmez.
 
@@ -87,10 +101,14 @@ Santralin gönderdiği SMS'teki WhatsApp linkini yeni adresle değiştirin. Örn
 
 > Aysu Halı Saha'yı aradığınız için teşekkürler. Online rezervasyon için: https://aysuhalisaha.com/rezervasyon
 
-### 6. Kendi alan adınız (isteğe bağlı, sonra da yapılabilir)
-- **Hızlı yol:** Bir süre `workers.dev` adresini kullanın.
-- **Kalıcı yol:** `aysuhalisaha.com` alan adını Cloudflare'e ekleyin (**Add a domain**). Cloudflare'in verdiği iki nameserver'ı alan adını aldığınız firmanın panelinde güncelleyin. Ardından Worker → **Settings → Domains & Routes → Add route** ile `aysuhalisaha.com/rezervasyon*` ve `aysuhalisaha.com/api/*` yollarını bu Worker'a bağlayın. Eski site yeni site hazır olana kadar yerinde kalabilir.
-  - Alan adınızda e-posta kayıtları (MX) varsa Cloudflare onları otomatik kopyalar. Yine de geçişten sonra kontrol edin.
+### 6. Alan adını yeni siteye geçirme
+Önce her şeyi `workers.dev` adresinde deneyin. Hazır olunca:
+1. Fotoğrafları `public/galeri/` klasörüne koyun (bkz. `BENIOKU.txt`).
+2. Cloudflare'de **Add a domain** ile `aysuhalisaha.com` alan adını ekleyin. Cloudflare'in verdiği iki nameserver'ı alan adını aldığınız firmanın panelinde (muhtemelen Alastyr) güncelleyin.
+3. Worker → **Settings → Domains & Routes → Add → Custom domain** ile önce `aysuhalisaha.com`, sonra `www.aysuhalisaha.com` adresini ekleyin.
+4. Eski sitedeki franchise formu (`aysuhalisaha.com/form/...`) eski hosting'de durduğu için geçişten sonra çalışmaz. Geçişten önce bana söyleyin, formu yeni siteye taşıyayım. Başvurular tabloda ayrı bir sekmeye düşer.
+5. Birkaç gün sorunsuz çalıştıktan sonra Alastyr hosting'i kapatabilirsiniz.
+   - Alan adınızda e-posta kayıtları (MX) varsa Cloudflare onları otomatik kopyalar. Yine de geçişten sonra kontrol edin. Gmail kullandığınız için büyük ihtimalle etkilenmezsiniz.
 
 ### 7. Telegram bildirimi (isteğe bağlı)
 Her yeni rezervasyon, iptal ve "yetkiliyle görüşmek istiyorum" talebi telefonunuza mesaj olarak gelir.

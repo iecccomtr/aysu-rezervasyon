@@ -8,7 +8,7 @@
 //          bu hafta gelmiyor demektir → bu hafta boş, sonraki haftalar dolu.
 //        - Diğer dolu hücreler (tek seferlik) sadece İÇİNDE BULUNULAN hafta için dolu sayılır,
 //          çünkü hafta sonunda siliniyorlar.
-//   2) Online Rezervasyonlar sekmesi: asistanın yazdığı tarihli kayıtlar.
+//   2) Online Rezervasyonlar sekmesi: sitenin yazdığı tarihli kayıtlar.
 //
 // Depo türü:
 //   - Google E-Tablo: GOOGLE_SERVICE_ACCOUNT_EMAIL, GOOGLE_PRIVATE_KEY, SHEET_ID tanımlıysa
@@ -116,36 +116,45 @@ export class RezervasyonDeposu extends DurableObject {
     return buHafta;
   }
 
-  // ---------- Asistanın kullandığı işlemler (RPC) ----------
+  // ---------- Sitenin kullandığı işlemler (RPC) ----------
+
+  /** Tek bir "işletme günü"nün saatleri: gündüz saatleri o tarihte, gece saatleri ertesi takvim gününde. */
+  gunHesapla(durum, tarihGirdi) {
+    const tarih = tarihNormalize(tarihGirdi);
+    if (!tarih) return { hata: "Tarih anlaşılamadı. YYYY-AA-GG biçiminde verin." };
+    const bugun = simdi().tarih;
+    if (tarih < gunEkle(bugun, -1)) return { hata: "Geçmiş bir tarih için rezervasyon yapılamaz." };
+    if (tarih > gunEkle(bugun, KURALLAR.enFazlaGunSonra)) {
+      return { hata: `En fazla ${KURALLAR.enFazlaGunSonra} gün sonrasına rezervasyon alınıyor.` };
+    }
+    const simdiMs = Date.now();
+    const saatler = SAATLER.map((saat) => {
+      const gercekTarih = Number(saat.slice(0, 2)) < 6 ? gunEkle(tarih, 1) : tarih;
+      return { saat, gercekTarih };
+    })
+      .filter(({ gercekTarih, saat }) => macZamani(gercekTarih, saat) > simdiMs)
+      .map(({ saat, gercekTarih }) => ({
+        saat,
+        bos: !this.doluMu(durum, gercekTarih, saat),
+        ucret: fiyat(gercekTarih, saat),
+        ...(gercekTarih !== tarih ? { not: `gece maçı, takvimde ${gercekTarih}` } : {}),
+      }));
+    return {
+      tarih, gun: gunAdi(tarih),
+      bosSaatler: saatler.filter((s) => s.bos).map((s) => s.saat),
+      detay: saatler,
+    };
+  }
 
   async musaitlik(tarihGirdi) {
+    return this.kilitli(async () => this.gunHesapla(await this.durumuOku(), tarihGirdi));
+  }
+
+  /** Birden çok günü tablodan TEK okumayla hesaplar (rezervasyon sayfası 8 günü birden ister). */
+  async musaitlikCoklu(tarihler) {
     return this.kilitli(async () => {
-      const tarih = tarihNormalize(tarihGirdi);
-      if (!tarih) return { hata: "Tarih anlaşılamadı. YYYY-AA-GG biçiminde verin." };
-      const bugun = simdi().tarih;
-      if (tarih < gunEkle(bugun, -1)) return { hata: "Geçmiş bir tarih için rezervasyon yapılamaz." };
-      if (tarih > gunEkle(bugun, KURALLAR.enFazlaGunSonra)) {
-        return { hata: `En fazla ${KURALLAR.enFazlaGunSonra} gün sonrasına rezervasyon alınıyor.` };
-      }
-      // Bu "işletme günü"nün saatleri: gündüz saatleri o tarihte, gece saatleri ertesi takvim gününde.
       const durum = await this.durumuOku();
-      const simdiMs = Date.now();
-      const saatler = SAATLER.map((saat) => {
-        const gercekTarih = Number(saat.slice(0, 2)) < 6 ? gunEkle(tarih, 1) : tarih;
-        return { saat, gercekTarih };
-      })
-        .filter(({ gercekTarih, saat }) => macZamani(gercekTarih, saat) > simdiMs)
-        .map(({ saat, gercekTarih }) => ({
-          saat,
-          bos: !this.doluMu(durum, gercekTarih, saat),
-          ucret: fiyat(gercekTarih, saat),
-          ...(gercekTarih !== tarih ? { not: `gece maçı, takvimde ${gercekTarih}` } : {}),
-        }));
-      return {
-        tarih, gun: gunAdi(tarih),
-        bosSaatler: saatler.filter((s) => s.bos).map((s) => s.saat),
-        detay: saatler,
-      };
+      return tarihler.map((t) => this.gunHesapla(durum, t));
     });
   }
 

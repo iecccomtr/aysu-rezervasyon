@@ -1,143 +1,94 @@
-# Aysu Halı Saha — Web Sitesi ve Online Rezervasyon Asistanı
-
-Bu proje iki parçadan oluşur ve ikisi de aynı Cloudflare kurulumunda çalışır:
+# Aysu Halı Saha: Web Sitesi ve Online Rezervasyon
 
 | Adres | Ne |
 |---|---|
-| `/` | Yeni web sitesi: tanıtım, fiyat ve saatler, **canlı boş saatler tabelası**, tesis galerisi, konum, franchise |
-| `/rezervasyon/` | Yapay zekâlı rezervasyon sohbeti (SMS'teki link buraya gider) |
-| `/kvkk.html` | Aydınlatma metni (taslak) |
+| `/` | Web sitesi: tanıtım, fiyat ve saatler, **canlı boş saatler tabelası**, tesis galerisi, konum |
+| `/rezervasyon/` | Rezervasyon sayfası (santralin SMS'indeki link buraya gider) |
+| `/kvkk.html` | Aydınlatma metni (taslak, hukuki kontrol önerilir) |
 
-Ana sayfadaki tabela bugünün ve yarının boş saatlerini tablodan okuyup gösterir. Bu kısım yapay zekâ kullanmaz, ücretsizdir. Ziyaretçi boş bir saate dokununca sohbet o saat yazılı halde açılır.
+İki sayfada da sağ altta **WhatsApp** düğmesi var. Konuşmak isteyen müşteri doğrudan 0 555 510 26 26'ya yazar.
 
-**Fotoğraflar:** Site fotoğrafları `public/galeri/` klasöründen yükler. Klasörde olmayan fotoğrafı eski siteden çeker. **Alastyr'i kapatmadan önce** fotoğrafları bu klasöre koyun, dosya adları `public/galeri/BENIOKU.txt` içinde.
+## Rezervasyon nasıl işler
 
----
+1. Müşteri **günü** ve **boş saati** seçer, **ad soyad** ve **cep telefonu** yazar.
+2. Sistem saati hemen tutar ve kaydı Google E-Tablo'daki **"Online Rezervasyonlar"** sekmesine **"Kapora bekleniyor"** durumuyla yazar.
+3. Müşteriye ekranda **kayıt numarası** (ör. `AY-K7P2M`), **IBAN** ve kalan tutar gösterilir. "Dekontu WhatsApp'tan gönder" düğmesi kayıt numaralı hazır bir mesaj açar.
+4. İşletmeye **e-posta** gelir: tarih, saat, ad, telefon, kayıt no.
+5. Kapora gelince tabloda **"Ödenen Kapora"** sütununa tutarı yazın (ör. `1000 + 200`) ve **Durum**'u **Onaylı** yapın. Gelmezse **İptal** yazın, saat yeniden boşalır.
 
-Müşteri SMS'teki linke tıklar, sohbet sayfası açılır. Yapay zekâ boş saatlere bakar, rezervasyonu alır ve **Google E-Tablo'daki "Online Rezervasyonlar" sekmesine** yazar. Çalışanların kullandığı haftalık **REZERVASYON** tablosu sadece okunur, asla değiştirilmez.
+Müşteri kayıt numarası ve telefonuyla sayfadan kendisi iptal edebilir (maçtan en geç 3 saat önce). İptallerde de e-posta gelir.
 
-## Nasıl çalışır
-
-```
-Müşteri ──SMS linki──▶ Sohbet sayfası (Cloudflare)
-                              │
-                              ▼
-                     Cloudflare Worker ──▶ Claude (yapay zekâ)
-                              │
-                              ▼
-                     Rezervasyon deposu (tek sıra, çift kayıt olmaz)
-                              │
-                              ▼
-               Google E-Tablo
-               ├─ REZERVASYON (haftalık)      → sadece okunur
-               └─ Online Rezervasyonlar       → asistan buraya yazar
-```
-
-**Doluluk kuralı:**
-- Haftalık tabloda **ABONE** yazan hücreler her hafta dolu sayılır.
-  - **İstisna:** ABONE yazısı **siyahsa**, abone bu hafta gelmiyor demektir. O saat **bu hafta boş** sayılır ve satılabilir, gelecek hafta yine dolu sayılır.
-  - Renk kodu: mavi, kırmızı veya başka bir renk "abone geliyor", siyah "bu hafta gelmiyor" anlamına gelir. Hiç renk verilmemiş yazı da siyah sayılır. Yani aktif aboneleri **mutlaka renkli** yazın.
-- İsimli tek seferlik hücreler (ör. "EREN - 1200/2500 TL") sadece **içinde bulunulan hafta** için dolu sayılır, çünkü hafta sonunda siliniyorlar.
-- "Online Rezervasyonlar" sekmesinde durumu **İptal** olmayan her satır dolu sayılır.
-- Gece maçları (00:00, 01:00, 02:00) o günün gecesidir. Tablodaki "Cuma 01:00" hücresi, Cumartesi sabahı 01:00 demektir.
-
-**Kapora akışı:**
-1. Asistan rezervasyonu **"Kapora bekleniyor"** durumuyla yazar ve müşteriye IBAN'ı verir. Müşteriden havale açıklamasına kayıt numarasını (ör. `AY-K7P2M`) yazmasını ister.
-2. Para gelince **"Ödenen Kapora"** sütununa tutarı yazın (ör. `1000 + 200`) ve Durum'u **Onaylı** yapın.
-3. Kapora gelmezse Durum'u **İptal** yapın. Saat yeniden boşa çıkar.
-
-> **Önemli:** Telefonla alınan rezervasyonları her zamanki gibi haftalık tabloya yazmaya devam edin. Asistan o tabloyu da okuduğu için dolu saati boş sanmaz.
+### Doluluk kuralları
+- Çalışanların kullandığı haftalık **REZERVASYON** tablosu sadece **okunur**, site oraya hiç yazmaz. Telefonla alınan rezervasyonları her zamanki gibi oraya yazın, site o saatleri dolu gösterir.
+- **ABONE** hücreleri her hafta dolu sayılır. **İstisna:** ABONE yazısı **siyahsa** abone bu hafta gelmiyor demektir. O saat bu hafta boş görünür, gelecek hafta yine dolu sayılır. Aktif aboneleri **renkli** (ör. mavi) yazın; hiç renk verilmemiş yazı siyah sayılır.
+- İsimli tek seferlik hücreler (ör. "EREN - 1200/2500 TL") sadece içinde bulunulan hafta için dolu sayılır.
+- "Online Rezervasyonlar" sekmesinde Durum'u **İptal** olmayan her satır dolu sayılır.
+- Gece maçları (00:00, 01:00, 02:00) o günün gecesidir: "Cuma 01:00" = Cumartesi sabahı 01:00.
+- Aynı saate aynı anda iki kişi basarsa sadece biri kaydedilir.
+- Bir telefon numarasıyla aynı anda en fazla 2 ileri tarihli rezervasyon yapılabilir.
 
 ---
 
-## Kurulum (yaklaşık 30–45 dakika)
+## Kurulum
 
-### 1. Anthropic (yapay zekâ) anahtarı
-1. https://console.anthropic.com adresinden hesap açın.
-2. **Billing** bölümünden kart ekleyip bakiye yükleyin. Başlangıç için 5–10 $ yeterli.
-3. **API Keys → Create Key** ile anahtar oluşturun (`sk-ant-...` ile başlar). Bir yere not edin, bir daha gösterilmez.
-4. İsteğe bağlı: **Limits** bölümünden aylık harcama sınırı koyun (ör. 20 $).
+Site Cloudflare'de yayında: **https://aysu-rezervasyon.aysuahmt.workers.dev**. GitHub'a gönderilen her değişiklik otomatik olarak yayına alınır. Şu an **demo modunda**: tabloya bağlı değil ve her saati boş gösteriyor.
 
-### 2. Google servis hesabı (tabloya erişim için)
-1. https://console.cloud.google.com adresinde yeni proje açın, adı `aysu-rezervasyon` olabilir.
-2. **APIs & Services → Library** bölümünde **Google Sheets API**'yi bulun ve **Enable** deyin.
-3. **APIs & Services → Credentials → Create credentials → Service account** yolunu izleyin. İsim verin, rol atamanıza gerek yok.
-4. Oluşan hesaba girin, **Keys → Add key → Create new key → JSON** seçin. Bir dosya iner.
-5. Dosyadaki şu iki değer lazım olacak:
+Gizli değerler Cloudflare'de **Workers & Pages → aysu-rezervasyon → Settings → Variables and Secrets → Add** yolundan **Secret** olarak girilir. Bu değerleri kimseyle paylaşmayın, bir yere yazmayın.
+
+### 1. Google servis hesabı (tabloya erişim)
+1. https://console.cloud.google.com adresinde yeni proje açın (ad: `aysu-rezervasyon`).
+2. **APIs & Services → Library** bölümünde **Google Sheets API**'yi bulup **Enable** deyin.
+3. **APIs & Services → Credentials → Create credentials → Service account** yolunu izleyin. İsim verin, rol atamayın.
+4. Oluşan hesaba girin, **Keys → Add key → Create new key → JSON** seçin. Bir dosya iner. İçindeki iki değer lazım:
    - `client_email` (ör. `aysu-bot@aysu-rezervasyon.iam.gserviceaccount.com`)
    - `private_key` (`-----BEGIN PRIVATE KEY-----` ile başlayan uzun metin)
-
-### 3. Tabloyu servis hesabıyla paylaşın
-> Bu adımı **tablonun sahibi** yapmalı. Şu an tablo size sadece görüntüleme izniyle açık.
-
-1. "REZERVASYON VE GÖREVLER" tablosunu açın, sağ üstteki **Paylaş** butonuna basın.
-2. `client_email` adresini yazın ve **Düzenleyen** seçin, bildirim e-postasını kapatın.
-3. Tablonun linkindeki kimliği not edin: `https://docs.google.com/spreadsheets/d/`**`16Y80fH6RpQyTD_Qqg7FFsaZEwXz6QAO6ZDXx1G_jjP8`**`/edit`
-
-Asistan ilk çalıştığında **"Online Rezervasyonlar"** sekmesini kendisi oluşturur. Haftalık sekmenin adı `REZERVASYON` olarak kalmalı. Değişirse `src/config.js` içindeki `HAFTALIK_SEKME` ayarını güncelleyin.
-
-### 4. Cloudflare'e yükleme (GitHub üzerinden, bilgisayara bir şey kurmadan)
-1. https://dash.cloudflare.com adresinden ücretsiz hesap açın.
-2. **Workers & Pages → Create → Import a repository** ile GitHub hesabınızı bağlayın ve `aysu-rezervasyon` reposunu seçin.
-3. Ayarlarda **Deploy command** `npx wrangler deploy` olarak kalsın, **Deploy** deyin.
-4. Yükleme bitince Worker'ın **Settings → Variables and Secrets** bölümüne şunları **Secret** olarak ekleyin:
+5. **Tablonun sahibi**, "REZERVASYON VE GÖREVLER" tablosunu **Paylaş** düğmesinden `client_email` adresiyle **Düzenleyen** olarak paylaşsın.
+6. Cloudflare'e şu üç secret'ı girin:
 
    | Ad | Değer |
    |---|---|
-   | `ANTHROPIC_API_KEY` | 1. adımdaki `sk-ant-...` anahtarı |
-   | `SHEET_ID` | 3. adımdaki tablo kimliği |
+   | `SHEET_ID` | `16Y80fH6RpQyTD_Qqg7FFsaZEwXz6QAO6ZDXx1G_jjP8` |
    | `GOOGLE_SERVICE_ACCOUNT_EMAIL` | `client_email` |
    | `GOOGLE_PRIVATE_KEY` | `private_key`'in tamamı (BEGIN/END satırları dahil) |
 
-5. Size verilen adresi açın: `https://aysu-rezervasyon.<hesap>.workers.dev/api/saglik`
-   - `"depo":"google-sheets"` görüyorsanız bağlantı tamam.
-   - `"depo":"demo"` görüyorsanız secret'lar eksik demektir.
-6. `https://aysu-rezervasyon.<hesap>.workers.dev/rezervasyon/` adresinden deneme rezervasyonu yapın. Tabloda yeni sekmede satırı görün, sonra Durum'u **İptal** yapın.
+7. Kontrol için `.../api/saglik` adresini açın. `"depo":"google-sheets"` görünüyorsa bağlantı tamamdır. Site ilk okumada **"Online Rezervasyonlar"** sekmesini kendisi oluşturur.
 
-Bundan sonra GitHub'a gönderilen her değişiklik otomatik olarak yayına alınır.
+### 2. E-posta bildirimi (Resend, ücretsiz)
+1. https://resend.com adresinde **aysuhalisaha@gmail.com** ile hesap açın.
+2. **API Keys → Create API Key** ile anahtar oluşturun (`re_...` ile başlar).
+3. Cloudflare'e `RESEND_API_KEY` secret'ını girin.
 
-### 5. Santral SMS linki
-Santralin gönderdiği SMS'teki WhatsApp linkini yeni adresle değiştirin. Örnek metin:
+Bildirimler aysuhalisaha@gmail.com'a gelir. Başka bir adrese gitsin isterseniz `BILDIRIM_EPOSTA` ekleyin. Not: Kendi alan adınızı Resend'de doğrulamadan önce Resend sadece hesabı açtığınız e-postaya gönderim yapar, o yüzden hesabı bu adresle açın.
 
-> Aysu Halı Saha'yı aradığınız için teşekkürler. Online rezervasyon için: https://aysuhalisaha.com/rezervasyon
+### 3. Santral SMS linki
+SMS'teki WhatsApp linkini değiştirin. Örnek metin:
+> Aysu Halı Saha'yı aradığınız için teşekkürler. Online rezervasyon: https://aysuhalisaha.com/rezervasyon
 
-### 6. Alan adını yeni siteye geçirme
+### 4. Alan adını yeni siteye geçirme
 Önce her şeyi `workers.dev` adresinde deneyin. Hazır olunca:
-1. Fotoğrafları `public/galeri/` klasörüne koyun (bkz. `BENIOKU.txt`).
-2. Cloudflare'de **Add a domain** ile `aysuhalisaha.com` alan adını ekleyin. Cloudflare'in verdiği iki nameserver'ı alan adını aldığınız firmanın panelinde (muhtemelen Alastyr) güncelleyin.
-3. Worker → **Settings → Domains & Routes → Add → Custom domain** ile önce `aysuhalisaha.com`, sonra `www.aysuhalisaha.com` adresini ekleyin.
-4. Eski sitedeki franchise formu (`aysuhalisaha.com/form/...`) eski hosting'de durduğu için geçişten sonra çalışmaz. Geçişten önce bana söyleyin, formu yeni siteye taşıyayım. Başvurular tabloda ayrı bir sekmeye düşer.
-5. Birkaç gün sorunsuz çalıştıktan sonra Alastyr hosting'i kapatabilirsiniz.
-   - Alan adınızda e-posta kayıtları (MX) varsa Cloudflare onları otomatik kopyalar. Yine de geçişten sonra kontrol edin. Gmail kullandığınız için büyük ihtimalle etkilenmezsiniz.
-
-### 7. Telegram bildirimi (isteğe bağlı)
-Her yeni rezervasyon, iptal ve "yetkiliyle görüşmek istiyorum" talebi telefonunuza mesaj olarak gelir.
-1. Telegram'da **@BotFather**'a `/newbot` yazın ve bot oluşturun. Verdiği **token**'ı alın.
-2. Botunuza bir mesaj atın. Sonra tarayıcıda `https://api.telegram.org/bot<TOKEN>/getUpdates` adresini açın ve `"chat":{"id": ...}` değerini alın.
-3. Cloudflare'e `TELEGRAM_BOT_TOKEN` ve `TELEGRAM_CHAT_ID` secret'larını ekleyin.
+1. Fotoğrafları `public/galeri/` klasörüne koyun (bkz. `BENIOKU.txt`). Şu an fotoğraflar eski siteden çekiliyor.
+2. Cloudflare'de **Add a domain** ile `aysuhalisaha.com`'u ekleyin. Verilen iki nameserver'ı alan adını aldığınız firmanın panelinde güncelleyin.
+3. Worker'da **Settings → Domains & Routes → Add → Custom domain** ile `aysuhalisaha.com` ve `www.aysuhalisaha.com` adreslerini ekleyin.
+4. Birkaç gün sorunsuz çalıştıktan sonra Alastyr hosting'i kapatabilirsiniz. Alan adınızda e-posta (MX) kaydı varsa geçişten sonra kontrol edin.
 
 ---
 
-## Ayarları değiştirme
-Tüm işletme bilgileri `src/config.js` dosyasında:
+## Ayarlar (`src/config.js`)
 
 | Ayar | Ne işe yarar |
 |---|---|
-| `SAATLER` | Maç saatleri (şu an 08:00 – 02:00) |
-| `FIYATLAR` | Ücret (şu an her saat 3700 TL) ve kapora (1200 TL). Gündüz, akşam ve hafta sonu ayrı ayarlanabilir. |
-| `KAPORA_ACIKLAMA`, `IBAN` | Asistanın kapora için söyledikleri |
-| `OLANAKLAR` | Müşteri sorarsa söylenen olanaklar. **Kontrol edin.** |
-| `KURALLAR` | En fazla kaç gün ileriye (7), kişi başı aktif rezervasyon (2), iptal için son saat (3) |
-| `MODEL` | `claude-haiku-5-5` (ekonomik) veya `claude-sonnet-5-5` (daha zeki) |
+| `SAATLER` | Maç saatleri (08:00 – 02:00) |
+| `FIYATLAR` | Maç ücreti (3700 TL) ve kapora (1200 TL). Gündüz, akşam ve hafta sonu ayrı ayarlanabilir. |
+| `IBAN` | Kapora için gösterilen IBAN ve alıcı |
+| `KURALLAR` | Kaç gün ileriye rezervasyon (7), kişi başı aktif rezervasyon (2), iptal için son saat (3) |
+| `HAFTALIK_SEKME` | Haftalık tablonun sekme adı (`REZERVASYON`) |
 
-GitHub'da dosyayı düzenleyip kaydedin. Cloudflare birkaç dakika içinde yeni hali yayına alır.
+GitHub'da dosyayı düzenleyip kaydedin. Cloudflare birkaç dakikada yayına alır.
 
 ## Maliyet
-- **Cloudflare:** Ücretsiz plan yeterli.
-- **Google E-Tablolar:** Ücretsiz.
-- **Claude Haiku 5.5:** Konuşma başına yaklaşık 1 sentin altında, ayda 1.000 konuşma için yaklaşık 6 $.
+Cloudflare, Google E-Tablolar ve Resend'in ücretsiz planları bu iş için yeterli. **Aylık ücret yok.**
 
 ## Geliştirici notları
-- `npm test` komutu 16 testi çalıştırır: doluluk kuralları, gece maçları, çift rezervasyon, iptal, Google bağlantısı ve asistan döngüsü.
-- `node --import ./test/register.mjs test/yerel-sunucu.mjs` komutu, API anahtarı olmadan senaryolu bir yapay zekâ taklidiyle `http://localhost:8787/rezervasyon/` adresinde yerel deneme sunucusu açar.
-- Kötüye kullanım sınırı: IP başına dakikada 20 mesaj (`wrangler.jsonc → ratelimits`).
+- `npm test`: 20 test (doluluk kuralları, siyah ABONE, gece maçları, çift rezervasyon, iptal, Google bağlantısı, API uçları, e-posta).
+- `node --import ./test/register.mjs test/yerel-sunucu.mjs`: yerel deneme sunucusunu demo depoyla `http://localhost:8787` adresinde açar.
+- Kötüye kullanım koruması: IP başına dakikada 20 istek, görünmez bot tuzağı alanı ve başka sitelerden gelen isteklerin reddi.

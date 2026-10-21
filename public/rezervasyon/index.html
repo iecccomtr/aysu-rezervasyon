@@ -4,153 +4,177 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Rezervasyon · Aysu Halı Saha</title>
-<meta name="description" content="Aysu Halı Saha online rezervasyon: boş saatleri sorun, maçınızı ayırtın.">
+<meta name="description" content="Aysu Halı Saha online rezervasyon: günü ve saati seçin, maçınızı hemen ayırtın.">
 <meta name="theme-color" content="#14532d">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
 <style>
   :root {
-    --cim: #14532d;        /* saha yeşili */
-    --cim-koyu: #0d3b20;
-    --tebesir: #f4f7f1;    /* çizgi beyazı */
-    --isik: #f5d90a;       /* projektör sarısı */
+    --cim: #14532d;
+    --cim-koyu: #0b331b;
+    --kirmizi: #c4161c;
+    --tebesir: #f4f7f1;
+    --isik: #f5d90a;
     --murekkep: #13261b;
-    --gri: #5d6b62;
-    --cizgi: #dfe6dc;
+    --gri: #55645a;
+    --cizgi: #d6dfd3;
     --kart: #ffffff;
     --zemin: #eef2ec;
     --hata: #a4161a;
+    --wp: #25d366;
   }
   * { box-sizing: border-box; }
-  html, body { height: 100%; margin: 0; }
-  body {
-    font: 400 16px/1.5 "Barlow", system-ui, sans-serif;
-    color: var(--murekkep);
-    background: var(--zemin);
-    display: flex; flex-direction: column;
-    height: 100dvh;
-  }
+  html, body { margin: 0; }
+  body { font: 400 17px/1.5 "Barlow", system-ui, sans-serif; color: var(--murekkep); background: var(--zemin); min-height: 100dvh; }
+  h1, h2 { font-family: "Barlow Condensed", sans-serif; font-weight: 700; line-height: 1.05; margin: 0; }
+  p { margin: 0; }
+  button, input, textarea { font: inherit; color: inherit; }
+  :focus-visible { outline: 3px solid var(--isik); outline-offset: 2px; }
+  [hidden] { display: none !important; }
+  .kap { max-width: 720px; margin: 0 auto; padding: 0 16px; }
 
-  /* ---------- Saha başlığı ---------- */
+  /* ---------- Başlık ---------- */
   .saha {
-    position: relative; overflow: hidden;
-    background:
-      repeating-linear-gradient(90deg, var(--cim) 0 44px, #175e33 44px 88px);
-    color: var(--tebesir);
-    padding: 14px 16px 16px;
-    padding-top: max(14px, env(safe-area-inset-top));
-    flex: none;
+    position: relative; overflow: hidden; color: var(--tebesir);
+    background: repeating-linear-gradient(90deg, var(--cim) 0 44px, #175e33 44px 88px);
+    padding: max(14px, env(safe-area-inset-top)) 0 18px;
   }
-  .saha svg.cizgiler {
-    position: absolute; inset: 0; width: 100%; height: 100%;
-    pointer-events: none; opacity: .32;
-  }
-  .saha-ic {
-    position: relative; max-width: 720px; margin: 0 auto;
-    display: flex; align-items: center; gap: 12px;
-  }
-  .saha h1 {
-    font: 700 28px/1 "Barlow Condensed", sans-serif;
-    letter-spacing: .01em; margin: 0;
-  }
-  .saha p { margin: 2px 0 0; font-size: 14px; opacity: .85; }
+  .saha > svg { position: absolute; inset: 0; width: 100%; height: 100%; opacity: .3; pointer-events: none; }
+  .saha .kap { position: relative; display: flex; align-items: center; gap: 12px; }
+  .saha h1 { font-size: 30px; }
+  .saha h1 a { color: inherit; text-decoration: none; }
+  .saha p { font-size: 15px; opacity: .88; margin-top: 2px; }
   .ara {
-    margin-left: auto; flex: none;
-    display: inline-flex; align-items: center; gap: 6px;
-    background: var(--tebesir); color: var(--cim-koyu);
-    font: 600 15px/1 "Barlow", sans-serif; text-decoration: none;
-    padding: 10px 14px; border-radius: 999px;
+    margin-left: auto; flex: none; display: inline-flex; align-items: center; gap: 6px;
+    background: var(--tebesir); color: var(--cim-koyu); text-decoration: none;
+    font-weight: 600; font-size: 15px; padding: 10px 14px; border-radius: 999px;
   }
   .ara svg { width: 16px; height: 16px; }
 
-  /* ---------- Sohbet ---------- */
-  main { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-  .akis {
-    max-width: 720px; margin: 0 auto; padding: 20px 16px 8px;
-    display: flex; flex-direction: column; gap: 10px;
-  }
-  .mesaj {
-    max-width: 85%; padding: 10px 14px; border-radius: 18px;
-    white-space: pre-wrap; overflow-wrap: anywhere;
-    animation: gel .18s ease-out;
-  }
-  .asistan { align-self: flex-start; background: var(--kart); border-bottom-left-radius: 6px; border: 1px solid var(--cizgi); }
-  .kullanici { align-self: flex-end; background: var(--isik); color: #1d1a00; border-bottom-right-radius: 6px; }
-  .mesaj.hata { background: #fff1f1; border-color: #f2c4c4; color: var(--hata); }
-  .mesaj a { color: var(--cim); font-weight: 600; }
-  .mesaj strong { font-weight: 600; }
-  @keyframes gel { from { opacity: 0; transform: translateY(4px); } }
+  main { padding: 22px 16px 110px; }
+  .adim { margin-bottom: 26px; }
+  .adim-baslik { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; }
+  .adim-baslik h2 { font-size: 26px; }
+  .adim-baslik span { color: var(--gri); font-size: 15px; }
 
-  .kayit-no {
-    display: inline-block; font: 700 18px/1 "Barlow Condensed", sans-serif;
-    letter-spacing: .06em; background: var(--cim); color: var(--tebesir);
-    padding: 4px 8px; border-radius: 6px;
+  /* ---------- Gün şeridi ---------- */
+  .gunler { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 8px; margin: 0 -2px; scrollbar-width: none; scroll-snap-type: x proximity; }
+  .gunler::-webkit-scrollbar { display: none; }
+  .gun {
+    flex: none; width: 82px; scroll-snap-align: start; cursor: pointer;
+    background: var(--kart); border: 1px solid var(--cizgi); border-radius: 12px;
+    padding: 10px 6px 9px; text-align: center; line-height: 1.15;
   }
-  .kopyala {
-    font: 600 13px/1 "Barlow", sans-serif; margin-left: 6px; vertical-align: 2px;
-    border: 1px solid var(--cim); color: var(--cim); background: transparent;
-    padding: 4px 8px; border-radius: 999px; cursor: pointer;
+  .gun b { display: block; font: 700 22px/1 "Barlow Condensed", sans-serif; margin: 3px 0 4px; }
+  .gun small { display: block; font-size: 13px; color: var(--gri); }
+  .gun .ust-yazi { font-size: 14px; font-weight: 600; }
+  .gun .ay { font-size: 15px; font-weight: 600; }
+  .gun[aria-pressed="true"] { background: var(--cim); border-color: var(--cim); color: var(--tebesir); }
+  .gun[aria-pressed="true"] small { color: #b9d3c1; }
+  .gun.kapali { opacity: .55; }
+
+  /* ---------- Saat ızgarası (skorbord) ---------- */
+  .tabela { background: #082414; border-radius: 14px; padding: 14px; border: 2px solid #1f6b3d; }
+  .grup + .grup { margin-top: 14px; }
+  .grup-ad { color: #9fbca9; font-size: 14px; margin-bottom: 8px; }
+  .saatler { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 6px; }
+  .saat {
+    height: 54px; border-radius: 8px; cursor: pointer;
+    font: 700 24px/1 "Barlow Condensed", sans-serif; letter-spacing: .03em;
+    background: #10391f; color: var(--isik); border: 1px solid #2c6e45;
+    text-shadow: 0 0 10px rgba(245,217,10,.35);
+  }
+  .saat:hover { background: #164a29; }
+  .saat[aria-pressed="true"] { background: var(--isik); color: #1d1a00; text-shadow: none; border-color: var(--isik); }
+  .saat:disabled { cursor: default; background: transparent; color: #3f6a4f; border: 1px dashed #24563a; text-decoration: line-through; text-shadow: none; font-weight: 600; }
+  .tabela-not { color: #9fbca9; font-size: 14px; margin-top: 12px; }
+  .bos-mesaj { color: var(--tebesir); padding: 10px 2px; }
+
+  /* ---------- Form ---------- */
+  .ozet {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    background: var(--kart); border: 2px solid var(--cim); border-radius: 12px; padding: 14px 16px; margin-bottom: 16px;
+  }
+  .ozet .zaman { font: 700 26px/1.05 "Barlow Condensed", sans-serif; }
+  .ozet .ucret { margin-left: auto; text-align: right; font-size: 15px; color: var(--gri); }
+  .ozet .ucret b { display: block; color: var(--murekkep); font-size: 20px; }
+  .alan { margin-bottom: 14px; }
+  .alan label { display: block; font-weight: 600; margin-bottom: 6px; }
+  .alan label small { font-weight: 400; color: var(--gri); }
+  .alan input, .alan textarea {
+    width: 100%; background: var(--kart); border: 1px solid #b8c6b4; border-radius: 10px;
+    padding: 13px 14px; font-size: 17px;
+  }
+  .alan textarea { resize: vertical; min-height: 72px; }
+  .alan input:focus, .alan textarea:focus { outline: none; border-color: var(--cim); box-shadow: 0 0 0 2px var(--cim); }
+  .alan .ipucu { font-size: 14px; color: var(--gri); margin-top: 5px; }
+  .onay { display: flex; gap: 10px; align-items: flex-start; font-size: 15px; margin: 4px 0 18px; }
+  .onay input { width: 22px; height: 22px; margin: 1px 0 0; accent-color: var(--cim); flex: none; }
+  .onay a { color: var(--cim); font-weight: 600; }
+  .tuzak { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+
+  .dugme {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
+    border: 0; border-radius: 999px; padding: 17px 22px; cursor: pointer; text-decoration: none;
+    font: 600 18px/1 "Barlow", sans-serif; background: var(--kirmizi); color: #fff;
+  }
+  .dugme:hover { background: #a91217; }
+  .dugme:disabled { opacity: .6; cursor: default; }
+  .dugme.ikincil { background: transparent; color: var(--cim); border: 2px solid var(--cim); }
+  .dugme.wp { background: var(--wp); color: #06331a; }
+
+  .uyari {
+    background: #fff1f1; border: 1px solid #f2c4c4; color: var(--hata);
+    border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; font-size: 16px;
   }
 
-  .yaziyor { align-self: flex-start; display: flex; gap: 5px; padding: 14px 16px; }
-  .yaziyor i {
-    width: 8px; height: 8px; border-radius: 50%; background: var(--cim);
-    animation: zipla 1s infinite ease-in-out;
+  /* ---------- Başarılı ---------- */
+  .tamam { text-align: center; padding-top: 8px; }
+  .tamam .isaret {
+    width: 64px; height: 64px; margin: 0 auto 12px; border-radius: 50%;
+    background: var(--cim); color: var(--tebesir); display: grid; place-items: center;
   }
-  .yaziyor i:nth-child(2) { animation-delay: .15s; }
-  .yaziyor i:nth-child(3) { animation-delay: .3s; }
-  @keyframes zipla { 0%, 80%, 100% { opacity: .25; transform: none; } 40% { opacity: 1; transform: translateY(-4px); } }
+  .tamam .isaret svg { width: 34px; height: 34px; }
+  .tamam h2 { font-size: 34px; }
+  .tamam .alt { color: var(--gri); margin-top: 6px; }
+  .bilet {
+    margin: 22px 0 18px; text-align: left; background: var(--kart); border-radius: 14px;
+    border: 1px solid var(--cizgi); overflow: hidden;
+  }
+  .bilet-ust { background: var(--cim); color: var(--tebesir); padding: 16px; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .bilet-ust .zaman { font: 700 26px/1.05 "Barlow Condensed", sans-serif; }
+  .kayit-no { font: 700 24px/1 "Barlow Condensed", sans-serif; letter-spacing: .08em; background: var(--isik); color: #1d1a00; padding: 6px 10px; border-radius: 6px; }
+  .bilet-alt { padding: 16px; display: grid; gap: 12px; }
+  .bilet-alt h3 { margin: 0; font-size: 18px; }
+  .iban { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; background: var(--zemin); border-radius: 10px; padding: 12px; }
+  .iban code { font: 600 17px/1.3 "Barlow", sans-serif; letter-spacing: .02em; flex: 1 1 220px; }
+  .kopyala { flex: none; border: 2px solid var(--cim); color: var(--cim); background: var(--kart); border-radius: 999px; padding: 8px 14px; font-weight: 600; cursor: pointer; }
+  .tamam .eylemler { display: grid; gap: 10px; }
 
-  /* ---------- Giriş ---------- */
-  .alt {
-    flex: none; background: var(--zemin);
-    padding: 8px 16px; padding-bottom: max(12px, env(safe-area-inset-bottom));
-  }
-  .alt-ic { max-width: 720px; margin: 0 auto; }
-  .oneriler { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 8px; scrollbar-width: none; }
-  .oneriler::-webkit-scrollbar { display: none; }
-  .oneriler[hidden] { display: none; }
-  .oneriler button {
-    flex: none; font: 500 14px/1 "Barlow", sans-serif; color: var(--cim-koyu);
-    background: var(--kart); border: 1px solid var(--cizgi);
-    padding: 9px 12px; border-radius: 999px; cursor: pointer;
-  }
-  form {
-    display: flex; gap: 8px; align-items: flex-end;
-    background: var(--kart); border: 1px solid var(--cizgi); border-radius: 24px; padding: 6px 6px 6px 16px;
-  }
-  form:focus-within { border-color: var(--cim); box-shadow: 0 0 0 2px var(--cim); }
-  textarea:focus-visible { outline: none; }
-  textarea {
-    flex: 1; border: 0; outline: 0; resize: none; background: transparent;
-    font: inherit; color: inherit; padding: 8px 0; max-height: 120px;
-  }
-  .gonder {
-    flex: none; width: 42px; height: 42px; border: 0; border-radius: 50%;
-    background: var(--cim); color: var(--tebesir); cursor: pointer;
-    display: grid; place-items: center;
-  }
-  .gonder:disabled { opacity: .4; cursor: default; }
-  .gonder svg { width: 20px; height: 20px; }
-  .bilgi { font-size: 12px; color: var(--gri); text-align: center; margin: 8px 0 0; }
-  .bilgi a { color: inherit; }
+  /* ---------- İptal ---------- */
+  .iptal-alan { margin-top: 36px; border-top: 1px solid var(--cizgi); padding-top: 20px; }
+  .iptal-alan summary { cursor: pointer; font-weight: 600; color: var(--cim); }
+  .iptal-alan form { margin-top: 14px; }
+  .iptal-sonuc { margin-top: 12px; font-weight: 600; }
 
-  :focus-visible { outline: 3px solid var(--isik); outline-offset: 2px; }
-  .gonder:focus-visible, .ara:focus-visible { outline-color: var(--murekkep); }
-  @media (prefers-reduced-motion: reduce) {
-    .mesaj, .yaziyor i { animation: none; }
+  .alt-bilgi { font-size: 14px; color: var(--gri); text-align: center; margin-top: 28px; }
+  .alt-bilgi a { color: inherit; }
+
+  /* ---------- WhatsApp düğmesi ---------- */
+  .wp-yuzen {
+    position: fixed; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom)); z-index: 10;
+    width: 58px; height: 58px; border-radius: 50%; background: var(--wp); color: #fff;
+    display: grid; place-items: center; box-shadow: 0 6px 18px rgba(0,0,0,.25);
   }
-  @media (min-width: 640px) {
-    .saha h1 { font-size: 34px; }
-    .akis { padding-top: 28px; }
-  }
+  .wp-yuzen svg { width: 32px; height: 32px; }
+
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
 </style>
 </head>
 <body>
   <header class="saha">
-    <!-- Saha çizgileri: orta saha çizgisi ve orta yuvarlak -->
-    <svg class="cizgiler" viewBox="0 0 400 100" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <svg viewBox="0 0 400 100" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
       <g fill="none" stroke="#fff" stroke-width="2">
         <line x1="290" y1="-10" x2="290" y2="110"/>
         <circle cx="290" cy="50" r="34"/>
@@ -159,167 +183,301 @@
         <rect x="350" y="18" width="110" height="64"/>
       </g>
     </svg>
-    <div class="saha-ic">
+    <div class="kap">
       <div>
-        <h1><a href="/" style="color:inherit;text-decoration:none">Aysu Halı Saha</a></h1>
+        <h1><a href="/">Aysu Halı Saha</a></h1>
         <p>Online rezervasyon</p>
       </div>
-      <a class="ara" href="tel:+905555102626" aria-label="Aysu Halı Saha'yı ara">
+      <a class="ara" href="tel:+905555102626">
         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1A17 17 0 0 1 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1z"/></svg>
         Ara
       </a>
     </div>
   </header>
 
-  <main id="kaydir">
-    <div class="akis" id="akis" aria-live="polite"></div>
+  <main class="kap">
+    <!-- ===== Rezervasyon adımları ===== -->
+    <div id="secim">
+      <section class="adim" aria-labelledby="b-gun">
+        <div class="adim-baslik"><h2 id="b-gun">Gün seçin</h2></div>
+        <div class="gunler" id="gunler" role="group" aria-label="Günler">
+          <p class="alt-bilgi" style="margin:0">Yükleniyor…</p>
+        </div>
+      </section>
+
+      <section class="adim" aria-labelledby="b-saat">
+        <div class="adim-baslik"><h2 id="b-saat">Saat seçin</h2><span id="fiyat-not"></span></div>
+        <div class="tabela" id="tabela" aria-live="polite">
+          <p class="bos-mesaj">Yükleniyor…</p>
+        </div>
+      </section>
+
+      <section class="adim" id="form-adim" aria-labelledby="b-bilgi" hidden>
+        <div class="adim-baslik"><h2 id="b-bilgi">Bilgileriniz</h2></div>
+        <div class="ozet">
+          <div class="zaman" id="ozet-zaman"></div>
+          <div class="ucret"><b id="ozet-ucret"></b><span id="ozet-kapora"></span></div>
+        </div>
+        <form id="form" novalidate>
+          <div id="form-uyari" class="uyari" role="alert" hidden></div>
+          <div class="alan">
+            <label for="ad">Ad soyad</label>
+            <input id="ad" name="ad" autocomplete="name" required minlength="3" maxlength="60">
+          </div>
+          <div class="alan">
+            <label for="telefon">Cep telefonu</label>
+            <input id="telefon" name="telefon" type="tel" inputmode="tel" autocomplete="tel" placeholder="05XX XXX XX XX" required>
+            <p class="ipucu">Rezervasyonla ilgili sizi bu numaradan ararız.</p>
+          </div>
+          <div class="alan">
+            <label for="not">Not <small>(isteğe bağlı)</small></label>
+            <textarea id="not" name="not" maxlength="200" placeholder="Takım adı, özel istek…"></textarea>
+          </div>
+          <div class="tuzak" aria-hidden="true">
+            <label for="web">Web sitesi</label>
+            <input id="web" name="web" tabindex="-1" autocomplete="off">
+          </div>
+          <label class="onay">
+            <input type="checkbox" id="kvkk" required>
+            <span>Ad ve telefonumun rezervasyon için kullanılmasını kabul ediyorum. <a href="/kvkk.html" target="_blank">Aydınlatma metni</a></span>
+          </label>
+          <button class="dugme" id="gonder" type="submit">Rezervasyonu tamamla</button>
+        </form>
+      </section>
+    </div>
+
+    <!-- ===== Başarılı ===== -->
+    <section class="tamam" id="tamam" hidden aria-live="polite">
+      <div class="isaret"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
+      <h2>Yeriniz ayrıldı</h2>
+      <p class="alt">Kaporayı gönderdiğinizde rezervasyonunuz kesinleşir.</p>
+
+      <div class="bilet">
+        <div class="bilet-ust">
+          <div class="zaman" id="t-zaman"></div>
+          <div class="kayit-no" id="t-kayit"></div>
+        </div>
+        <div class="bilet-alt" id="t-kapora"></div>
+      </div>
+
+      <div class="eylemler">
+        <a class="dugme wp" id="t-wp" target="_blank" rel="noopener">Dekontu WhatsApp'tan gönder</a>
+        <button class="dugme ikincil" id="yeni" type="button">Başka bir saat ayırt</button>
+      </div>
+      <p class="alt-bilgi">Bu ekranın görüntüsünü alın. İptal için kayıt numaranız gerekecek.</p>
+    </section>
+
+    <!-- ===== İptal ===== -->
+    <details class="iptal-alan" id="iptal-alan">
+      <summary>Rezervasyonumu iptal etmek istiyorum</summary>
+      <form id="iptal-form" novalidate>
+        <div id="iptal-uyari" class="uyari" role="alert" hidden></div>
+        <div class="alan">
+          <label for="i-kayit">Kayıt numarası</label>
+          <input id="i-kayit" placeholder="AY-XXXXX" autocapitalize="characters" autocomplete="off" required>
+        </div>
+        <div class="alan">
+          <label for="i-telefon">Rezervasyondaki cep telefonu</label>
+          <input id="i-telefon" type="tel" inputmode="tel" placeholder="05XX XXX XX XX" required>
+        </div>
+        <button class="dugme ikincil" type="submit">Rezervasyonu iptal et</button>
+        <p class="iptal-sonuc" id="iptal-sonuc" role="status"></p>
+      </form>
+      <p class="alt-bilgi" style="text-align:left">Maça 3 saatten az kaldıysa iptal için lütfen arayın: <a href="tel:+905555102626">0 555 510 26 26</a></p>
+    </details>
+
+    <p class="alt-bilgi"><a href="/">Ana sayfa</a> · Abonelik ve toplu rezervasyon için arayın: <a href="tel:+905555102626">0 555 510 26 26</a></p>
   </main>
 
-  <div class="alt">
-    <div class="alt-ic">
-      <div class="oneriler" id="oneriler">
-        <button type="button">Bu akşam boş saat var mı?</button>
-        <button type="button">Yarın için rezervasyon</button>
-        <button type="button">Ücret ne kadar?</button>
-        <button type="button">Rezervasyonumu iptal et</button>
-      </div>
-      <form id="form">
-        <label for="girdi" class="sr" style="position:absolute;left:-9999px">Mesajınız</label>
-        <textarea id="girdi" rows="1" maxlength="1000" placeholder="Gün ve saat yazın…" autocomplete="off"></textarea>
-        <button class="gonder" id="gonder" type="submit" aria-label="Gönder" disabled>
-          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3.4 20.4 21 12 3.4 3.6 3.4 10l12.6 2-12.6 2z"/></svg>
-        </button>
-      </form>
-      <p class="bilgi">Ad ve telefonunuz yalnızca rezervasyon için kullanılır. <a href="/kvkk.html">Aydınlatma metni</a></p>
-    </div>
-  </div>
+  <a class="wp-yuzen" href="https://wa.me/905555102626?text=Merhaba%2C%20rezervasyon%20hakk%C4%B1nda%20bilgi%20almak%20istiyorum." target="_blank" rel="noopener" aria-label="WhatsApp'tan yazın">
+    <svg viewBox="0 0 32 32" fill="currentColor" aria-hidden="true"><path d="M16 3a13 13 0 0 0-11.2 19.6L3 29l6.6-1.7A13 13 0 1 0 16 3zm0 23.7c-2 0-3.9-.5-5.6-1.5l-.4-.2-3.9 1 1-3.8-.3-.4A10.7 10.7 0 1 1 16 26.7zm5.9-8c-.3-.2-1.9-.9-2.2-1-.3-.1-.5-.2-.7.2l-1 1.2c-.2.2-.4.2-.7.1-.3-.2-1.4-.5-2.6-1.6-1-.9-1.6-1.9-1.8-2.2-.2-.3 0-.5.1-.7l.5-.6.3-.5c.1-.2 0-.4 0-.6l-1-2.4c-.3-.6-.5-.5-.7-.5h-.6c-.2 0-.6.1-.9.4-.3.3-1.2 1.1-1.2 2.8s1.2 3.2 1.4 3.5c.2.2 2.4 3.6 5.7 5 .8.4 1.4.6 1.9.7.8.3 1.5.2 2.1.1.6-.1 1.9-.8 2.2-1.5.3-.7.3-1.4.2-1.5-.1-.2-.3-.3-.6-.4z"/></svg>
+  </a>
 
 <script>
 (() => {
-  const akis = document.getElementById("akis");
-  const kaydir = document.getElementById("kaydir");
-  const form = document.getElementById("form");
-  const girdi = document.getElementById("girdi");
-  const gonder = document.getElementById("gonder");
-  const oneriler = document.getElementById("oneriler");
+  const AYLAR = ["Ocak","Şubat","Mart","Nisan","Mayıs","Haziran","Temmuz","Ağustos","Eylül","Ekim","Kasım","Aralık"];
+  const KISA = { Pazartesi: "Pzt", Salı: "Sal", Çarşamba: "Çar", Perşembe: "Per", Cuma: "Cum", Cumartesi: "Cmt", Pazar: "Paz" };
+  const $ = (id) => document.getElementById(id);
+  const tl = (n) => n.toLocaleString("tr-TR") + " TL";
+  const gece = (saat) => Number(saat.slice(0, 2)) < 6;
+  const tarihYazi = (t) => { const [y, a, g] = t.split("-").map(Number); return `${g} ${AYLAR[a - 1]}`; };
 
-  const KARSILAMA = "Merhaba! Aysu Halı Saha'ya hoş geldiniz ⚽\nHangi gün ve saatte oynamak istersiniz? Boş saatlere bakıp hemen ayırabilirim.";
-  const ANAHTAR = "aysu-sohbet";
+  let veri = null, gunIdx = 0, secilenSaat = null;
+  const url = new URLSearchParams(location.search);
+  let istenen = { tarih: url.get("tarih"), saat: url.get("saat") };
+  if (istenen.tarih || istenen.saat) history.replaceState(null, "", location.pathname);
 
-  // Sohbet sekme kapanana kadar saklanır; tarayıcı izin vermezse sadece hafızada kalır.
-  let mesajlar = [];
-  try { mesajlar = JSON.parse(sessionStorage.getItem(ANAHTAR) || "[]"); } catch { mesajlar = []; }
-  const kaydet = () => { try { sessionStorage.setItem(ANAHTAR, JSON.stringify(mesajlar)); } catch {} };
-
-  const kacis = (s) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-
-  // Asistan metnini güvenli HTML'e çevirir: kalın yazı, bağlantılar, telefon, kayıt no, IBAN.
-  function bicimle(metin) {
-    let h = kacis(metin);
-    h = h.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-    h = h.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
-    h = h.replace(/\b(AY-[A-Z0-9]{5})\b/g, '<span class="kayit-no">$1</span>');
-    h = h.replace(/\b(TR\d{2}(?: ?\d{4}){5} ?\d{2})\b/g,
-      '<strong>$1</strong><button type="button" class="kopyala" data-kopyala="$1">Kopyala</button>');
-    h = h.replace(/(?<![\d>])(0 ?5\d{2} ?\d{3} ?\d{2} ?\d{2})(?!\d)/g, (m) =>
-      `<a href="tel:+9${m.replace(/\D/g, "")}">${m}</a>`);
-    return h;
-  }
-
-  function ekle(rol, metin, ek = "") {
-    const d = document.createElement("div");
-    d.className = `mesaj ${rol === "user" ? "kullanici" : "asistan"} ${ek}`;
-    if (rol === "user") d.textContent = metin;
-    else d.innerHTML = bicimle(metin);
-    akis.appendChild(d);
-    kaydir.scrollTop = kaydir.scrollHeight;
-    return d;
-  }
-
-  function yaziyor(goster) {
-    let el = document.getElementById("yaziyor");
-    if (goster && !el) {
-      el = document.createElement("div");
-      el.id = "yaziyor"; el.className = "mesaj asistan yaziyor";
-      el.setAttribute("aria-label", "Yazıyor");
-      el.innerHTML = "<i></i><i></i><i></i>";
-      akis.appendChild(el);
-      kaydir.scrollTop = kaydir.scrollHeight;
-    } else if (!goster && el) el.remove();
-  }
-
-  let bekliyor = false;
-  async function gonderMesaj(metin) {
-    metin = metin.trim();
-    if (!metin || bekliyor) return;
-    bekliyor = true;
-    girdi.value = ""; boyutla(); gonder.disabled = true;
-    oneriler.hidden = true;
-    mesajlar.push({ role: "user", content: metin });
-    kaydet();
-    ekle("user", metin);
-    yaziyor(true);
-    try {
-      const res = await fetch("/api/sohbet", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ mesajlar: [{ role: "assistant", content: KARSILAMA }, ...mesajlar] }),
-      });
-      const veri = await res.json().catch(() => ({}));
-      const cevap = veri.cevap || "Şu an cevap veremiyorum. Lütfen 0 555 510 26 26 numarasını arayın.";
-      yaziyor(false);
-      if (res.ok) {
-        mesajlar.push({ role: "assistant", content: cevap });
-        kaydet();
-        ekle("assistant", cevap);
-      } else {
-        // Başarısız mesajı geçmişten çıkar ki tekrar denenebilsin.
-        mesajlar.pop(); kaydet();
-        ekle("assistant", cevap, "hata");
-      }
-    } catch {
-      yaziyor(false);
-      mesajlar.pop(); kaydet();
-      ekle("assistant", "Bağlantı kurulamadı. İnternetinizi kontrol edip tekrar gönderin.", "hata");
-    } finally {
-      bekliyor = false;
-      gonder.disabled = !girdi.value.trim();
-      girdi.focus();
-    }
-  }
-
-  function boyutla() {
-    girdi.style.height = "auto";
-    girdi.style.height = Math.min(girdi.scrollHeight, 120) + "px";
-  }
-
-  form.addEventListener("submit", (e) => { e.preventDefault(); gonderMesaj(girdi.value); });
-  girdi.addEventListener("input", () => { boyutla(); gonder.disabled = bekliyor || !girdi.value.trim(); });
-  girdi.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); form.requestSubmit(); }
-  });
-  oneriler.addEventListener("click", (e) => { if (e.target.matches("button")) gonderMesaj(e.target.textContent); });
-  akis.addEventListener("click", async (e) => {
-    const b = e.target.closest("[data-kopyala]");
-    if (!b) return;
-    try { await navigator.clipboard.writeText(b.dataset.kopyala.replace(/\s/g, "")); b.textContent = "Kopyalandı"; }
-    catch { b.textContent = "Kopyalanamadı"; }
-  });
-
-  // Açılış
-  ekle("assistant", KARSILAMA);
-  for (const m of mesajlar) ekle(m.role, m.content);
-  if (mesajlar.length) oneriler.hidden = true;
-
-  // Ana sayfadaki tabeladan gelindiyse mesajı hazır yaz (gönderme kararı kullanıcıda).
+  // Ad ve telefonu bu cihazda hatırla (isteğe bağlı kolaylık).
   try {
-    const hazir = new URLSearchParams(location.search).get("mesaj");
-    if (hazir) {
-      girdi.value = hazir.slice(0, 200); boyutla(); gonder.disabled = false;
-      history.replaceState(null, "", location.pathname);
-      girdi.focus();
-    }
+    const k = JSON.parse(localStorage.getItem("aysu-kisi") || "null");
+    if (k) { $("ad").value = k.ad || ""; $("telefon").value = k.telefon || ""; $("i-telefon").value = k.telefon || ""; }
   } catch {}
+
+  function gunleriCiz() {
+    const el = $("gunler");
+    el.innerHTML = "";
+    veri.gunler.forEach((g, i) => {
+      const bos = g.saatler.filter((s) => s.bos).length;
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "gun" + (bos ? "" : " kapali");
+      b.setAttribute("aria-pressed", String(i === gunIdx));
+      const ust = g.tarih === bugunTarihi() ? "Bugün" : g.tarih === yarinTarihi() ? "Yarın" : KISA[g.gun] || g.gun;
+      const [gunNo, ay] = tarihYazi(g.tarih).split(" ");
+      b.innerHTML = `<span class="ust-yazi">${ust}</span><b>${gunNo} <span class="ay">${ay.slice(0, 3)}</span></b><small>${bos ? bos + " boş" : "dolu"}</small>`;
+      b.setAttribute("aria-label", `${g.gun} ${tarihYazi(g.tarih)}, ${bos ? bos + " boş saat" : "boş saat yok"}`);
+      b.addEventListener("click", () => { gunIdx = i; secilenSaat = null; gunleriCiz(); saatleriCiz(); formuGuncelle(); });
+      el.appendChild(b);
+    });
+  }
+
+  // Türkiye saatine göre bugün/yarın (UTC+3).
+  function bugunTarihi() { return new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10); }
+  function yarinTarihi() { return new Date(Date.now() + 27 * 3600e3).toISOString().slice(0, 10); }
+
+  function saatleriCiz() {
+    const el = $("tabela");
+    const g = veri.gunler[gunIdx];
+    if (!g) { el.innerHTML = '<p class="bos-mesaj">Gösterilecek gün yok.</p>'; return; }
+    const gunduz = g.saatler.filter((s) => !gece(s.saat));
+    const geceler = g.saatler.filter((s) => gece(s.saat));
+    const dugme = (s) => `<button type="button" class="saat" data-saat="${s.saat}" ${s.bos ? "" : "disabled"} aria-pressed="${s.saat === secilenSaat}" aria-label="${s.saat} ${s.bos ? "boş" : "dolu"}">${s.saat}</button>`;
+    let html = "";
+    if (gunduz.length) html += `<div class="grup"><div class="saatler">${gunduz.map(dugme).join("")}</div></div>`;
+    if (geceler.length) html += `<div class="grup"><p class="grup-ad">${g.gun} gecesi (gece yarısından sonra)</p><div class="saatler">${geceler.map(dugme).join("")}</div></div>`;
+    if (!g.saatler.some((s) => s.bos)) html += `<p class="tabela-not">Bu gün boş saat kalmadı. Başka bir gün seçin.</p>`;
+    else html += `<p class="tabela-not">Sarı saatler boş. Üstü çizili saatler dolu.</p>`;
+    el.innerHTML = html;
+    el.querySelectorAll(".saat:not(:disabled)").forEach((b) => b.addEventListener("click", () => {
+      secilenSaat = b.dataset.saat; saatleriCiz(); formuGuncelle(true);
+    }));
+  }
+
+  function formuGuncelle(kaydir) {
+    const g = veri.gunler[gunIdx];
+    $("form-adim").hidden = !secilenSaat;
+    $("form-uyari").hidden = true;
+    if (!secilenSaat) return;
+    $("ozet-zaman").textContent = `${g.gun} ${tarihYazi(g.tarih)}${gece(secilenSaat) ? " gecesi" : ""}, ${secilenSaat}`;
+    $("ozet-ucret").textContent = tl(veri.fiyat);
+    $("ozet-kapora").textContent = `${tl(veri.kapora)} kapora`;
+    if (kaydir) $("form-adim").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+  }
+
+  async function yukle() {
+    try {
+      const r = await fetch("/api/musaitlik", { cache: "no-store" });
+      const v = await r.json();
+      if (!r.ok || !v.gunler) throw new Error(v.hata || "hata");
+      veri = v;
+      if (!veri.gunler.length) throw new Error("gün yok");
+      // Ana sayfadan gelen gün/saat seçimi
+      if (istenen.tarih) {
+        const i = veri.gunler.findIndex((g) => g.tarih === istenen.tarih);
+        if (i >= 0) {
+          gunIdx = i;
+          const s = veri.gunler[i].saatler.find((x) => x.saat === istenen.saat && x.bos);
+          if (s) secilenSaat = s.saat;
+        }
+        istenen = {};
+      } else if (gunIdx >= veri.gunler.length) gunIdx = 0;
+      $("fiyat-not").textContent = `Maç ${tl(veri.fiyat)}`;
+      gunleriCiz(); saatleriCiz(); formuGuncelle(Boolean(secilenSaat));
+    } catch {
+      $("gunler").innerHTML = "";
+      $("tabela").innerHTML = '<p class="bos-mesaj">Boş saatler şu an yüklenemedi. Sayfayı yenileyin ya da <a href="tel:+905555102626" style="color:var(--isik)">bizi arayın</a>.</p>';
+    }
+  }
+
+  function uyar(el, metin) { el.textContent = metin; el.hidden = false; el.scrollIntoView({ block: "center" }); }
+
+  $("form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const uyari = $("form-uyari");
+    const ad = $("ad").value.trim(), telefon = $("telefon").value.trim();
+    if (ad.length < 3) return uyar(uyari, "Ad soyadınızı yazın.");
+    if (telefon.replace(/\D/g, "").length < 10) return uyar(uyari, "Cep telefonu numaranızı 05XX XXX XX XX biçiminde yazın.");
+    if (!$("kvkk").checked) return uyar(uyari, "Devam etmek için onay kutusunu işaretleyin.");
+
+    const g = veri.gunler[gunIdx];
+    const btn = $("gonder");
+    btn.disabled = true; btn.textContent = "Kaydediliyor…";
+    try {
+      const r = await fetch("/api/rezervasyon", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ tarih: g.tarih, saat: secilenSaat, ad, telefon, not: $("not").value.trim(), kvkk: true, web: $("web").value }),
+      });
+      const v = await r.json().catch(() => ({}));
+      if (!r.ok || !v.basarili) {
+        uyar(uyari, v.hata || "Rezervasyon kaydedilemedi. Lütfen tekrar deneyin.");
+        if (/dolu/i.test(v.hata || "")) { secilenSaat = null; await yukle(); }
+        return;
+      }
+      try { localStorage.setItem("aysu-kisi", JSON.stringify({ ad, telefon })); } catch {}
+      basariGoster(v, g);
+    } catch {
+      uyar(uyari, "Bağlantı kurulamadı. İnternetinizi kontrol edip tekrar deneyin.");
+    } finally {
+      btn.disabled = false; btn.textContent = "Rezervasyonu tamamla";
+    }
+  });
+
+  function basariGoster(v, g) {
+    const zaman = `${g.gun} ${tarihYazi(g.tarih)}${gece(v.saat) ? " gecesi" : ""}, ${v.saat}`;
+    $("t-zaman").textContent = zaman;
+    $("t-kayit").textContent = v.kayitNo;
+    const k = $("t-kapora");
+    if (v.iban) {
+      k.innerHTML = `
+        <h3>${tl(v.kapora)} kapora gönderin</h3>
+        <div class="iban"><code></code><button type="button" class="kopyala">IBAN'ı kopyala</button></div>
+        <p>Alıcı: <b class="alici"></b><br>Açıklamaya kayıt numaranızı yazın: <b style="white-space:nowrap">${v.kayitNo}</b></p>
+        <p>Kalan <b>${tl(v.kalan)}</b> maç günü sahada ödenir.</p>`;
+      k.querySelector("code").textContent = v.iban;
+      k.querySelector(".alici").textContent = v.alici || "";
+      k.querySelector(".kopyala").addEventListener("click", async (e) => {
+        try { await navigator.clipboard.writeText(v.iban.replace(/\s/g, "")); e.target.textContent = "Kopyalandı"; }
+        catch { e.target.textContent = "Kopyalanamadı"; }
+      });
+    } else {
+      k.innerHTML = `<p>Kapora (${tl(v.kapora)}) için sizi arayacağız. Kalan ${tl(v.kalan)} maç günü sahada ödenir.</p>`;
+    }
+    const wpMetin = `Merhaba, ${v.kayitNo} numaralı rezervasyonum (${zaman}) için kapora dekontunu gönderiyorum.`;
+    $("t-wp").href = `https://wa.me/905555102626?text=${encodeURIComponent(wpMetin)}`;
+    $("secim").hidden = true;
+    $("tamam").hidden = false;
+    document.querySelector(".wp-yuzen").hidden = true;
+    $("i-kayit").value = v.kayitNo;
+    window.scrollTo({ top: 0 });
+  }
+
+  $("yeni").addEventListener("click", async () => {
+    $("tamam").hidden = true; $("secim").hidden = false;
+    document.querySelector(".wp-yuzen").hidden = false;
+    secilenSaat = null; $("not").value = "";
+    await yukle();
+  });
+
+  $("iptal-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const uyari = $("iptal-uyari"), sonuc = $("iptal-sonuc");
+    uyari.hidden = true; sonuc.textContent = "";
+    const kayitNo = $("i-kayit").value.trim(), telefon = $("i-telefon").value.trim();
+    if (!kayitNo || !telefon) return uyar(uyari, "Kayıt numarası ve telefonu yazın.");
+    try {
+      const r = await fetch("/api/iptal", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ kayitNo, telefon }),
+      });
+      const v = await r.json().catch(() => ({}));
+      if (!r.ok || !v.basarili) return uyar(uyari, v.hata || "İptal yapılamadı.");
+      sonuc.textContent = `${v.kayitNo} numaralı rezervasyon iptal edildi.`;
+      yukle();
+    } catch {
+      uyar(uyari, "Bağlantı kurulamadı. Tekrar deneyin.");
+    }
+  });
+
+  yukle();
 })();
 </script>
 </body>

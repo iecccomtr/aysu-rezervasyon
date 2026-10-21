@@ -11,6 +11,7 @@ export const ISLETME = {
   sabitHat: "0 222 335 35 55",
   harita: "https://maps.google.com/?q=Aysu+Halısaha+Eskişehir",
   instagram: "https://www.instagram.com/aysuhalisahacom",
+  whatsapp: "905555102626", // sitedeki WhatsApp düğmesinin numarası (başında + olmadan)
 };
 
 // Maç saatleri (her maç 1 saat) — haftalık tablodaki saatlerle aynı.
@@ -32,21 +33,9 @@ export const FIYATLAR = {
   kapora: 1200,
 };
 
-// Kapora nasıl alınır? Asistan müşteriye bunu söyler.  KONTROL ET
-export const KAPORA_ACIKLAMA =
-  "Maç ücreti toplam 3700 TL. Rezervasyonun kesinleşmesi için 1200 TL kapora alınır (havale/EFT, birden fazla parça halinde de gönderilebilir), kalan tutar maç günü sahada ödenir. Kapora ödemesi görüldüğünde rezervasyon onaylanır; sorusu olan 0 555 510 26 26'yı arayabilir.";
-
-// IBAN yazılırsa asistan müşteriye kapora için IBAN'ı verir ve açıklamaya
-// kayıt numarasını yazmasını ister. Boş bırakılırsa IBAN paylaşılmaz.  KONTROL ET
+// Rezervasyon tamamlanınca müşteriye gösterilen kapora IBAN'ı.
+// Boş bırakılırsa IBAN gösterilmez, "sizi arayacağız" denir.
 export const IBAN = { no: "TR70 0015 7000 0000 0154 8342 35", alici: "Ahmet Aysu" };
-
-// Saha olanakları — müşteri sorarsa asistan bunları söyler.  KONTROL ET
-export const OLANAKLAR = [
-  "Kapalı (balon) saha, her havada oynanır",
-  "Soyunma odası ve duşlar",
-  "Televizyonlu kafeterya / dinlenme salonu",
-  "Tesis önünde otopark",
-];
 
 export const KURALLAR = {
   enFazlaGunSonra: 7,           // en fazla kaç gün sonrasına rezervasyon alınır
@@ -54,20 +43,17 @@ export const KURALLAR = {
   iptalEnGecSaat: 3,            // maçtan en geç kaç saat önce çevrimiçi iptal edilebilir
 };
 
-// Yapay zekâ modeli. Daha zeki ama pahalı seçenek: "claude-sonnet-5-5"
-export const MODEL = "claude-haiku-5-5";
-
 // ---------- Google E-Tablo ----------
 // Çalışanların kullandığı haftalık tablo (sadece OKUNUR, asla değiştirilmez)
 export const HAFTALIK_SEKME = "REZERVASYON";
-// Asistanın rezervasyon yazdığı sekme (yoksa otomatik oluşturulur)
+// Sitenin rezervasyon yazdığı sekme (yoksa otomatik oluşturulur)
 export const ONLINE_SEKME = "Online Rezervasyonlar";
 export const SUTUNLAR = [
   "Tarih", "Gün", "Saat", "Ad Soyad", "Telefon",
   "Durum", "Kayıt No", "Not", "Oluşturma", "Ödenen Kapora",
 ];
 // "Ödenen Kapora" sütununu çalışanlar doldurur (ör. "1000 + 200").
-// Asistan bu sütuna hiç dokunmaz; ödeme gelince Durum'u "Onaylı" yapın.
+// Site bu sütuna hiç dokunmaz; ödeme gelince Durum'u "Onaylı" yapın.
 export const DURUM = {
   bekliyor: "Kapora bekleniyor",
   onayli: "Onaylı",

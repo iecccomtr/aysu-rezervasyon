@@ -183,10 +183,6 @@
   .adres { margin-top: 18px; display: grid; gap: 6px; }
   .adres a { font-weight: 600; }
 
-  .franchise { background: var(--tebesir); border-top: 1px solid var(--cizgi); }
-  .franchise .kap { display: flex; gap: 24px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
-  .franchise p { color: var(--gri); max-width: 56ch; margin-top: 8px; }
-  .dugme.koyu { background: var(--murekkep); color: var(--tebesir); }
 
   footer { background: var(--cim-koyu); color: #b9d3c1; padding: 40px 0 calc(40px + env(safe-area-inset-bottom)); font-size: 15px; }
   footer .kap { display: flex; gap: 24px; flex-wrap: wrap; justify-content: space-between; }
@@ -202,6 +198,13 @@
   .sabit.gorunur { opacity: 1; transform: none; pointer-events: auto; }
   @media (max-width: 760px) { .sabit { display: flex; } footer { padding-bottom: 100px; } }
   @media (prefers-reduced-motion: reduce) { .sabit { transition: none; } }
+  .wp-yuzen {
+    position: fixed; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom)); z-index: 6;
+    width: 58px; height: 58px; border-radius: 50%; background: #25d366; color: #fff;
+    display: grid; place-items: center; box-shadow: 0 6px 18px rgba(0,0,0,.25);
+  }
+  .wp-yuzen svg { width: 32px; height: 32px; }
+  @media (max-width: 760px) { .sabit { right: 86px; } }
   @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
 </style>
 </head>
@@ -214,7 +217,6 @@
       <a href="#tesis">Tesis</a>
       <a href="#rezervasyon">Rezervasyon</a>
       <a href="#konum">Konum</a>
-      <a href="#franchise">Franchise</a>
     </nav>
     <a class="tel" href="tel:+905555102626">0 555 510 26 26</a>
   </div>
@@ -244,7 +246,7 @@
           <div class="saatler" id="saatler" role="tabpanel" aria-live="polite">
             <p class="tabela-not">Saatler yükleniyor…</p>
           </div>
-          <p class="tabela-not">Sarı saatler boş. Birine dokunun, rezervasyon o saatle başlasın. Gece 00:00–02:00 maçları seçilen günün gecesidir.</p>
+          <p class="tabela-not">Sarı saatler boş. Birine dokunun, rezervasyon o saatle açılsın. Gece 00:00–02:00 maçları seçilen günün gecesidir.</p>
         </div>
       </div>
     </div>
@@ -311,11 +313,11 @@
       <ol class="adimlar">
         <li>
           <h3>Saati seçin</h3>
-          <p>Yukarıdaki tabeladan boş saate dokunun ya da sohbette "cuma akşam 9" yazın.</p>
+          <p>Rezervasyon sayfasında günü seçin, boş saatlerden birine dokunun.</p>
         </li>
         <li>
           <h3>Bilgilerinizi verin</h3>
-          <p>Ad soyad ve cep telefonu yeterli. Asistan özeti gösterir, siz onaylarsınız.</p>
+          <p>Ad soyad ve cep telefonu yeterli. Kayıt numaranız hemen ekranda çıkar.</p>
         </li>
         <li>
           <h3>Kaporayı gönderin</h3>
@@ -348,15 +350,6 @@
     </div>
   </section>
 
-  <section class="franchise" id="franchise" aria-labelledby="franchise-baslik">
-    <div class="kap">
-      <div>
-        <h2 id="franchise-baslik">Kendi şehrinizde Aysu Halı Saha</h2>
-        <p>Arsanız varsa, Aysu Halı Saha modelini birlikte kuralım. Başvuru formunu doldurun, sizi arayalım.</p>
-      </div>
-      <a class="dugme koyu" href="https://aysuhalisaha.com/form/form-view/1">Franchise başvurusu</a>
-    </div>
-  </section>
 </main>
 
 <footer>
@@ -369,6 +362,10 @@
     </nav>
   </div>
 </footer>
+
+<a class="wp-yuzen" href="https://wa.me/905555102626?text=Merhaba%2C%20bilgi%20almak%20istiyorum." target="_blank" rel="noopener" aria-label="WhatsApp'tan yazın">
+  <svg viewBox="0 0 32 32" fill="currentColor" aria-hidden="true"><path d="M16 3a13 13 0 0 0-11.2 19.6L3 29l6.6-1.7A13 13 0 1 0 16 3zm0 23.7c-2 0-3.9-.5-5.6-1.5l-.4-.2-3.9 1 1-3.8-.3-.4A10.7 10.7 0 1 1 16 26.7zm5.9-8c-.3-.2-1.9-.9-2.2-1-.3-.1-.5-.2-.7.2l-1 1.2c-.2.2-.4.2-.7.1-.3-.2-1.4-.5-2.6-1.6-1-.9-1.6-1.9-1.8-2.2-.2-.3 0-.5.1-.7l.5-.6.3-.5c.1-.2 0-.4 0-.6l-1-2.4c-.3-.6-.5-.5-.7-.5h-.6c-.2 0-.6.1-.9.4-.3.3-1.2 1.1-1.2 2.8s1.2 3.2 1.4 3.5c.2.2 2.4 3.6 5.7 5 .8.4 1.4.6 1.9.7.8.3 1.5.2 2.1.1.6-.1 1.9-.8 2.2-1.5.3-.7.3-1.4.2-1.5-.1-.2-.3-.3-.6-.4z"/></svg>
+</a>
 
 <a class="dugme ana sabit" id="sabit" href="/rezervasyon/" tabindex="-1" aria-hidden="true">Online rezervasyon yap</a>
 
@@ -409,7 +406,7 @@
     if (!gun.saatler.length) { kutu.innerHTML = '<p class="tabela-not">Bu gün için kalan saat yok. Yarına bakın.</p>'; return; }
     const ad = secili === "bugun" ? "Bugün" : "Yarın";
     kutu.innerHTML = gun.saatler.map((s) => s.bos
-      ? `<a href="/rezervasyon/?mesaj=${encodeURIComponent(`${ad} (${gun.gun}) ${s.saat} için rezervasyon yapmak istiyorum`)}" aria-label="${ad} ${s.saat} boş, rezervasyon yap">${s.saat}</a>`
+      ? `<a href="/rezervasyon/?tarih=${gun.tarih}&saat=${encodeURIComponent(s.saat)}" aria-label="${ad} ${s.saat} boş, rezervasyon yap">${s.saat}</a>`
       : `<span aria-label="${s.saat} dolu">${s.saat}</span>`).join("");
   }
 

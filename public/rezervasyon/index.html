@@ -156,6 +156,8 @@
   }
   .bilet-ust { background: var(--cim); color: var(--tebesir); padding: 16px; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
   .bilet-ust .zaman { font: 700 26px/1.05 "Barlow Condensed", sans-serif; }
+  .sayac { font: 700 22px/1.2 "Barlow Condensed", sans-serif; text-align: center; margin: 4px 0 8px; color: var(--cim, #0067a4); }
+  .sayac.az { color: #b42318; }
   .dekont-kutu { background: var(--kart, #fff); border: 2px solid var(--cim, #0067a4); border-radius: 14px; padding: 16px; margin: 16px 0; }
   .dekont-kutu h3 { font-size: 20px; margin-bottom: 4px; }
   .dekont-kutu p { margin-bottom: 12px; }
@@ -263,7 +265,8 @@
     <section class="tamam" id="tamam" hidden aria-live="polite">
       <div class="isaret"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
       <h2>Yeriniz opsiyonlandı</h2>
-      <p class="alt">Yeriniz kapora gönderimi için <b>15 dakika</b> süreyle adınıza opsiyonlandı. Kaporayı gönderip dekontu ilettiğinizde rezervasyonunuz kesinleşir.</p>
+      <p class="alt">Yeriniz kapora gönderimi için <b>15 dakika</b> süreyle adınıza opsiyonlandı; bu sürede saat başkasına verilmez. Kaporayı gönderip dekontu yüklediğinizde rezervasyonunuz kesinleşir. Süre içinde dekont gelmezse yer boşa çıkar.</p>
+      <p class="sayac" id="t-sayac" role="timer" aria-live="off"></p>
 
       <div class="bilet">
         <div class="bilet-ust">
@@ -275,7 +278,7 @@
 
       <div class="dekont-kutu" id="t-dekont">
         <h3>Ödeme yaptıktan sonra dekontu yükleyin</h3>
-        <p>Dekontta alıcı IBAN'ı ve adı doğruysa rezervasyonunuz <b>hemen kesinleşir</b>.</p>
+        <p>Dekonttaki IBAN ve hesap adı doğruysa rezervasyonunuz <b>hemen kesinleşir</b>.</p>
         <label class="dugme tam" for="t-dosya">Dekontu yükle (fotoğraf / PDF)</label>
         <input type="file" id="t-dosya" accept="image/*,application/pdf" hidden>
         <p class="dekont-sonuc" id="t-dekont-sonuc" role="status" aria-live="polite"></p>
@@ -568,6 +571,7 @@
       });
       const v = await r.json().catch(() => ({}));
       if (!r.ok || !v.basarili) { sonucEl.classList.add("kotu"); sonucEl.textContent = v.hata || "Dekont yüklenemedi. WhatsApp'tan gönderebilirsiniz."; return; }
+      clearInterval(sayacZaman); $("t-sayac").textContent = ""; // dekont geldi: süre artık işlemez
       if (v.onay) { sonucEl.classList.add("iyi"); sonucEl.textContent = "✓ Dekontunuz doğrulandı, rezervasyonunuz kesinleşti. İyi maçlar!"; }
       else { sonucEl.classList.add("bekle"); sonucEl.textContent = "Dekontunuz alındı. Kısa süre içinde kontrol edilip rezervasyonunuz kesinleştirilecek."; }
     } catch (e) {
@@ -586,7 +590,23 @@
     dekontGonder(kayitNo, telefon, f, $("dekont-sonuc"));
   });
 
+  let sayacZaman = null;
+  function sayacBaslat(bitis) {
+    clearInterval(sayacZaman);
+    const el = $("t-sayac");
+    if (!bitis) { el.textContent = ""; return; }
+    const ciz = () => {
+      const kalan = Math.max(0, bitis - Date.now());
+      const dk = Math.floor(kalan / 60000), sn = Math.floor((kalan % 60000) / 1000);
+      el.classList.toggle("az", kalan < 3 * 60000);
+      el.textContent = kalan ? `Opsiyon süresi: ${dk}:${String(sn).padStart(2, "0")}` : "Opsiyon süresi doldu. Ödeme yaptıysanız dekontu yine yükleyin; yer boşsa rezervasyonunuz geri gelir.";
+      if (!kalan) clearInterval(sayacZaman);
+    };
+    ciz(); sayacZaman = setInterval(ciz, 1000);
+  }
+
   function basariGoster(v, g) {
+    sayacBaslat(v.opsiyonBitis);
     const zaman = `${g.gun} ${tarihYazi(g.tarih)}${gece(v.saat) ? " gecesi" : ""}, ${v.saat}`;
     $("t-zaman").textContent = zaman;
     $("t-kayit").textContent = v.kayitNo;
@@ -595,7 +615,7 @@
       k.innerHTML = `
         <h3>${tl(v.kapora)} kapora gönderin</h3>
         <div class="iban"><code></code><button type="button" class="kopyala">IBAN'ı kopyala</button></div>
-        <p>Alıcı: <b class="alici"></b><br>Açıklamaya kayıt numaranızı yazın: <b style="white-space:nowrap">${v.kayitNo}</b></p>
+        <p>Hesap adı: <b class="alici"></b><br>Açıklamaya kayıt numaranızı yazın: <b style="white-space:nowrap">${v.kayitNo}</b></p>
         <p>Kalan <b>${tl(v.kalan)}</b> maç günü sahada ödenir.</p>`;
       k.querySelector("code").textContent = v.iban;
       k.querySelector(".alici").textContent = v.alici || "";

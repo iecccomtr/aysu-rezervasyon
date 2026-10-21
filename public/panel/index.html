@@ -641,7 +641,7 @@
       <button type="button" class="bekleyen" data-kayit="${kacis(r.kayitNo)}">
         <span class="z"><small>${KISA[gunNo(r.isletmeGunu || r.tarih)]} ${Number((r.isletmeGunu || r.tarih).slice(8))} ${AYLAR[Number((r.isletmeGunu || r.tarih).slice(5, 7)) - 1].slice(0, 3)}</small><b>${r.saat}</b></span>
         <span class="k"><b>${kacis(r.ad)}</b><small class="soluk" style="white-space:nowrap">${telYazi(r.telefon)}</small></span>
-        <span class="rozet r-bekliyor">${r.dekont ? "Dekont var" : "Bekliyor"}</span>
+        <span class="rozet r-bekliyor">${r.dekont ? "Dekont var" : r.opsiyonBitis ? `${Math.max(0, Math.ceil((r.opsiyonBitis - Date.now()) / 60000))} dk opsiyon` : "Bekliyor"}</span>
       </button>`).join("")}</div>` : "";
     $("bekleyenler").querySelectorAll("[data-kayit]").forEach((el) => el.addEventListener("click", () => {
       const r = b.find((x) => x.kayitNo === el.dataset.kayit);
@@ -1076,7 +1076,15 @@
       <h3 style="font-size:20px;margin:18px 0 8px">Rezervasyon geçmişi</h3>
       ${m.rezervasyonlar.length ? `<ul class="gecmis-liste">${m.rezervasyonlar.map((r) => `
         <li><span>${tarihYazi(r.isletmeGunu || r.tarih, true)} ${r.saat}<br><small class="soluk">${kacis(r.kaynak || "")} · ${kacis(r.kayitNo)}${r.kapora ? " · kapora " + kacis(r.kapora) : ""}</small></span>
-        <span class="rozet ${durumSinif(r.durum)}">${kacis(r.durum)}</span></li>`).join("")}</ul>` : '<p class="soluk">Kayıt yok.</p>'}`);
+        <span class="rozet ${durumSinif(r.durum)}">${kacis(r.durum)}</span></li>`).join("")}</ul>` : '<p class="soluk">Kayıt yok.</p>'}
+      <button class="dugme ikincil tam" type="button" id="d-musteri-sil" style="color:#b42318;margin-top:16px">Müşteriyi sil</button>`);
+    $("d-musteri-sil").addEventListener("click", async () => {
+      if (!confirm(`${m.ad || telYazi(m.telefon)} ve tüm geçmiş kayıtları kalıcı olarak silinsin mi?`)) return;
+      const r = await api("musteri-sil", { telefon: m.telefon });
+      if (r.hata) return dlgUyari(r.hata);
+      dlg.close(); bildir(`Müşteri silindi (${r.silinen} kayıt)`);
+      if (sekme === "musteriler") musteriYukle();
+    });
     $("d-form").addEventListener("submit", async (e) => {
       e.preventDefault();
       const r = await api("musteri-not", { telefon: m.telefon, not: $("d-not").value, etiket: $("d-etiket").value, ad: m.ad });

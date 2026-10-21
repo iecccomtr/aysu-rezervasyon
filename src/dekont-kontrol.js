@@ -105,11 +105,11 @@ export function dekontDegerlendir(okunan, { iban, alici, kapora, rezTarihi, bugu
   const beklenen = ibanTemiz(iban);
   const okunanIban = ibanTemiz(okunan.alici_iban);
   const metindeVar = okunan._metin && ibanTemiz(okunan._metin).includes(beklenen);
-  if (!(okunanIban === beklenen || metindeVar)) nedenler.push(`Alıcı IBAN eşleşmiyor (${okunan.alici_iban || "okunamadı"}).`);
+  if (!(okunanIban === beklenen || metindeVar)) nedenler.push(`IBAN eşleşmiyor (${okunan.alici_iban || "okunamadı"}).`);
   // Alıcı adı: tüm kelimeler geçmeli (ör. AHMET + AYSU)
   const ad = harfler(okunan.alici_ad);
   const kelimeler = harfler(alici).split(" ").filter((k) => k.length > 1);
-  if (!kelimeler.every((k) => ad.includes(k))) nedenler.push(`Alıcı adı eşleşmiyor (${okunan.alici_ad || "okunamadı"}).`);
+  if (!kelimeler.every((k) => ad.includes(k))) nedenler.push(`Hesap adı eşleşmiyor (${okunan.alici_ad || "okunamadı"}).`);
   const tutar = tutarSayi(okunan.tutar);
   if (tutar == null) nedenler.push("Tutar okunamadı.");
   else if (tutar < kapora) nedenler.push(`Tutar kaporadan az: ${tutar} TL (kapora ${kapora} TL).`);

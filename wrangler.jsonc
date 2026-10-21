@@ -24,7 +24,8 @@
   "ai": { "binding": "AI" },
 
   // Pazartesi 03:00 (Türkiye, UTC 00:00): Pazar gecesi bitince geçen haftanın rezervasyon listesi silinir, aboneler kalır.
-  "triggers": { "crons": ["0 0 * * 1"] },
+  // 5 dakikada bir: 15 dakika içinde dekontu gelmeyen online rezervasyonlar düşer, yer boşa çıkar.
+  "triggers": { "crons": ["0 0 * * 1", "*/5 * * * *"] },
 
   // Panelden girilen değişkenler yeni yüklemelerde silinmesin
   "keep_vars": true,

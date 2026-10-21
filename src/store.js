@@ -45,6 +45,12 @@ const epostaNormalize = (e) => {
 /** Kullanıcıyı dışarı verirken şifre bilgilerini çıkar. */
 const kullaniciDisi = ({ hash, tuz, ...u }) => ({ ...u, rolAd: ROLLER[u.rol]?.ad || "", istenenRolAd: ROLLER[u.istenenRol]?.ad || "" });
 
+/**
+ * Online rezervasyonun opsiyonu düştü mü? (dekont yüklenmeden süre doldu)
+ * Telefonla/panelden girilen "Kapora bekleniyor" kayıtları düşmez.
+ */
+export const opsiyonDustu = (r, simdiMs = Date.now()) =>
+  r.kaynak === "Online" && r.durum === DURUM.bekliyor && !r.dekont && Number(r.opsiyonBitis) > 0 && Number(r.opsiyonBitis) <= simdiMs;
 const iptalMi = (durum) => String(durum || "").toLocaleLowerCase("tr").includes("iptal");
 const geceSaati = (saat) => Number(saat.slice(0, 2)) < 6;
 /** İşletme günü + saat → maçın takvim tarihi */
@@ -122,7 +128,8 @@ export class RezervasyonDeposu extends DurableObject {
       this.atlananlar(ilkGun, sonGun),
     ]);
     const rezMap = new Map();
-    for (const r of rez) if (!iptalMi(r.durum)) rezMap.set(`${r.tarih}|${r.saat}`, r);
+    // Süresi dolmuş opsiyonlar yer tutmaz (zamanlanmış görev ayrıca "İptal" olarak işaretler)
+    for (const r of rez) if (!iptalMi(r.durum) && !opsiyonDustu(r)) rezMap.set(`${r.tarih}|${r.saat}`, r);
     return { rezMap, abone, atla };
   }
 
@@ -209,7 +216,7 @@ export class RezervasyonDeposu extends DurableObject {
     }
     if (!panel) {
       const gelecek = (await this.rezervasyonlar(simdi().tarih, gunEkle(simdi().tarih, 60)))
-        .filter((r) => r.telefon === telefon && !iptalMi(r.durum) && macZamani(r.tarih, r.saat) > Date.now());
+        .filter((r) => r.telefon === telefon && !iptalMi(r.durum) && !opsiyonDustu(r) && macZamani(r.tarih, r.saat) > Date.now());
       if (gelecek.length >= KURALLAR.kisiBasiAktifRezervasyon) {
         return { hata: `Bu numaraya ait ${gelecek.length} aktif rezervasyon var. Daha fazlası için işletmeyi arayın.` };
       }
@@ -222,6 +229,7 @@ export class RezervasyonDeposu extends DurableObject {
       durum: DURUMLAR.includes(durum) ? durum : DURUM.bekliyor,
       kayitNo: `AY-${rastgele(5)}`, not: kirp(not, 200), kapora: kirp(kapora, 60),
       kaynak: kaynak || "Online", olusturma: simdiYazi(),
+      ...(!panel ? { opsiyonBitis: Date.now() + KURALLAR.opsiyonDakika * 60_000 } : {}),
     };
     const anahtar = `r:${tarih}:${saat}:${kayit.kayitNo}`;
     await this.st.put({ [anahtar]: kayit, [`k:${kayit.kayitNo}`]: anahtar });
@@ -256,8 +264,17 @@ export class RezervasyonDeposu extends DurableObject {
       const telefon = telefonNormalize(tel);
       if (!telefon) return { hata: "Geçersiz telefon." };
       const b = await this.kayitBul(kayitNo);
-      if (!b || b.kayit.telefon !== telefon || iptalMi(b.kayit.durum)) {
+      if (!b || b.kayit.telefon !== telefon || (iptalMi(b.kayit.durum) && !b.kayit.opsiyonDustu)) {
         return { hata: "Bu numaraya ait böyle bir aktif rezervasyon bulunamadı." };
+      }
+      // Opsiyon süresi dolduysa: yer hâlâ boşsa rezervasyon geri gelir, doluysa dekont alınmaz
+      if (opsiyonDustu(b.kayit) || b.kayit.opsiyonDustu) {
+        const gun = b.kayit.isletmeGunu || isletmeGunu(b.kayit.tarih, b.kayit.saat);
+        const sl = this.slot(await this.durumYukle(gun, gun), gun, b.kayit.saat);
+        if (sl.tur === "rez" || sl.tur === "abone") {
+          return { hata: `${KURALLAR.opsiyonDakika} dakikalık opsiyon süresi dolduğu için bu saat başka birine verildi. Ödeme yaptıysanız lütfen hemen arayın: 0 555 510 26 26.` };
+        }
+        b.kayit = { ...b.kayit, durum: DURUM.bekliyor, opsiyonDustu: false, iptalEden: undefined };
       }
       if (!DEKONT_TURLERI.includes(tur)) return { hata: "Dekont fotoğraf (JPG/PNG) ya da PDF olmalı." };
       if (!(veri instanceof Uint8Array) || veri.byteLength < 100) return { hata: "Dosya okunamadı." };
@@ -294,6 +311,23 @@ export class RezervasyonDeposu extends DurableObject {
       await this.kayitTut(null, onay ? "Dekont otomatik onaylandı" : "Dekont kontrol gerekiyor",
         `${kayit.kayitNo} · ${kayit.ad} · ${onay ? deger.tutar + " TL" : nedenler.join(" ")}`);
       return { basarili: true, onay, nedenler, rez: kayit };
+    });
+  }
+
+  /** Süresi dolan online opsiyonları "İptal" olarak işaretler (zamanlanmış görev, 5 dakikada bir). */
+  async opsiyonlariDusur() {
+    return this.kilitli(async () => {
+      const n = simdi();
+      const liste = await this.st.list({ start: `r:${gunEkle(n.tarih, -1)}`, end: `r:${gunEkle(n.tarih, 40)}~` });
+      const dusen = [];
+      for (const [anahtar, r] of liste) {
+        if (!opsiyonDustu(r)) continue;
+        const yeni = { ...r, durum: DURUM.iptal, iptalEden: "Opsiyon süresi doldu (dekont gelmedi)", opsiyonDustu: true };
+        await this.st.put(anahtar, yeni);
+        dusen.push(yeni);
+      }
+      if (dusen.length) await this.kayitTut(null, "Opsiyon düştü", dusen.map((r) => `${r.kayitNo} ${r.tarih} ${r.saat} ${r.ad}`).join(" · "));
+      return dusen;
     });
   }
 
@@ -620,7 +654,7 @@ export class RezervasyonDeposu extends DurableObject {
         });
       }
       const bekleyenler = (await this.rezervasyonlar(gunEkle(n.tarih, -1), gunEkle(n.tarih, 30)))
-        .filter((r) => r.durum === DURUM.bekliyor && macZamani(r.tarih, r.saat) > Date.now() - 3600_000)
+        .filter((r) => r.durum === DURUM.bekliyor && !opsiyonDustu(r) && macZamani(r.tarih, r.saat) > Date.now() - 3600_000)
         .sort((a, b) => (a.tarih + a.saat).localeCompare(b.tarih + b.saat));
       return { baslangic: bas, gunler, bekleyenler, bugun: isletmeGunu(n.tarih, n.saat) };
     });
@@ -908,6 +942,27 @@ export class RezervasyonDeposu extends DurableObject {
       const rezSayi = silinecek.filter((k) => k.startsWith("r:")).length;
       await this.kayitTut(null, "Haftalık temizlik", `${sinir} öncesi ${rezSayi} rezervasyon ve ${atla.size} "gelmiyor" işareti silindi; aboneler korundu`);
       return { basarili: true, sinir, rezervasyon: rezSayi, gelmiyor: atla.size };
+    });
+  }
+
+  /**
+   * Müşteriyi ve geçmiş rezervasyonlarını kalıcı olarak siler (KVKK silme talebi vb.).
+   * İleri tarihli aktif rezervasyonu ya da aboneliği varsa önce onların kaldırılması istenir.
+   */
+  async musteriSil(tel, yapan) {
+    return this.kilitli(async () => {
+      const telefon = telefonNormalize(tel);
+      if (!telefon) return { hata: "Geçersiz telefon." };
+      const tum = [...(await this.st.list({ prefix: "r:" }))].filter(([, r]) => r.telefon === telefon);
+      const aktif = tum.filter(([, r]) => !iptalMi(r.durum) && !opsiyonDustu(r) && macZamani(r.tarih, r.saat) > Date.now());
+      if (aktif.length) return { hata: `Bu müşterinin ${aktif.length} ileri tarihli aktif rezervasyonu var. Önce iptal edin.` };
+      const abone = (await this.aboneler()).filter((a) => a.telefon === telefon && !a.bitis);
+      if (abone.length) return { hata: `Bu numara aboneye kayıtlı (${abone.map((a) => a.ad).join(", ")}). Önce aboneliği sonlandırın.` };
+      const sil = [`m:${telefon}`];
+      for (const [k, r] of tum) sil.push(k, `k:${r.kayitNo}`, `d:${r.kayitNo}`);
+      for (let i = 0; i < sil.length; i += 128) await this.st.delete(sil.slice(i, i + 128));
+      await this.kayitTut(yapan, "Müşteri sildi", `${telefon} · ${tum.length} rezervasyon kaydı`);
+      return { basarili: true, silinen: tum.length };
     });
   }
 

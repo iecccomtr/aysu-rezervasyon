@@ -40,6 +40,7 @@ export const IBAN = { no: "TR70 0015 7000 0000 0154 8342 35", alici: "Ahmet Aysu
 export const KURALLAR = {
   enFazlaGunSonra: 27,          // en fazla kaç gün sonrasına rezervasyon alınır (bugün + 27 gün = 4 hafta)
   kisiBasiAktifRezervasyon: 4,  // bir numara için gelecekteki en fazla rezervasyon (4 haftada haftada bir)
+  opsiyonDakika: 15,            // online rezervasyon: dekont gelmezse yer bu kadar dakika sonra kendiliğinden boşa çıkar
   iptalEnGecSaat: 3,            // maçtan en geç kaç saat önce çevrimiçi iptal edilebilir
 };
 

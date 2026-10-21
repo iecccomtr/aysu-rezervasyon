@@ -66,6 +66,15 @@ Takvim tablosunda aboneler adla değil **numarayla** görünür ("Abone 3"). Num
 - İsim, telefon veya etikete göre arama yapılabilir.
 - Karta dokunarak **etiket** (ör. VIP, Kurumsal, Dikkat) ve **not** ekleyebilir, tüm rezervasyon geçmişini görebilir, tek dokunuşla arayabilir ya da WhatsApp'tan yazabilirsiniz.
 
+### Opsiyon ve dekont
+- Online rezervasyon yapılınca yer **15 dakika** müşteriye opsiyonlanır; bu sürede kimse o saati alamaz (müşteri ekranında geri sayım, panelde "x dk opsiyon").
+- Müşteri dekontu yüklerse otomatik kontrol edilir (IBAN, hesap adı, tutar ≥ kapora, tarih, aynı dekont tekrar kullanılmamış). Hepsi doğruysa rezervasyon **Onaylı** olur. Bir sorun varsa yer tutulmaya devam eder, panelde neden yazar; siz karar verirsiniz.
+- 15 dakika içinde dekont gelmezse yer kendiliğinden boşa çıkar (rezervasyon "İptal — opsiyon süresi doldu", size e-posta). Müşteri sonradan dekont yüklerse ve yer hâlâ boşsa rezervasyon geri gelir; doluysa aramasını ister.
+- Telefonla / panelden girilen rezervasyonlar düşmez.
+
+### Müşteri silme
+Müşteri kartı → **Müşteriyi sil**: müşterinin notu ve tüm geçmiş rezervasyon kayıtları kalıcı silinir. İleri tarihli aktif rezervasyonu ya da aboneliği varsa önce onları kaldırmanız istenir. İşlem kaydına yazılır.
+
 ### Müşteri tarafı
 1. Müşteri günü ve boş saati seçer, ad soyad ve cep telefonunu yazar.
 2. Saat hemen tutulur ve rezervasyon panelde **Kapora bekleniyor** olarak görünür.

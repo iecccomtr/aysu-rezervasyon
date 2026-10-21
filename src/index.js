@@ -266,6 +266,7 @@ async function panel(request, env, ctx, yol) {
     case "GET musteriler": return json(await d.musteriler());
     case "GET musteri": return json(await d.musteriDetay(url.searchParams.get("tel")));
     case "POST musteri-not": return degisti(await d.musteriNot(g));
+    case "POST musteri-sil": { const r = await d.musteriSil(g.telefon, ben); return json(r, r.hata ? 400 : 200); }
     case "GET kullanicilar": return json(await d.kullanicilar());
     case "GET dekont": {
       const f = await d.dekontGetir(url.searchParams.get("k"));
@@ -390,7 +391,7 @@ export default {
         return json({
           basarili: true, kayitNo: r.kayitNo, tarih: r.tarih, gun: r.gun, saat: r.saat, durum: r.durum,
           ucret: r.ucret, kapora: FIYATLAR.kapora, kalan: r.ucret - FIYATLAR.kapora,
-          iban: IBAN.no || null, alici: IBAN.alici || null,
+          iban: IBAN.no || null, alici: IBAN.alici || null, opsiyonBitis: r.opsiyonBitis || null,
         });
       } catch (e) {
         console.error(e);
@@ -479,6 +480,15 @@ export default {
   // Zamanlanmış görev (wrangler.jsonc → triggers.crons).
   async scheduled(event, env, ctx) {
     // Pazartesi 03:00 (Türkiye): geçen haftanın listesini temizle (aboneler kalır)
-    ctx.waitUntil(depo(env).haftaTemizle().then((r) => console.log("Haftalık temizlik", JSON.stringify(r))));
+    if (event?.cron === "0 0 * * 1") {
+      ctx.waitUntil(depo(env).haftaTemizle().then((r) => console.log("Haftalık temizlik", JSON.stringify(r))));
+      return;
+    }
+    // 5 dakikada bir: dekontu gelmeyen online opsiyonları düşür, işletmeye haber ver
+    ctx.waitUntil(depo(env).opsiyonlariDusur().then((dusen) => Promise.all(dusen.map((r) => bildir(env, {
+      konu: `Opsiyon düştü, yer boşa çıktı: ${r.gun} ${r.saat} (${r.kayitNo})`,
+      satirlar: [["Maç", `${r.gun}, ${r.tarih} saat ${r.saat}`], ["Ad soyad", r.ad], ["Telefon", r.telefon], ["Kayıt no", r.kayitNo],
+        ["Neden", `${KURALLAR.opsiyonDakika} dakika içinde dekont gelmedi`]],
+    })))));
   },
 };

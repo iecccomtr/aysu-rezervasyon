@@ -275,13 +275,13 @@ test("Dekont: doğru IBAN/alıcı/tutar → otomatik onay; yanlış IBAN → kon
   assert.match(epostalar.at(-1).text, /IBAN eşleşmiyor/);
 });
 
-test("VIP spiker (+2000) ve VIP hakem (+1000) ücrete eklenir", async () => {
+test("VIP spiker (+1600) ve VIP hakem (+1000) ücrete eklenir", async () => {
   const { istek } = await kur();
   const m = (await istek("/api/musaitlik")).veri;
-  assert.equal(m.ekstralar.spiker.ucret, 2000);
+  assert.equal(m.ekstralar.spiker.ucret, 1600);
   const r = (await istek("/api/rezervasyon", { ...REZ, ekstra: ["spiker", "hakem", "uydurma"] })).veri;
-  assert.equal(r.ucret, 3700 + 3000);
-  assert.equal(r.kalan, 6700 - 1200);
+  assert.equal(r.ucret, 3700 + 2600);
+  assert.equal(r.kalan, 6300 - 1200);
   const r2 = (await istek("/api/rezervasyon", { ...REZ, saat: "23:00", telefon: "0532 999 88 77", ekstra: ["hakem"] })).veri;
   assert.equal(r2.ucret, 4700);
 });

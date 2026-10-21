@@ -39,7 +39,7 @@ export const IBAN = { no: "TR70 0015 7000 0000 0154 8342 35", alici: "Ahmet Aysu
 
 /** Rezervasyonda seçilebilen ek hizmetler (maç ücretine eklenir). */
 export const EKSTRALAR = {
-  spiker: { ad: "VIP spiker", ucret: 2000 },
+  spiker: { ad: "VIP spiker", ucret: 1600 },
   hakem: { ad: "VIP hakem", ucret: 1000 },
 };
 

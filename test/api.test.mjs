@@ -312,3 +312,17 @@ test("Dekont: 500 TL ödeme de onaylanır, Müdür ve Müdür Yardımcısı'na e
   assert.deepEqual(eksik.to.sort(), ["mudur@aysu.com", "yrd@aysu.com"]);
   assert.match(eksik.text, /500 TL/);
 });
+
+test("Geçmiş haftalar ve geçmiş kayıtlar sadece Admin'e açık", async () => {
+  const { istek, cerezSil } = await kur();
+  await istek("/api/panel/kur", { kurulumKodu: "kurulum-kodu", eposta: "admin@aysu.com", sifre: "aysu-sifre-1" });
+  await istek("/api/panel/kayit", { eposta: "mudur@aysu.com", ad: "Müdür", sifre: "mudur-1234", rol: "mudur" });
+  await istek("/api/panel/kullanici", { eposta: "mudur@aysu.com", rol: "mudur", durum: "aktif" });
+  assert.equal((await istek("/api/panel/hafta?bas=2026-10-12")).veri.baslangic, "2026-10-12", "Admin geçmişi görür");
+  cerezSil();
+  await istek("/api/panel/giris", { eposta: "mudur@aysu.com", sifre: "mudur-1234" });
+  const h = (await istek("/api/panel/hafta?bas=2026-10-12")).veri;
+  assert.equal(h.baslangic, "2026-10-19", "Müdür bu haftadan geriye gidemez");
+  assert.equal(h.gerisiVar, false);
+  assert.equal((await istek("/api/panel/hafta?bas=2026-10-26")).veri.baslangic, "2026-10-26", "ileri haftalar açık");
+});

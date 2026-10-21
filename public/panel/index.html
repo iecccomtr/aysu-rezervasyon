@@ -117,6 +117,7 @@
   .hafta-nav { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
   .hafta-nav .ay { font: 700 22px/1 "Barlow Condensed", sans-serif; flex: 1; text-align: center; }
   .ok { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--cizgi); background: var(--kart); cursor: pointer; font-size: 20px; line-height: 1; }
+  .ok:disabled { opacity: .3; cursor: default; }
   .gunler { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; margin-bottom: 12px; }
   .gun { border: 1px solid var(--cizgi); background: var(--kart); border-radius: 10px; padding: 6px 2px 7px; cursor: pointer; text-align: center; line-height: 1.1; }
   .gun small { display: block; font-size: 12px; color: var(--gri); }
@@ -628,6 +629,9 @@
     } catch { return; }
     if (hafta.hata) { bildir(hafta.hata); return; }
     haftaBas = hafta.baslangic;
+    // Geçmiş haftalar sadece Admin'e açık
+    const buHaftaBas = gunEkle(hafta.bugun, -gunNo(hafta.bugun));
+    $("onceki").disabled = !hafta.gerisiVar && haftaBas <= buHaftaBas;
     if (!seciliGun || !hafta.gunler.some((g) => g.tarih === seciliGun)) {
       seciliGun = hafta.gunler.some((g) => g.tarih === hafta.bugun) ? hafta.bugun : hafta.gunler[0].tarih;
     }
@@ -1093,7 +1097,7 @@
         <div class="alan"><label for="d-not">Müşteri notu</label><textarea id="d-not" placeholder="ör. Kaporayı iki parça gönderiyor">${kacis(m.not)}</textarea></div>
         <button class="dugme tam" type="submit">Notu kaydet</button>
       </form>
-      <h3 style="font-size:20px;margin:18px 0 8px">Rezervasyon geçmişi</h3>
+      <h3 style="font-size:20px;margin:18px 0 8px">${m.gecmisGizli ? "Gelecek rezervasyonlar" : "Rezervasyon geçmişi"}</h3>
       ${m.rezervasyonlar.length ? `<ul class="gecmis-liste">${m.rezervasyonlar.map((r) => `
         <li><span>${tarihYazi(r.isletmeGunu || r.tarih, true)} ${r.saat}<br><small class="soluk">${kacis(r.kaynak || "")} · ${kacis(r.kayitNo)}${r.kapora ? " · kapora " + kacis(r.kapora) : ""}</small></span>
         <span class="rozet ${durumSinif(r.durum)}">${r.durum === "Kapora bekleniyor" ? "⏳ Opsiyon" : kacis(r.durum)}</span></li>`).join("")}</ul>` : '<p class="soluk">Kayıt yok.</p>'}`);

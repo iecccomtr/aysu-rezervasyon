@@ -1,7 +1,7 @@
 // Aysu Halı Saha — Cloudflare Worker girişi.
 // Statik sayfalar /public klasöründen sunulur; /api/* istekleri burada işlenir.
 
-import { simdi, isletmeGunu, gunEkle } from "./time.js";
+import { simdi, isletmeGunu, gunEkle, haftaBasi } from "./time.js";
 import { KURALLAR, FIYATLAR, IBAN, ISLETME, EKSTRALAR } from "./config.js";
 import { bildir, epostaYolla, epostaKurulu } from "./bildirim.js";
 import { dekontOku, dekontDegerlendir, ozet } from "./dekont-kontrol.js";
@@ -232,7 +232,15 @@ async function panel(request, env, ctx, yol) {
 
   // Temizlik Şefi ve Personel: sadece haftalık tabloyu görür
   if (request.method === "GET" && yol === "hafta") {
-    const h = await d.panelHafta(url.searchParams.get("bas"));
+    // Geçmiş haftaları sadece Admin görür; diğerleri en fazla bu haftaya kadar geri gidebilir
+    let bas = url.searchParams.get("bas");
+    if (ben.rol !== "admin") {
+      const n = simdi();
+      const buHafta = haftaBasi(isletmeGunu(n.tarih, n.saat));
+      if (!bas || bas < buHafta) bas = buHafta;
+    }
+    const h = await d.panelHafta(bas);
+    h.gerisiVar = ben.rol === "admin";
     return json(yonetici ? h : haftaSaltOkur(h));
   }
   if (!yonetici) return json({ hata: "Bu işlem için yetkiniz yok." }, 403);
@@ -264,7 +272,16 @@ async function panel(request, env, ctx, yol) {
     case "POST abone-sil": return degisti(await d.aboneSil(g.id));
     case "POST abone-atla": return degisti(await d.aboneAtla(g));
     case "GET musteriler": return json(await d.musteriler());
-    case "GET musteri": return json(await d.musteriDetay(url.searchParams.get("tel")));
+    case "GET musteri": {
+      const m = await d.musteriDetay(url.searchParams.get("tel"));
+      // Geçmiş rezervasyon kayıtlarını sadece Admin görür
+      if (ben.rol !== "admin" && m.rezervasyonlar) {
+        const n = simdi();
+        m.rezervasyonlar = m.rezervasyonlar.filter((r) => (r.isletmeGunu || r.tarih) >= isletmeGunu(n.tarih, n.saat));
+        m.gecmisGizli = true;
+      }
+      return json(m);
+    }
     case "POST musteri-not": return degisti(await d.musteriNot(g));
     case "POST musteri-sil": { const r = await d.musteriSil(g.telefon, ben); return json(r, r.hata ? 400 : 200); }
     case "GET kullanicilar": return json(await d.kullanicilar());

@@ -402,7 +402,7 @@
 
   function ciz() {
     const gun = veri && veri[secili];
-    if (!gun) { kutu.innerHTML = '<p class="tabela-not">Boş saatler şu an gösterilemiyor. Sohbetten sorabilir ya da arayabilirsiniz.</p>'; return; }
+    if (!gun) { kutu.innerHTML = '<p class="tabela-not">Boş saatler şu an gösterilemiyor. Rezervasyon sayfasından bakabilir ya da arayabilirsiniz.</p>'; return; }
     if (!gun.saatler.length) { kutu.innerHTML = '<p class="tabela-not">Bu gün için kalan saat yok. Yarına bakın.</p>'; return; }
     const ad = secili === "bugun" ? "Bugün" : "Yarın";
     kutu.innerHTML = gun.saatler.map((s) => s.bos

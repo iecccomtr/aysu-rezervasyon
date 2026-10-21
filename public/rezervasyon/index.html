@@ -58,6 +58,12 @@
   .adim-baslik span { color: var(--gri); font-size: 15px; }
 
   /* ---------- Gün şeridi ---------- */
+  .hafta-nav { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .hafta-nav span { flex: 1; text-align: center; font: 700 20px/1 "Barlow Condensed", sans-serif; }
+  .hafta-nav .ok { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--cizgi); background: var(--kart); cursor: pointer; font-size: 22px; line-height: 1; color: var(--cim); }
+  .hafta-nav .ok:disabled { opacity: .3; cursor: default; }
+  .gun.sonraki { background: var(--cim); color: #fff; border-color: var(--cim); display: grid; place-items: center; font-weight: 600; font-size: 15px; }
+  .gun.sonraki b { font-size: 26px; margin: 0; }
   .gunler { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 8px; margin: 0 -2px; scrollbar-width: none; scroll-snap-type: x proximity; }
   .gunler::-webkit-scrollbar { display: none; }
   .gun {
@@ -188,6 +194,11 @@
     <div id="secim">
       <section class="adim" aria-labelledby="b-gun">
         <div class="adim-baslik"><h2 id="b-gun">Gün seçin</h2></div>
+        <div class="hafta-nav">
+          <button type="button" class="ok" id="h-onceki" aria-label="Önceki hafta">‹</button>
+          <span id="h-baslik" aria-live="polite"></span>
+          <button type="button" class="ok" id="h-sonraki" aria-label="Sonraki hafta">›</button>
+        </div>
         <div class="gunler" id="gunler" role="group" aria-label="Günler">
           <p class="alt-bilgi" style="margin:0">Yükleniyor…</p>
         </div>
@@ -237,8 +248,8 @@
     <!-- ===== Başarılı ===== -->
     <section class="tamam" id="tamam" hidden aria-live="polite">
       <div class="isaret"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
-      <h2>Yeriniz ayrıldı</h2>
-      <p class="alt">Kaporayı gönderdiğinizde rezervasyonunuz kesinleşir.</p>
+      <h2>Yeriniz opsiyonlandı</h2>
+      <p class="alt">Yeriniz kapora gönderimi için <b>15 dakika</b> süreyle adınıza opsiyonlandı. Kaporayı gönderip dekontu ilettiğinizde rezervasyonunuz kesinleşir.</p>
 
       <div class="bilet">
         <div class="bilet-ust">
@@ -274,7 +285,7 @@
       <p class="alt-bilgi" style="text-align:left">Maça 3 saatten az kaldıysa iptal için lütfen arayın: <a href="tel:+905555102626">0 555 510 26 26</a></p>
     </details>
 
-    <p class="alt-bilgi"><a href="/">Ana sayfa</a> · Abonelik ve toplu rezervasyon için arayın: <a href="tel:+905555102626">0 555 510 26 26</a></p>
+    <p class="alt-bilgi"><a href="/">Ana sayfa</a> · Abonelik ve toplu rezervasyon için <a href="https://wa.me/905555102626" target="_blank" rel="noopener">WhatsApp'tan yazın</a></p>
   </main>
 
   <a class="wp-yuzen" href="https://wa.me/905555102626?text=Merhaba%2C%20rezervasyon%20hakk%C4%B1nda%20bilgi%20almak%20istiyorum." target="_blank" rel="noopener" aria-label="WhatsApp'tan yazın">
@@ -290,7 +301,11 @@
   const gece = (saat) => Number(saat.slice(0, 2)) < 6;
   const tarihYazi = (t) => { const [y, a, g] = t.split("-").map(Number); return `${g} ${AYLAR[a - 1]}`; };
 
-  let veri = null, gunIdx = 0, secilenSaat = null;
+  let veri = null, gunIdx = 0, secilenSaat = null, sayfa = 0;
+  // Günler bugünden itibaren 7'şerli haftalara bölünür (gece yarısından sonra dünün gecesi ilk haftada kalır)
+  const gunFarki = (t) => Math.round((Date.parse(t + "T00:00:00Z") - Date.parse(bugunTarihi() + "T00:00:00Z")) / 86400e3);
+  const sayfaOf = (i) => Math.max(0, Math.floor(gunFarki(veri.gunler[i].tarih) / 7));
+  const sayfaSayisi = () => (veri.gunler.length ? sayfaOf(veri.gunler.length - 1) + 1 : 1);
   const url = new URLSearchParams(location.search);
   let istenen = { tarih: url.get("tarih"), saat: url.get("saat") };
   if (istenen.tarih || istenen.saat) history.replaceState(null, "", location.pathname);
@@ -304,7 +319,9 @@
   function gunleriCiz() {
     const el = $("gunler");
     el.innerHTML = "";
-    veri.gunler.forEach((g, i) => {
+    const idxler = veri.gunler.map((_, i) => i).filter((i) => sayfaOf(i) === sayfa);
+    idxler.forEach((i) => {
+      const g = veri.gunler[i];
       const bos = g.saatler.filter((s) => s.bos).length;
       const b = document.createElement("button");
       b.type = "button"; b.className = "gun" + (bos ? "" : " kapali");
@@ -316,7 +333,36 @@
       b.addEventListener("click", () => { gunIdx = i; secilenSaat = null; gunleriCiz(); saatleriCiz(); formuGuncelle(); });
       el.appendChild(b);
     });
+    // Son günün yanında "sonraki hafta" kutusu
+    if (sayfa < sayfaSayisi() - 1) {
+      const n = document.createElement("button");
+      n.type = "button"; n.className = "gun sonraki";
+      n.innerHTML = "<span>Sonraki<br>hafta</span><b>›</b>";
+      n.setAttribute("aria-label", "Sonraki hafta");
+      n.addEventListener("click", () => haftaDegistir(1));
+      el.appendChild(n);
+    }
+    el.scrollLeft = 0;
+    // Başlık ve oklar
+    const ilk = veri.gunler[idxler[0]].tarih, son = veri.gunler[idxler[idxler.length - 1]].tarih;
+    const [g1, a1] = tarihYazi(ilk).split(" "), [g2, a2] = tarihYazi(son).split(" ");
+    $("h-baslik").textContent = a1 === a2 ? `${g1} – ${g2} ${a2}` : `${g1} ${a1} – ${g2} ${a2}`;
+    $("h-onceki").disabled = sayfa === 0;
+    $("h-sonraki").disabled = sayfa >= sayfaSayisi() - 1;
   }
+
+  function haftaDegistir(yon) {
+    const yeni = Math.min(Math.max(0, sayfa + yon), sayfaSayisi() - 1);
+    if (yeni === sayfa) return;
+    sayfa = yeni;
+    // Yeni haftanın ilk boş saati olan gününü seç
+    const idxler = veri.gunler.map((_, i) => i).filter((i) => sayfaOf(i) === sayfa);
+    gunIdx = idxler.find((i) => veri.gunler[i].saatler.some((x) => x.bos)) ?? idxler[0];
+    secilenSaat = null;
+    gunleriCiz(); saatleriCiz(); formuGuncelle();
+  }
+  $("h-onceki").addEventListener("click", () => haftaDegistir(-1));
+  $("h-sonraki").addEventListener("click", () => haftaDegistir(1));
 
   // Türkiye saatine göre bugün/yarın (UTC+3).
   function bugunTarihi() { return new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10); }
@@ -368,6 +414,7 @@
         }
         istenen = {};
       } else if (gunIdx >= veri.gunler.length) gunIdx = 0;
+      sayfa = sayfaOf(gunIdx);
       $("fiyat-not").textContent = `Maç ${tl(veri.fiyat)}`;
       gunleriCiz(); saatleriCiz(); formuGuncelle(Boolean(secilenSaat));
     } catch {

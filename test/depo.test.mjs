@@ -55,12 +55,13 @@ test("Abone başlangıç tarihinden önce dolu sayılmaz; gece abonesi doğru ge
   assert.equal(await bos(d, "2026-10-24", "00:00"), true, "cumartesi gecesi etkilenmez");
 });
 
-test("Geçmiş saatler listelenmez, 7 günden ileri reddedilir", async () => {
+test("Geçmiş saatler listelenmez, 4 haftadan ileri reddedilir", async () => {
   const d = demoDepo();
   const bugun = await d.musaitlik("2026-10-19");
   assert.ok(!bugun.detay.some((s) => s.saat === "09:00"));
   assert.ok(bugun.detay.some((s) => s.saat === "11:00"));
-  assert.ok((await d.musaitlik("2026-10-27")).hata);
+  assert.ok(!(await d.musaitlik("2026-11-15")).hata);
+  assert.ok((await d.musaitlik("2026-11-16")).hata);
 });
 
 test("Online rezervasyon: gece maçı ertesi takvim gününe yazılır, kapora bekleniyor", async () => {

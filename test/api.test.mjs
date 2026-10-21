@@ -45,13 +45,13 @@ async function kur(env = {}) {
 
 const REZ = { tarih: "2026-10-22", saat: "22:00", ad: "Ali Veli", telefon: "0532 111 22 33", kvkk: true };
 
-test("Müsaitlik: bu gecenin maçları + 7 gün; abone dolu", async () => {
+test("Müsaitlik: bu gecenin maçları + 4 hafta; abone dolu", async () => {
   const { istek } = await kur();
   const { durum, veri } = await istek("/api/musaitlik");
   assert.equal(durum, 200);
   assert.equal(veri.gunler[0].tarih, "2026-10-21");
   assert.deepEqual(veri.gunler[0].saatler.map((s) => s.saat), ["00:00", "01:00", "02:00"]);
-  assert.equal(veri.gunler.at(-1).tarih, "2026-10-28");
+  assert.equal(veri.gunler.at(-1).tarih, "2026-11-17");
   const per = veri.gunler.find((g) => g.tarih === "2026-10-22");
   assert.equal(per.saatler.find((s) => s.saat === "21:00").bos, false);
   assert.equal(veri.fiyat, 3700);

@@ -10,7 +10,7 @@
 //   x:<isletmeGunu>:<saat>:<id>  abone o hafta gelmiyor ("bu hafta gelmiyor")
 //   m:<telefon>                  müşteri notu / etiketi (CRM)
 //   f:<dosya>                    eski siteden kopyalanan fotoğraf
-//   panel:ayar, o:<token>        panel şifresi ve oturumlar
+//   u:<eposta>, o:<token>, s:<token>  panel kullanıcıları, oturumlar, şifre sıfırlama
 
 import { DurableObject } from "cloudflare:workers";
 import { SAATLER, KURALLAR, DURUM } from "./config.js";
@@ -22,6 +22,21 @@ import {
 export const GUNLER = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"];
 const DURUMLAR = [DURUM.bekliyor, DURUM.onayli, DURUM.iptal];
 const OTURUM_GUN = 30;
+
+/** Panel rolleri. yonetici: her şeye erişir; mesai: günlük çalışma saati e-postası alır. */
+export const ROLLER = {
+  mudur: { ad: "Müdür", yonetici: true },
+  mudur_yrd: { ad: "Müdür Yardımcısı", yonetici: true },
+  temizlik: { ad: "Temizlik Şefi", yonetici: false, mesai: true },
+  personel: { ad: "Personel", yonetici: false, mesai: true },
+};
+const ROL_SIRA = { mudur: 0, mudur_yrd: 1, temizlik: 2, personel: 3 };
+const epostaNormalize = (e) => {
+  const s = String(e || "").trim().toLocaleLowerCase("en").slice(0, 120);
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s) ? s : null;
+};
+/** Kullanıcıyı dışarı verirken şifre bilgilerini çıkar. */
+const kullaniciDisi = ({ hash, tuz, ...u }) => ({ ...u, rolAd: ROLLER[u.rol]?.ad || "" });
 
 const iptalMi = (durum) => String(durum || "").toLocaleLowerCase("tr").includes("iptal");
 const geceSaati = (saat) => Number(saat.slice(0, 2)) < 6;
@@ -232,54 +247,216 @@ export class RezervasyonDeposu extends DurableObject {
     });
   }
 
-  // ================= Panel: giriş =================
+  // ================= Panel: kullanıcılar ve giriş =================
+  //   u:<eposta>   kullanıcı { eposta, ad, telefon, rol, durum: bekliyor|aktif|pasif, hash, tuz, kayit, mesaiEposta }
+  //   o:<token>    oturum { eposta, bitis }
+  //   s:<token>    şifre sıfırlama { eposta, bitis } (1 saat geçerli, tek kullanımlık)
 
-  async panelDurum() {
-    return { kurulu: Boolean(await this.st.get("panel:ayar")) };
+  async kullaniciListesi() {
+    const m = await this.st.list({ prefix: "u:" });
+    return [...m.values()];
   }
 
-  /** İlk kurulum veya şifre sıfırlama: PANEL_KURULUM_KODU ile. */
-  async panelKur({ kurulumKodu, sifre }) {
+  async panelDurum() {
+    return { kurulu: (await this.kullaniciListesi()).some((u) => u.rol === "mudur" && u.durum === "aktif") };
+  }
+
+  /** İlk kurulum / acil durum: PANEL_KURULUM_KODU ile bir Müdür hesabı oluşturur veya şifresini yeniler. */
+  async panelKur({ kurulumKodu, eposta, ad, sifre }) {
     return this.kilitli(async () => {
       const kod = this.env.PANEL_KURULUM_KODU;
       if (!kod || !esitMi(String(kurulumKodu || ""), kod)) return { hata: "Kurulum kodu hatalı." };
+      const e = epostaNormalize(eposta);
+      if (!e) return { hata: "Geçerli bir e-posta adresi girin." };
       if (typeof sifre !== "string" || sifre.length < 8) return { hata: "Şifre en az 8 karakter olmalı." };
+      const eski = await this.st.get(`u:${e}`);
       const tuz = rastgele(16);
-      await this.st.put("panel:ayar", { hash: await sifreHash(sifre, tuz), tuz });
-      // Eski oturumları kapat
-      const eski = await this.st.list({ prefix: "o:" });
-      if (eski.size) await this.st.delete([...eski.keys()]);
-      return this.oturumAc();
+      await this.st.put(`u:${e}`, {
+        ...(eski || { kayit: simdiYazi(), telefon: "", mesaiEposta: true }),
+        eposta: e, ad: kirp(ad, 60) || eski?.ad || "Müdür", rol: "mudur", durum: "aktif",
+        hash: await sifreHash(sifre, tuz), tuz,
+      });
+      await this.oturumlariKapat(e);
+      return this.oturumAc(e);
     });
   }
 
-  async panelGiris(sifre) {
+  /** Kendi kendine kayıt: hesap Müdür / Müdür Yardımcısı onaylayıp rol verene kadar kapalıdır. */
+  async kayitOl({ eposta, ad, telefon: tel, sifre }) {
     return this.kilitli(async () => {
-      const ayar = await this.st.get("panel:ayar");
-      if (!ayar) return { hata: "Panel henüz kurulmamış." };
-      if (!esitMi(await sifreHash(String(sifre || ""), ayar.tuz), ayar.hash)) return { hata: "Şifre hatalı." };
-      return this.oturumAc();
+      const e = epostaNormalize(eposta);
+      if (!e) return { hata: "Geçerli bir e-posta adresi girin." };
+      if (kirp(ad, 60).length < 2) return { hata: "Adınızı ve soyadınızı yazın." };
+      if (typeof sifre !== "string" || sifre.length < 8) return { hata: "Şifre en az 8 karakter olmalı." };
+      if (await this.st.get(`u:${e}`)) return { hata: "Bu e-posta ile zaten bir hesap var. Giriş yapın ya da şifrenizi sıfırlayın." };
+      const tuz = rastgele(16);
+      const u = {
+        eposta: e, ad: kirp(ad, 60), telefon: telefonNormalize(tel) || "", rol: null, durum: "bekliyor",
+        hash: await sifreHash(sifre, tuz), tuz, kayit: simdiYazi(), mesaiEposta: true,
+      };
+      await this.st.put(`u:${e}`, u);
+      return { basarili: true, kullanici: kullaniciDisi(u) };
     });
   }
 
-  async oturumAc() {
+  async panelGiris({ eposta, sifre }) {
+    return this.kilitli(async () => {
+      const e = epostaNormalize(eposta);
+      const u = e && (await this.st.get(`u:${e}`));
+      // Hesap olmasa da hash hesapla: yanıt süresinden e-postanın kayıtlı olup olmadığı anlaşılmasın
+      const hash = await sifreHash(String(sifre || ""), u ? u.tuz : "yok");
+      if (!u || !esitMi(hash, u.hash)) return { hata: "E-posta veya şifre hatalı." };
+      if (u.durum === "bekliyor") return { hata: "Hesabınız Müdür onayı bekliyor. Onaylanınca giriş yapabilirsiniz." };
+      if (u.durum !== "aktif" || !ROLLER[u.rol]) return { hata: "Hesabınız kapalı. Müdürle görüşün." };
+      return this.oturumAc(e);
+    });
+  }
+
+  async oturumAc(eposta) {
     const token = hex(crypto.getRandomValues(new Uint8Array(32)));
     const bitis = Date.now() + OTURUM_GUN * 86400_000;
-    await this.st.put(`o:${token}`, { bitis });
+    await this.st.put(`o:${token}`, { eposta, bitis });
     return { basarili: true, token, bitis };
   }
 
-  async oturumGecerli(token) {
-    if (!token || !/^[0-9a-f]{64}$/.test(token)) return false;
+  async oturumlariKapat(eposta) {
+    const m = await this.st.list({ prefix: "o:" });
+    const sil = [...m].filter(([, o]) => !o.eposta || o.eposta === eposta).map(([k]) => k);
+    if (sil.length) await this.st.delete(sil);
+  }
+
+  /** Geçerli oturumun kullanıcısı (aktif ve rolü olan) ya da null. */
+  async oturum(token) {
+    if (!token || !/^[0-9a-f]{64}$/.test(token)) return null;
     const o = await this.st.get(`o:${token}`);
-    if (!o) return false;
-    if (o.bitis < Date.now()) { await this.st.delete(`o:${token}`); return false; }
-    return true;
+    if (!o || !o.eposta) return null;
+    if (o.bitis < Date.now()) { await this.st.delete(`o:${token}`); return null; }
+    const u = await this.st.get(`u:${o.eposta}`);
+    if (!u || u.durum !== "aktif" || !ROLLER[u.rol]) return null;
+    return kullaniciDisi(u);
   }
 
   async cikis(token) {
-    if (token) await this.st.delete(`o:${token}`);
+    if (token && /^[0-9a-f]{64}$/.test(token)) await this.st.delete(`o:${token}`);
     return { basarili: true };
+  }
+
+  /** Şifre sıfırlama bağlantısı üretir (yalnızca aktif ya da onay bekleyen hesaplar için). */
+  async sifirlamaOlustur(eposta) {
+    return this.kilitli(async () => {
+      const e = epostaNormalize(eposta);
+      const u = e && (await this.st.get(`u:${e}`));
+      if (!u || u.durum === "pasif") return { yok: true };
+      const token = hex(crypto.getRandomValues(new Uint8Array(32)));
+      await this.st.put(`s:${token}`, { eposta: e, bitis: Date.now() + 3600_000 });
+      return { basarili: true, token, eposta: e, ad: u.ad };
+    });
+  }
+
+  async sifreSifirla({ token, sifre }) {
+    return this.kilitli(async () => {
+      if (!token || !/^[0-9a-f]{64}$/.test(token)) return { hata: "Bağlantı geçersiz." };
+      const s = await this.st.get(`s:${token}`);
+      if (!s || s.bitis < Date.now()) {
+        if (s) await this.st.delete(`s:${token}`);
+        return { hata: "Bağlantının süresi dolmuş. Yeniden \"Şifremi unuttum\" deyin." };
+      }
+      if (typeof sifre !== "string" || sifre.length < 8) return { hata: "Şifre en az 8 karakter olmalı." };
+      const u = await this.st.get(`u:${s.eposta}`);
+      if (!u) return { hata: "Hesap bulunamadı." };
+      const tuz = rastgele(16);
+      await this.st.put(`u:${s.eposta}`, { ...u, hash: await sifreHash(sifre, tuz), tuz });
+      await this.st.delete(`s:${token}`);
+      await this.oturumlariKapat(s.eposta);
+      if (u.durum !== "aktif" || !ROLLER[u.rol]) return { basarili: true, onayBekliyor: true };
+      return { ...(await this.oturumAc(s.eposta)), basarili: true };
+    });
+  }
+
+  async kullanicilar() {
+    return (await this.kullaniciListesi())
+      .map(kullaniciDisi)
+      .sort((a, b) => (a.durum === "bekliyor" ? -1 : 0) - (b.durum === "bekliyor" ? -1 : 0)
+        || (ROL_SIRA[a.rol] ?? 9) - (ROL_SIRA[b.rol] ?? 9) || a.ad.localeCompare(b.ad, "tr"));
+  }
+
+  /** Rol / durum / bilgi değişikliği. Yapan: oturumdaki yönetici. */
+  async kullaniciGuncelle({ eposta, rol, durum, ad, telefon: tel, mesaiEposta }, yapan) {
+    return this.kilitli(async () => {
+      const e = epostaNormalize(eposta);
+      const u = e && (await this.st.get(`u:${e}`));
+      if (!u) return { hata: "Kullanıcı bulunamadı." };
+      const yeni = { ...u };
+      if (rol !== undefined) {
+        if (!ROLLER[rol]) return { hata: "Geçersiz rol." };
+        yeni.rol = rol;
+      }
+      if (durum !== undefined) {
+        if (!["aktif", "pasif"].includes(durum)) return { hata: "Geçersiz durum." };
+        yeni.durum = durum;
+      }
+      if (ad !== undefined && kirp(ad, 60).length >= 2) yeni.ad = kirp(ad, 60);
+      if (tel !== undefined) yeni.telefon = telefonNormalize(tel) || "";
+      if (mesaiEposta !== undefined) yeni.mesaiEposta = Boolean(mesaiEposta);
+      if (yeni.durum === "aktif" && !ROLLER[yeni.rol]) return { hata: "Hesabı açmak için önce bir rol seçin." };
+
+      const hata = this.yetkiKontrol(u, yeni, yapan);
+      if (hata) return { hata };
+      if (u.rol === "mudur" && (yeni.rol !== "mudur" || yeni.durum !== "aktif")) {
+        const digerMudur = (await this.kullaniciListesi()).some((x) => x.eposta !== e && x.rol === "mudur" && x.durum === "aktif");
+        if (!digerMudur) return { hata: "En az bir aktif Müdür kalmalı." };
+      }
+      await this.st.put(`u:${e}`, yeni);
+      if (yeni.durum !== "aktif" || yeni.rol !== u.rol) await this.oturumlariKapat(e);
+      return { basarili: true, kullanici: kullaniciDisi(yeni) };
+    });
+  }
+
+  yetkiKontrol(eski, yeni, yapan) {
+    if (!yapan || !ROLLER[yapan.rol]?.yonetici) return "Bu işlem için yetkiniz yok.";
+    if (eski.eposta === yapan.eposta && (yeni.rol !== eski.rol || yeni.durum !== eski.durum)) return "Kendi rolünüzü veya durumunuzu değiştiremezsiniz.";
+    if (yapan.rol !== "mudur" && (eski.rol === "mudur" || yeni.rol === "mudur")) return "Müdür hesaplarını sadece Müdür yönetebilir.";
+    return null;
+  }
+
+  async kullaniciSil(eposta, yapan) {
+    return this.kilitli(async () => {
+      const e = epostaNormalize(eposta);
+      const u = e && (await this.st.get(`u:${e}`));
+      if (!u) return { hata: "Kullanıcı bulunamadı." };
+      if (u.eposta === yapan?.eposta) return { hata: "Kendi hesabınızı silemezsiniz." };
+      const hata = this.yetkiKontrol(u, u, yapan);
+      if (hata) return { hata };
+      if (u.rol === "mudur" && u.durum === "aktif"
+        && !(await this.kullaniciListesi()).some((x) => x.eposta !== e && x.rol === "mudur" && x.durum === "aktif")) {
+        return { hata: "En az bir aktif Müdür kalmalı." };
+      }
+      await this.st.delete(`u:${e}`);
+      await this.oturumlariKapat(e);
+      return { basarili: true };
+    });
+  }
+
+  // ================= Mesai planı (personel e-postası) =================
+
+  /** İşletme günü için ilk/son dolu saat ve personelin başlama/bitiş saati (ilk maçtan 1 saat önce). */
+  async mesaiPlani(gunGirdi) {
+    return this.kilitli(async () => {
+      const gun = tarihNormalize(gunGirdi);
+      if (!gun) return { hata: "Geçersiz tarih." };
+      const d = await this.durumYukle(gun, gun);
+      const maclar = SAATLER.map((saat) => ({ saat, s: this.slot(d, gun, saat) }))
+        .filter((x) => x.s.tur === "rez" || x.s.tur === "abone")
+        .map((x) => ({ saat: x.saat, ad: x.s.tur === "rez" ? x.s.rez.ad : x.s.abone.ad, abone: x.s.tur === "abone" }));
+      const alicilar = (await this.kullaniciListesi())
+        .filter((u) => u.durum === "aktif" && ROLLER[u.rol]?.mesai && u.mesaiEposta !== false)
+        .map((u) => ({ eposta: u.eposta, ad: u.ad, rol: u.rol }));
+      const plan = { gun, gunAdi: gunAdi(gun), maclar, alicilar };
+      if (!maclar.length) return plan;
+      const ilk = maclar[0].saat, son = maclar[maclar.length - 1].saat;
+      const saatKaydir = (s, n) => `${String((Number(s.slice(0, 2)) + n + 24) % 24).padStart(2, "0")}:00`;
+      return { ...plan, ilk, son, baslama: saatKaydir(ilk, -1), bitis: saatKaydir(son, 1) };
+    });
   }
 
   // ================= Panel: takvim =================

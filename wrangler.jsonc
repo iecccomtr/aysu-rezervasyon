@@ -20,6 +20,9 @@
 
   "observability": { "enabled": true },
 
+  // Her akşam 20:00 (Türkiye) ertesi günün çalışma saati Personel ve Temizlik Şefi'ne e-postayla gider (UTC 17:00)
+  "triggers": { "crons": ["0 17 * * *"] },
+
   // Panelden girilen değişkenler yeni yüklemelerde silinmesin
   "keep_vars": true,
 
@@ -27,6 +30,6 @@
   "vars": { "PANEL_KURULUM_KODU": "BVY3oMi4BoyVVkGS" }
 
   // İsteğe bağlı gizli değerler (Cloudflare paneli → Settings → Variables and Secrets → Secret):
-  //   RESEND_API_KEY, BILDIRIM_EPOSTA         (e-posta bildirimi)
+  //   RESEND_API_KEY, BILDIRIM_EPOSTA, GONDEREN_EPOSTA  (e-posta: bildirim, şifre sıfırlama, mesai)
   //   TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID   (Telegram bildirimi)
 }

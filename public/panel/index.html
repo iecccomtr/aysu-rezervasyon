@@ -33,6 +33,20 @@
   .giris form { width: 100%; max-width: 360px; background: var(--kart); border-radius: 16px; padding: 24px; }
   .giris h1 { font-size: 34px; color: var(--cim); }
   .giris p.alt { color: var(--gri); margin: 4px 0 18px; }
+  .giris-linkler { margin-top: 16px; font-size: 14px; display: flex; flex-wrap: wrap; gap: 6px 16px; justify-content: space-between; }
+  .giris-linkler a { color: var(--cim); font-weight: 600; }
+  .tamam-kutu { background: #e8f5ec; color: #14532d; border: 1px solid #b7dfc3; border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; font-size: 15px; }
+  .kullanici { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--cizgi); background: none; border-left: 0; border-right: 0; border-top: 0; width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+  .kullanici:last-child { border-bottom: 0; }
+  .kullanici small { color: var(--gri); display: block; overflow-wrap: anywhere; }
+  .rozet.r-rol { background: #e3eefb; color: #0b4f8a; }
+  .rozet.r-onay { background: #fff1d6; color: #8a5a00; }
+  .rozet.r-pasif { background: #eee; color: #666; }
+  .mesai-kutu { padding: 14px; }
+  .mesai-kutu .buyuk { font: 700 30px/1 "Barlow Condensed", sans-serif; color: var(--cim); }
+  .salt-okur .arti, .salt-okur .h-bos { pointer-events: none; }
+  .salt-okur .arti { display: none; }
+  .ben { color: #b8d3e8; font-size: 13px; text-align: right; line-height: 1.2; }
 
   /* ---------- Üst çubuk ---------- */
   .ust { position: sticky; top: 0; z-index: 5; background: var(--cim-koyu); color: var(--tebesir); padding: max(10px, env(safe-area-inset-top)) 16px 10px; }
@@ -47,7 +61,7 @@
 
   /* ---------- Alt sekmeler ---------- */
   .sekmeler { position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; background: var(--kart); border-top: 1px solid var(--cizgi); padding-bottom: env(safe-area-inset-bottom); }
-  .sekmeler .ic { max-width: 900px; margin: 0 auto; display: grid; grid-template-columns: repeat(3, 1fr); }
+  .sekmeler .ic { max-width: 900px; margin: 0 auto; display: grid; grid-template-columns: repeat(var(--sekme-sayi, 4), 1fr); }
   .sekmeler button { background: none; border: 0; padding: 10px 4px 12px; cursor: pointer; font-weight: 600; color: var(--gri); display: grid; justify-items: center; gap: 2px; font-size: 14px; }
   .sekmeler svg { width: 24px; height: 24px; }
   .sekmeler button[aria-current="page"] { color: var(--cim); }
@@ -216,16 +230,20 @@
 <section class="giris" id="giris" hidden>
   <form id="giris-form" novalidate>
     <img src="/img/aysu-logo.svg" alt="Aysu Halı Saha" width="140" height="60" style="display:block;margin-bottom:10px">
-    <h1>Yönetim paneli</h1>
-    <p class="alt" id="giris-alt">Yönetim paneline giriş</p>
+    <h1 id="giris-baslik">Panel girişi</h1>
+    <p class="alt" id="giris-alt"></p>
     <div id="giris-uyari" class="uyari" role="alert" hidden></div>
-    <div id="kurulum-alanlari" hidden>
-      <div class="alan"><label for="g-kod">Kurulum kodu</label><input id="g-kod" autocomplete="off" autocapitalize="off"></div>
-    </div>
-    <div class="alan"><label for="g-sifre" id="g-sifre-etiket">Şifre</label><input id="g-sifre" type="password" autocomplete="current-password"></div>
-    <div class="alan" id="g-sifre2-alan" hidden><label for="g-sifre2">Şifre (tekrar)</label><input id="g-sifre2" type="password" autocomplete="new-password"></div>
+    <div id="giris-tamam" class="tamam-kutu" role="status" hidden></div>
+    <div class="alan" data-mod="kur"><label for="g-kod">Kurulum kodu</label><input id="g-kod" autocomplete="off" autocapitalize="off"></div>
+    <div class="alan" data-mod="kur kayit"><label for="g-ad">Ad soyad</label><input id="g-ad" autocomplete="name" maxlength="60"></div>
+    <div class="alan" data-mod="giris kur kayit unuttum"><label for="g-eposta">E-posta</label><input id="g-eposta" type="email" inputmode="email" autocomplete="username" autocapitalize="off" spellcheck="false"></div>
+    <div class="alan" data-mod="kayit"><label for="g-tel">Telefon <span class="soluk">(isteğe bağlı)</span></label><input id="g-tel" type="tel" inputmode="tel" autocomplete="tel"></div>
+    <div class="alan" data-mod="giris kur kayit sifirla"><label for="g-sifre" id="g-sifre-etiket">Şifre</label><input id="g-sifre" type="password" autocomplete="current-password"></div>
+    <div class="alan" data-mod="kur kayit sifirla"><label for="g-sifre2">Şifre (tekrar)</label><input id="g-sifre2" type="password" autocomplete="new-password"></div>
+    <input type="text" id="g-web" name="web" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
+    <div id="g-dogrulama" data-mod="kayit unuttum" style="margin-bottom:8px"></div>
     <button class="dugme tam" type="submit" id="giris-dugme">Giriş yap</button>
-    <p class="soluk" style="margin-top:14px;font-size:14px" id="giris-not"></p>
+    <p class="giris-linkler" id="giris-not"></p>
   </form>
 </section>
 
@@ -235,7 +253,8 @@
     <div class="ic">
       <a class="logo" href="/panel/" aria-label="Aysu Panel"><img src="/img/aysu-logo.svg" alt="Aysu Halı Saha" width="80" height="34"></a><h1>Panel</h1>
       <div class="sag">
-        <a href="/rezervasyon/" target="_blank" style="color:#b8d3e8;font-size:14px">Site</a>
+        <span class="ben" id="ben"></span>
+        <a href="/rezervasyon/" target="_blank" style="color:#b8d3e8;font-size:14px" data-yonetici>Site</a>
         <button type="button" id="cikis">Çıkış</button>
       </div>
     </div>
@@ -295,6 +314,14 @@
       </div>
       <div class="kutu saatler" id="musteri-liste"></div>
     </section>
+    <!-- Kullanıcılar (Müdür / Müdür Yardımcısı) -->
+    <section id="v-kullanicilar" data-gorunum hidden>
+      <div class="baslik-satir"><h2>Kullanıcılar</h2><span class="soluk sag" id="kullanici-sayi"></span></div>
+      <p class="soluk" style="margin-bottom:12px">Personel <b>/panel</b> adresinden e-postasıyla kayıt olur. Burada rol seçip hesabı açarsınız. Temizlik Şefi ve Personel sadece haftalık tabloyu görür.</p>
+      <div class="kutu" id="kullanici-liste"></div>
+      <div class="baslik-satir" style="margin-top:22px"><h2>Mesai e-postası</h2></div>
+      <div class="kutu mesai-kutu" id="mesai"></div>
+    </section>
   </main>
 
   <nav class="sekmeler" aria-label="Panel bölümleri">
@@ -302,11 +329,14 @@
       <button type="button" data-sekme="takvim" aria-current="page">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>Takvim
       </button>
-      <button type="button" data-sekme="aboneler">
+      <button type="button" data-sekme="aboneler" data-yonetici>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3"/><path d="M18 3v4h-4M6 21v-4h4"/></svg>Aboneler
       </button>
-      <button type="button" data-sekme="musteriler">
+      <button type="button" data-sekme="musteriler" data-yonetici>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14.8c2 .7 3.2 2.4 3.6 5.2"/></svg>Müşteriler
+      </button>
+      <button type="button" data-sekme="kullanicilar" data-yonetici>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/></svg>Kullanıcılar
       </button>
     </div>
   </nav>
@@ -369,52 +399,133 @@
     u.scrollIntoView({ block: "nearest" });
   };
 
-  // ================= Giriş =================
-  let kurulumModu = false;
+  // ================= Giriş / kayıt / şifre =================
+  let mod = "giris", kurulu = true, ben = null, sifirlaToken = null;
+  const yonetici = () => Boolean(ben && (ben.rol === "mudur" || ben.rol === "mudur_yrd"));
+  const MODLAR = {
+    giris: { baslik: "Panel girişi", alt: "E-posta adresiniz ve şifrenizle girin.", dugme: "Giriş yap", yol: "giris" },
+    kayit: { baslik: "Kayıt ol", alt: "Hesabınız Müdür onayladıktan sonra açılır.", dugme: "Kayıt ol", yol: "kayit" },
+    unuttum: { baslik: "Şifremi unuttum", alt: "E-posta adresinizi yazın, şifre yenileme bağlantısı gönderelim.", dugme: "Bağlantı gönder", yol: "sifre-unuttum" },
+    sifirla: { baslik: "Yeni şifre", alt: "Yeni şifrenizi belirleyin.", dugme: "Şifreyi kaydet", yol: "sifre-sifirla" },
+    kur: { baslik: "Panel kurulumu", alt: "Müdür hesabını oluşturun: kurulum kodu, e-posta ve şifre.", dugme: "Müdür hesabını oluştur", yol: "kur" },
+  };
+
+
+  // ================= Bot koruması (Cloudflare Turnstile) =================
+  // Site anahtarı sunucudan gelir; tanımlı değilse hiçbir şey yüklenmez.
+  const dogrulama = { anahtar: null, id: null, hazir: null };
+  function dogrulamaKur(anahtar, kutuId) {
+    if (!anahtar || dogrulama.anahtar) return;
+    dogrulama.anahtar = anahtar;
+    dogrulama.hazir = new Promise((ok) => {
+      window.aysuTurnstile = () => {
+        dogrulama.id = turnstile.render("#" + kutuId, { sitekey: anahtar, appearance: "interaction-only", language: "tr" });
+        ok();
+      };
+      const s = document.createElement("script");
+      s.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=aysuTurnstile";
+      s.async = true; s.defer = true;
+      document.head.appendChild(s);
+    });
+  }
+  async function dogrulamaAl() {
+    if (!dogrulama.anahtar) return undefined;
+    await dogrulama.hazir;
+    for (let i = 0; i < 60; i++) {
+      const t = turnstile.getResponse(dogrulama.id);
+      if (t) return t;
+      await new Promise((ok) => setTimeout(ok, 250));
+    }
+    return "";
+  }
+  function dogrulamaYenile() { if (dogrulama.id !== null && window.turnstile) turnstile.reset(dogrulama.id); }
+
   async function basla() {
+    const h = location.hash.match(/^#sifirla=([0-9a-f]{64})$/);
+    if (h) { sifirlaToken = h[1]; history.replaceState(null, "", location.pathname); return girisGoster("sifirla"); }
     try {
       const d = await (await fetch("/api/panel/durum", { cache: "no-store" })).json();
-      if (d.girisli) return uygulamaGoster();
-      kurulumModu = !d.kurulu;
-      girisGoster();
+      kurulu = d.kurulu;
+      dogrulamaKur(d.dogrulama, "g-dogrulama");
+      if (d.girisli) { ben = d.kullanici; return uygulamaGoster(); }
+      girisGoster(kurulu ? "giris" : "kur");
     } catch {
-      girisGoster();
-      $("giris-uyari").textContent = "Sunucuya ulaşılamadı. Sayfayı yenileyin."; $("giris-uyari").hidden = false;
+      girisGoster("giris");
+      girisUyari("Sunucuya ulaşılamadı. Sayfayı yenileyin.");
     }
   }
 
-  function girisGoster(sifirla) {
-    if (sifirla !== undefined) kurulumModu = sifirla;
+  function girisUyari(metin) { $("giris-uyari").textContent = metin; $("giris-uyari").hidden = !metin; }
+  function girisTamam(metin) { $("giris-tamam").textContent = metin; $("giris-tamam").hidden = !metin; }
+
+  function girisGoster(yeniMod) {
+    if (yeniMod) mod = yeniMod;
+    const m = MODLAR[mod];
     $("uygulama").hidden = true; $("giris").hidden = false;
-    $("kurulum-alanlari").hidden = !kurulumModu;
-    $("g-sifre2-alan").hidden = !kurulumModu;
-    $("giris-alt").textContent = kurulumModu ? "Paneli kurun: kurulum kodunu girip bir şifre belirleyin." : "Yönetim paneline giriş";
-    $("g-sifre-etiket").textContent = kurulumModu ? "Yeni şifre (en az 8 karakter)" : "Şifre";
-    $("g-sifre").autocomplete = kurulumModu ? "new-password" : "current-password";
-    $("giris-dugme").textContent = kurulumModu ? "Şifreyi kaydet ve gir" : "Giriş yap";
-    $("giris-not").innerHTML = kurulumModu ? "" : '<a href="#" id="sifre-unuttum">Şifremi unuttum</a>';
-    const u = $("sifre-unuttum");
-    if (u) u.addEventListener("click", (e) => { e.preventDefault(); girisGoster(true); $("giris-alt").textContent = "Şifre sıfırlama: kurulum kodu ve yeni şifre girin."; });
-    setTimeout(() => (kurulumModu ? $("g-kod") : $("g-sifre")).focus(), 50);
+    $("giris-baslik").textContent = m.baslik;
+    $("giris-alt").textContent = m.alt;
+    $("giris-dugme").textContent = m.dugme;
+    girisUyari("");
+    document.querySelectorAll("#giris-form [data-mod]").forEach((el) => { el.hidden = !el.dataset.mod.split(" ").includes(mod); });
+    const yeni = mod !== "giris";
+    $("g-sifre-etiket").textContent = yeni ? "Şifre (en az 8 karakter)" : "Şifre";
+    $("g-sifre").autocomplete = yeni ? "new-password" : "current-password";
+    const link = (m2, yazi) => `<a href="#" data-git="${m2}">${yazi}</a>`;
+    $("giris-not").innerHTML = mod === "giris" ? link("unuttum", "Şifremi unuttum") + link("kayit", "Kayıt ol")
+      : mod === "kur" ? (kurulu ? link("giris", "← Girişe dön") : "")
+      : link("giris", "← Girişe dön") + (mod === "unuttum" ? link("kur", "Müdür: kurulum koduyla sıfırla") : "");
+    $("giris-not").querySelectorAll("[data-git]").forEach((a) => a.addEventListener("click", (e) => {
+      e.preventDefault(); girisTamam(""); girisGoster(a.dataset.git);
+    }));
+    setTimeout(() => { const ilk = [...document.querySelectorAll("#giris-form .alan:not([hidden]) input")][0]; if (ilk) ilk.focus(); }, 50);
   }
 
   $("giris-form").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const uyari = $("giris-uyari"); uyari.hidden = true;
+    girisUyari(""); girisTamam("");
     const sifre = $("g-sifre").value;
-    if (kurulumModu && sifre !== $("g-sifre2").value) { uyari.textContent = "Şifreler aynı değil."; uyari.hidden = false; return; }
+    if (["kur", "kayit", "sifirla"].includes(mod) && sifre !== $("g-sifre2").value) return girisUyari("Şifreler aynı değil.");
+    const govde = {
+      giris: { eposta: $("g-eposta").value, sifre },
+      kayit: { eposta: $("g-eposta").value, ad: $("g-ad").value, telefon: $("g-tel").value, sifre },
+      unuttum: { eposta: $("g-eposta").value },
+      sifirla: { token: sifirlaToken, sifre },
+      kur: { kurulumKodu: $("g-kod").value.trim(), eposta: $("g-eposta").value, ad: $("g-ad").value, sifre },
+    }[mod];
+    govde.web = $("g-web").value;
     $("giris-dugme").disabled = true;
     try {
-      const r = await fetch(kurulumModu ? "/api/panel/kur" : "/api/panel/giris", {
-        method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify(kurulumModu ? { kurulumKodu: $("g-kod").value.trim(), sifre } : { sifre }),
+      if (mod === "kayit" || mod === "unuttum") {
+        govde.dogrulama = await dogrulamaAl();
+        if (govde.dogrulama === "") return girisUyari("Güvenlik doğrulamasını tamamlayın, ardından tekrar deneyin.");
+      }
+      const r = await fetch("/api/panel/" + MODLAR[mod].yol, {
+        method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(govde),
       });
       const v = await r.json().catch(() => ({}));
-      if (!r.ok) { uyari.textContent = v.hata || "Giriş yapılamadı."; uyari.hidden = false; return; }
-      $("g-sifre").value = ""; $("g-sifre2").value = ""; $("g-kod").value = "";
+      if (mod === "kayit" || mod === "unuttum") dogrulamaYenile();
+      if (!r.ok) return girisUyari(v.hata || "İşlem yapılamadı.");
+      ["g-sifre", "g-sifre2", "g-kod"].forEach((id) => { $(id).value = ""; });
+      if (mod === "kayit") {
+        girisGoster("giris");
+        return girisTamam("Kaydınız alındı. Müdür hesabınızı onaylayınca bu e-posta ve şifreyle giriş yapabilirsiniz.");
+      }
+      if (mod === "unuttum") {
+        girisGoster("giris");
+        return girisTamam(v.eposta
+          ? "Bu e-posta kayıtlıysa şifre yenileme bağlantısı gönderildi. Gelen kutunuzu (ve spam klasörünü) kontrol edin. Bağlantı 1 saat geçerlidir."
+          : "E-posta gönderimi henüz kurulu değil. Müdürden şifre yenileme bağlantısı isteyin (Panel → Kullanıcılar).");
+      }
+      if (mod === "sifirla" && v.onayBekliyor) {
+        girisGoster("giris");
+        return girisTamam("Şifreniz kaydedildi. Hesabınız Müdür onayı bekliyor.");
+      }
+      const d = await (await fetch("/api/panel/durum", { cache: "no-store" })).json();
+      ben = d.kullanici; kurulu = d.kurulu;
+      if (!ben) return girisGoster("giris");
       uygulamaGoster();
     } catch {
-      uyari.textContent = "Bağlantı kurulamadı."; uyari.hidden = false;
+      girisUyari("Bağlantı kurulamadı.");
     } finally {
       $("giris-dugme").disabled = false;
     }
@@ -422,7 +533,8 @@
 
   $("cikis").addEventListener("click", async () => {
     await fetch("/api/panel/cikis", { method: "POST" }).catch(() => {});
-    girisGoster(false);
+    ben = null;
+    girisGoster("giris");
   });
 
   // ================= Sekmeler =================
@@ -436,11 +548,19 @@
     if (ad === "takvim") haftaYukle();
     if (ad === "aboneler") aboneYukle();
     if (ad === "musteriler") musteriYukle();
+    if (ad === "kullanicilar") kullaniciYukle();
     window.scrollTo({ top: 0 });
   }
 
   function uygulamaGoster() {
     $("giris").hidden = true; $("uygulama").hidden = false;
+    const y = yonetici();
+    document.body.classList.toggle("salt-okur", !y);
+    document.querySelectorAll("[data-yonetici]").forEach((el) => { el.hidden = !y; });
+    document.documentElement.style.setProperty("--sekme-sayi", y ? 4 : 1);
+    document.querySelector(".sekmeler").hidden = !y;
+    $("ben").innerHTML = `${kacis(ben.ad)}<br><small>${kacis(ben.rolAd)}</small>`;
+    if (!y) sekme = "takvim";
     document.documentElement.style.setProperty("--ust-yuk", document.querySelector(".ust").offsetHeight + "px");
     sekmeAc(sekme);
   }
@@ -494,11 +614,11 @@
       if (s.tur === "rez") {
         const r = s.rez;
         sinif += ` t-rez${r.durum === "Kapora bekleniyor" ? " bekliyor" : ""}`;
-        ic = `<span class="i"><b>${kacis(r.ad)}</b><small>${telYazi(r.telefon) || "telefonsuz"} · ${r.kaynak === "Online" ? "Online" : "Telefon"}${r.kapora ? " · kapora " + kacis(r.kapora) : ""}</small></span>
+        ic = `<span class="i"><b>${kacis(r.ad)}</b><small>${yonetici() ? (telYazi(r.telefon) || "telefonsuz") + " · " : ""}${r.kaynak === "Online" ? "Online" : "Telefon"}${r.kapora ? " · kapora " + kacis(r.kapora) : ""}</small></span>
               <span class="rozet ${durumSinif(r.durum)}">${r.durum === "Kapora bekleniyor" ? "Kapora" : kacis(r.durum)}</span>`;
       } else if (s.tur === "abone") {
         sinif += " t-abone";
-        ic = `<span class="i"><b>${kacis(s.abone.ad)}</b><small>${telYazi(s.abone.telefon) || "abone"}</small></span><span class="rozet r-abone">Abone</span>`;
+        ic = `<span class="i"><b>${kacis(s.abone.ad)}</b><small>${yonetici() ? telYazi(s.abone.telefon) || "abone" : "abone"}</small></span><span class="rozet r-abone">Abone</span>`;
       } else if (s.tur === "abone-gelmiyor") {
         sinif += " bos";
         ic = `<span class="i">Boş <small>· ${kacis(s.abone.ad)} bu hafta gelmiyor</small></span><span class="arti">+ Ekle</span>`;
@@ -513,6 +633,7 @@
     $("saatler").innerHTML = gunduz.map(satir).join("") + `<div class="grup-ad">${g.gun} gecesi</div>` + geceler.map(satir).join("");
     $("saatler").querySelectorAll("[data-saat]").forEach((el) => el.addEventListener("click", () => {
       const s = g.saatler.find((x) => x.saat === el.dataset.saat);
+      if (!yonetici()) return;
       if (s.tur === "rez") rezDetay(s.rez);
       else if (s.tur === "abone") aboneSlot(g, s);
       else rezEkle(g, s);
@@ -525,6 +646,7 @@
   function hucreTiklandi(gun, saat) {
     const g = hafta.gunler.find((x) => x.tarih === gun);
     const s = g.saatler.find((x) => x.saat === saat);
+    if (!yonetici()) return;
     if (s.tur === "rez") rezDetay(s.rez);
     else if (s.tur === "abone") aboneSlot(g, s);
     else rezEkle(g, s);
@@ -871,6 +993,91 @@
   }
 
   // Panel açıkken takvimi her dakika tazele (yeni online rezervasyonlar görünsün)
+  // ================= Kullanıcılar =================
+  const ROLLER = { mudur: "Müdür", mudur_yrd: "Müdür Yardımcısı", temizlik: "Temizlik Şefi", personel: "Personel" };
+  let kullanicilar = [];
+  async function kullaniciYukle() {
+    try { kullanicilar = await api("kullanicilar"); } catch { return; }
+    if (kullanicilar.hata) return bildir(kullanicilar.hata);
+    const bek = kullanicilar.filter((u) => u.durum === "bekliyor").length;
+    $("kullanici-sayi").textContent = `${kullanicilar.length} kişi${bek ? ` · ${bek} onay bekliyor` : ""}`;
+    $("kullanici-liste").innerHTML = kullanicilar.map((u, i) => `
+      <button type="button" class="kullanici" data-i="${i}">
+        <span><b>${kacis(u.ad)}</b>${u.eposta === ben.eposta ? ' <span class="soluk">(siz)</span>' : ""}<small>${kacis(u.eposta)}${u.telefon ? " · " + telYazi(u.telefon) : ""}</small></span>
+        ${u.durum === "bekliyor" ? '<span class="rozet r-onay">Onay bekliyor</span>'
+          : u.durum === "pasif" ? '<span class="rozet r-pasif">Kapalı</span>'
+          : `<span class="rozet r-rol">${kacis(u.rolAd)}</span>`}
+      </button>`).join("") || '<p class="soluk" style="padding:14px">Henüz kullanıcı yok.</p>';
+    $("kullanici-liste").querySelectorAll("[data-i]").forEach((el) => el.addEventListener("click", () => kullaniciDetay(kullanicilar[el.dataset.i])));
+    mesaiYukle();
+  }
+
+  function kullaniciDetay(u) {
+    const kendisi = u.eposta === ben.eposta;
+    const mudurMu = ben.rol === "mudur";
+    const roller = Object.entries(ROLLER).filter(([k]) => mudurMu || k !== "mudur");
+    const kilitli = kendisi || (!mudurMu && u.rol === "mudur");
+    const ic = ac(u.ad, `
+      <p class="soluk" style="margin-bottom:12px">${kacis(u.eposta)}${u.telefon ? " · " + telYazi(u.telefon) : ""}<br>Kayıt: ${kacis(u.kayit || "")}</p>
+      ${kilitli ? `<p class="soluk">${kendisi ? "Kendi rolünüzü değiştiremezsiniz." : "Müdür hesabını sadece Müdür yönetebilir."}</p>` : `
+      <div class="alan"><label for="d-rol">Rol</label>
+        <select id="d-rol"><option value="">— Rol seçin —</option>${roller.map(([k, ad]) => `<option value="${k}"${u.rol === k ? " selected" : ""}>${ad}</option>`).join("")}</select>
+      </div>
+      <p class="soluk" style="font-size:14px;margin:-4px 0 12px">Müdür ve Müdür Yardımcısı her şeye erişir. Temizlik Şefi ve Personel sadece haftalık tabloyu görür, değişiklik yapamaz.</p>
+      <label style="display:flex;gap:8px;align-items:center;margin-bottom:14px"><input type="checkbox" id="d-mesai"${u.mesaiEposta !== false ? " checked" : ""}> Çalışma saati e-postası alsın (Temizlik Şefi / Personel)</label>
+      <div class="eylemler" style="display:grid;gap:8px">
+        ${u.durum === "aktif"
+          ? '<button class="dugme" type="button" id="d-kaydet">Kaydet</button><button class="dugme ikincil" type="button" id="d-kapat">Hesabı kapat</button>'
+          : `<button class="dugme" type="button" id="d-ac">${u.durum === "bekliyor" ? "Onayla ve hesabı aç" : "Hesabı yeniden aç"}</button>`}
+        <button class="dugme ikincil" type="button" id="d-link">Şifre yenileme bağlantısı al</button>
+        <button class="dugme ikincil" type="button" id="d-sil" style="color:#b42318">Kullanıcıyı sil</button>
+      </div>
+      <div id="d-link-alan"></div>`}
+    `);
+    if (kilitli) return;
+    const kaydet = async (ek) => {
+      const r = await api("kullanici", { eposta: u.eposta, rol: $("d-rol").value || undefined, mesaiEposta: $("d-mesai").checked, ...ek });
+      if (r.hata) return dlgUyari(r.hata);
+      dlg.close(); bildir("Kaydedildi"); kullaniciYukle();
+    };
+    ic.querySelector("#d-kaydet")?.addEventListener("click", () => kaydet({}));
+    ic.querySelector("#d-ac")?.addEventListener("click", () => kaydet({ durum: "aktif" }));
+    ic.querySelector("#d-kapat")?.addEventListener("click", () => kaydet({ durum: "pasif" }));
+    ic.querySelector("#d-sil").addEventListener("click", async () => {
+      if (!confirm(`${u.ad} silinsin mi?`)) return;
+      const r = await api("kullanici-sil", { eposta: u.eposta });
+      if (r.hata) return dlgUyari(r.hata);
+      dlg.close(); bildir("Silindi"); kullaniciYukle();
+    });
+    ic.querySelector("#d-link").addEventListener("click", async () => {
+      const r = await api("sifirlama-linki", { eposta: u.eposta });
+      if (r.hata) return dlgUyari(r.hata);
+      const metin = `Aysu Halı Saha panel şifrenizi yenilemek için (1 saat geçerli): ${r.link}`;
+      $("d-link-alan").innerHTML = `<p class="soluk" style="margin:12px 0 6px;font-size:14px">Bu bağlantıyı sadece ${kacis(u.ad)} ile paylaşın. 1 saat geçerli, tek kullanımlık.</p>
+        <input readonly value="${kacis(r.link)}" style="width:100%;font-size:13px" onclick="this.select()">
+        ${u.telefon ? `<a class="dugme wp tam" style="margin-top:8px" target="_blank" rel="noopener" href="${wa(u.telefon)}?text=${encodeURIComponent(metin)}">WhatsApp'tan gönder</a>` : ""}`;
+    });
+  }
+
+  async function mesaiYukle() {
+    const p = await api("mesai").catch(() => null);
+    if (!p || p.hata) return;
+    const [y, a, g] = p.gun.split("-");
+    const kim = p.alicilar.length ? p.alicilar.map((k) => kacis(k.ad)).join(", ") : "henüz kimse yok";
+    $("mesai").innerHTML = `
+      <p class="soluk" style="margin-bottom:10px">Her akşam 20:00'de ertesi günün çalışma saati Temizlik Şefi ve Personel'e e-postayla gider. İşe başlama = ilk maçtan 1 saat önce.</p>
+      <p style="margin-bottom:4px"><b>Yarın · ${Number(g)} ${AYLAR[Number(a) - 1]} ${kacis(p.gunAdi)}</b></p>
+      ${p.maclar.length
+        ? `<div class="buyuk">${p.baslama}</div><p class="soluk">işe başlama · ilk maç ${p.ilk}, son maç ${p.son}, tahmini bitiş ${p.bitis} · ${p.maclar.length} maç</p>`
+        : '<p class="soluk">Yarın için kayıtlı maç yok.</p>'}
+      <p style="margin:10px 0">Alıcılar: ${kim}</p>
+      <button class="dugme ikincil kucuk" type="button" id="mesai-gonder">Şimdi gönder</button>`;
+    $("mesai-gonder").addEventListener("click", async () => {
+      const r = await api("mesai-gonder", { gun: p.gun });
+      bildir(r.hata || `${r.gonderilen} kişiye gönderildi`);
+    });
+  }
+
   setInterval(() => { if (!$("uygulama").hidden && sekme === "takvim" && !dlg.open && document.visibilityState === "visible") haftaYukle(); }, 60_000);
 
   basla();

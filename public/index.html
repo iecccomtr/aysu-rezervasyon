@@ -43,9 +43,11 @@
 </script>
 <style>
   :root {
+    /* Logo renkleri: mavi #0067a4, turuncu #ef7f1a, açık mavi #a4ccea */
     --cim: #0067a4;
-    --cim-koyu: #062a45;
+    --cim-koyu: #004a77;     /* logo mavisinin koyusu */
     --kirmizi: #ef7f1a;      /* logodaki turuncu */
+    --acik-mavi: #a4ccea;    /* logodaki açık mavi */
     --tebesir: #f5f8fb;
     --murekkep: #10202d;
     --gri: #566270;
@@ -66,7 +68,7 @@
   p { margin: 0; }
   .kap { max-width: var(--en); margin: 0 auto; padding: 0 var(--gutter); }
   section { padding: 72px 0; }
-  :focus-visible { outline: 3px solid var(--isik); outline-offset: 3px; }
+  :focus-visible { outline: 3px solid var(--kirmizi); outline-offset: 3px; }
 
   /* ---------- Üst menü ---------- */
   .ust {
@@ -93,7 +95,7 @@
   }
   .giris::after {
     content: ""; position: absolute; inset: 0;
-    background: linear-gradient(180deg, rgba(4,24,40,.55) 0%, rgba(4,24,40,.25) 35%, rgba(4,24,40,.85) 78%, var(--cim-koyu) 100%);
+    background: linear-gradient(180deg, rgba(0,74,119,.6) 0%, rgba(0,103,164,.3) 35%, rgba(0,74,119,.88) 78%, var(--cim-koyu) 100%);
   }
   .giris .kap { position: relative; z-index: 1; width: 100%; }
   .giris h1 { font-size: clamp(54px, 11vw, 132px); letter-spacing: -.01em; max-width: 9ch; }
@@ -169,7 +171,7 @@
   .adimlar-bolum { background: var(--cim); color: var(--tebesir); }
   .adimlar { list-style: none; padding: 0; margin: 32px 0 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; counter-reset: adim; }
   .adimlar li { counter-increment: adim; border-top: 2px solid rgba(244,247,241,.35); padding-top: 18px; }
-  .adimlar li::before { content: counter(adim); display: block; font: 700 48px/1 "Barlow Condensed", sans-serif; color: var(--isik); margin-bottom: 10px; }
+  .adimlar li::before { content: counter(adim); display: block; font: 700 48px/1 "Barlow Condensed", sans-serif; color: var(--kirmizi); margin-bottom: 10px; }
   .adimlar p { opacity: .88; margin-top: 6px; }
   .adimlar-bolum .eylemler { margin-top: 36px; }
   @media (max-width: 760px) { .adimlar { grid-template-columns: 1fr; } }
@@ -185,7 +187,7 @@
   .adres a { font-weight: 600; }
 
 
-  footer { background: var(--cim-koyu); color: #b8d3e8; padding: 40px 0 calc(40px + env(safe-area-inset-bottom)); font-size: 15px; }
+  footer { background: var(--cim-koyu); color: var(--acik-mavi); padding: 40px 0 calc(40px + env(safe-area-inset-bottom)); font-size: 15px; }
   footer .kap { display: flex; gap: 24px; flex-wrap: wrap; justify-content: space-between; }
   footer a { color: var(--tebesir); }
   footer nav { display: flex; gap: 18px; flex-wrap: wrap; }

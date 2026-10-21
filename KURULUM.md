@@ -13,13 +13,34 @@ Canlı adres: **https://aysu-rezervasyon.aysuahmt.workers.dev**. GitHub'a gönde
 
 ---
 
-## Panel kurulumu (bir kez)
+## Panel kurulumu ve kullanıcılar
 
-1. `/panel/` adresini açın.
-2. **Kurulum kodu** olarak `wrangler.jsonc` dosyasındaki `PANEL_KURULUM_KODU` değerini girin, ardından bir **şifre** belirleyin (en az 8 karakter).
-3. Bitti. Aynı şifreyle telefondan ya da bilgisayardan girebilirsiniz. Oturum 30 gün açık kalır.
+### İlk kurulum (Müdür hesabı, bir kez)
+1. `/panel/` adresini açın. Panel henüz kurulmadıysa **Panel kurulumu** ekranı gelir.
+2. **Kurulum kodu** (`wrangler.jsonc` → `PANEL_KURULUM_KODU`), adınız, e-postanız ve şifrenizi (en az 8 karakter) girin.
+3. Bu hesap **Müdür** olur. Oturum 30 gün açık kalır.
 
-**Şifreyi unutursanız:** Giriş ekranında "Şifremi unuttum"a basın, kurulum kodu ve yeni şifreyle sıfırlayın. Sıfırlama tüm açık oturumları kapatır. Kurulum kodunu kimseyle paylaşmayın; değiştirmek için `wrangler.jsonc`'deki değeri değiştirmek yeterli.
+### Personel nasıl eklenir?
+1. Personel `/panel/` → **Kayıt ol** ile ad, e-posta ve şifresini girer.
+2. Hesap **onay bekliyor** durumunda kalır; Müdür onaylamadan giriş yapılamaz.
+3. Müdür (veya Müdür Yardımcısı) **Panel → Kullanıcılar**'da kişiye dokunur, **rol** seçer ve **Onayla ve hesabı aç**'a basar.
+
+| Rol | Yetki |
+|---|---|
+| Müdür | Her şey (Müdür hesaplarını da yönetir) |
+| Müdür Yardımcısı | Her şey (Müdür hesaplarına dokunamaz, kimseyi Müdür yapamaz) |
+| Temizlik Şefi | Sadece haftalık rezervasyon tablosunu görür (telefon, kapora görünmez), değişiklik yapamaz |
+| Personel | Temizlik Şefi ile aynı |
+
+Hesabı kapatılan kullanıcının açık oturumu hemen kapanır. En az bir aktif Müdür her zaman kalır.
+
+### Şifremi unuttum
+- Giriş ekranında **Şifremi unuttum** → e-posta yazılır → 1 saat geçerli, tek kullanımlık yenileme bağlantısı e-postaya gider (e-posta kurulumu gerekir, aşağıda).
+- E-posta kurulu değilse: Müdür, **Kullanıcılar → kişi → Şifre yenileme bağlantısı al** ile bağlantıyı alıp WhatsApp'tan iletir.
+- Müdür kendi şifresini unutursa: **Şifremi unuttum → Müdür: kurulum koduyla sıfırla** (kurulum kodu + e-posta + yeni şifre).
+
+### Mesai e-postası
+Her akşam **20:00**'de ertesi günün çalışma saati, rolü Temizlik Şefi veya Personel olan aktif kullanıcılara e-postayla gider: **işe başlama = ilk maçtan 1 saat önce**, ilk/son maç ve tahmini bitiş (son maçtan 1 saat sonra). Önizleme ve **Şimdi gönder** düğmesi: Panel → Kullanıcılar → Mesai e-postası. Kişi bazında kapatılabilir.
 
 ---
 
@@ -46,17 +67,31 @@ Canlı adres: **https://aysu-rezervasyon.aysuahmt.workers.dev**. GitHub'a gönde
 ### Müşteri tarafı
 1. Müşteri günü ve boş saati seçer, ad soyad ve cep telefonunu yazar.
 2. Saat hemen tutulur ve rezervasyon panelde **Kapora bekleniyor** olarak görünür.
-3. Müşteri ekranda kayıt numarasını, IBAN'ı ve kalan tutarı görür. "Dekontu WhatsApp'tan gönder" düğmesi kayıt numaralı hazır bir mesaj açar.
+3. Müşteri ekranda "yeriniz kapora gönderimi için 15 dakika adınıza opsiyonlandı" mesajını, kayıt numarasını, IBAN'ı ve kalan tutarı görür. "Dekontu WhatsApp'tan gönder" düğmesi kayıt numaralı hazır bir mesaj açar.
 4. Müşteri, maçtan en geç 3 saat önce kayıt numarası ve telefonuyla sayfadan iptal edebilir.
 
-Kurallar: en fazla 7 gün ileriye rezervasyon, bir telefonla en fazla 2 ileri tarihli rezervasyon, aynı saate aynı anda iki kişi basarsa sadece biri kaydedilir.
+Kurallar: en fazla 4 hafta ileriye rezervasyon (sayfada haftalar ‹ › oklarıyla geçilir), bir telefonla aynı anda en fazla 4 ileri tarihli rezervasyon (ayda her hafta bir maç), aynı saate aynı anda iki kişi basarsa sadece biri kaydedilir.
 
 ---
 
 ## İsteğe bağlı
 
-### E-posta bildirimi
-Yeni online rezervasyon ve iptallerde e-posta almak isterseniz resend.com'da **aysuhalisaha@gmail.com** ile ücretsiz hesap açın ve API anahtarını Cloudflare'de **Settings → Variables and Secrets** bölümüne `RESEND_API_KEY` adıyla **Secret** olarak girin. Alan adı Cloudflare'e geçince bu bildirim Resend'siz de kurulabilir.
+### E-posta (bildirim, şifre sıfırlama, mesai) — önerilir
+Şifre sıfırlama ve mesai e-postalarının personele gidebilmesi için:
+1. resend.com'da **aysuhalisaha@gmail.com** ile ücretsiz hesap açın (ayda 3.000 e-posta).
+2. Resend → **Domains → Add domain** → `aysuhalisaha.com`. Gösterilen DNS kayıtlarını Cloudflare → aysuhalisaha.com → **DNS**'e ekleyin (Resend'in "Sign in to Cloudflare" düğmesi bunu otomatik de yapabilir). Gmail kullanımınızı etkilemez.
+3. Resend → **API Keys → Create** ile anahtar alın.
+4. Cloudflare → Workers → aysu-rezervasyon → **Settings → Variables and Secrets**:
+   - `RESEND_API_KEY` → **Secret** olarak anahtar
+   - `GONDEREN_EPOSTA` → **Text** olarak `Aysu Halı Saha <panel@aysuhalisaha.com>`
+
+Alan adı doğrulanmadan Resend sadece hesabı açtığınız adrese gönderir; personele gitmez.
+
+### Bot koruması (Cloudflare Turnstile) — önerilir
+Hız sınırı (IP başına dakikada 20 istek), gizli bot tuzağı ve aynı-site kontrolü zaten açık. Ek olarak "ben robot değilim" doğrulaması için:
+1. Cloudflare → **Turnstile → Add widget**: ad `Aysu`, hostname `aysuhalisaha.com`, mod **Managed**.
+2. Verilen **Site Key**'i `TURNSTILE_SITE_KEY` (**Text**), **Secret Key**'i `TURNSTILE_SECRET` (**Secret**) olarak Workers → aysu-rezervasyon → Settings → Variables and Secrets'a girin.
+3. Bundan sonra rezervasyon, panel kaydı ve şifremi unuttum doğrulamasız çalışmaz. Gerçek kullanıcılar çoğu zaman hiçbir şey görmez; şüpheli durumda tek tıklık kutu çıkar.
 
 ### Santral SMS linki
 > Aysu Halı Saha'yı aradığınız için teşekkürler. Online rezervasyon: https://aysuhalisaha.com/rezervasyon

@@ -85,10 +85,12 @@ test("Aynı anda aynı saate iki istek: sadece biri kazanır", async () => {
   assert.equal([a, b].filter((x) => x.basarili).length, 1);
 });
 
-test("Müşteri sınırları: kişi başı 2 aktif, geçersiz girdiler", async () => {
+test("Müşteri sınırları: kişi başı 4 aktif (ayda haftada bir), geçersiz girdiler", async () => {
   const d = demoDepo();
   assert.ok((await d.olustur({ gunTarihi: "2026-10-21", saat: "18:00", ...ALI })).basarili);
-  assert.ok((await d.olustur({ gunTarihi: "2026-10-22", saat: "18:00", ...ALI })).basarili);
+  assert.ok((await d.olustur({ gunTarihi: "2026-10-28", saat: "18:00", ...ALI })).basarili);
+  assert.ok((await d.olustur({ gunTarihi: "2026-11-04", saat: "18:00", ...ALI })).basarili);
+  assert.ok((await d.olustur({ gunTarihi: "2026-11-11", saat: "18:00", ...ALI })).basarili);
   assert.match((await d.olustur({ gunTarihi: "2026-10-23", saat: "18:00", ...ALI })).hata, /aktif rezervasyon/);
   assert.ok((await d.olustur({ gunTarihi: "2026-10-21", saat: "05:00", ...ALI })).hata);
   assert.ok((await d.olustur({ gunTarihi: "2026-10-21", saat: "21:00", ad: "Ali", telefon: "123" })).hata);
@@ -164,23 +166,95 @@ test("CRM: müşteriler telefonla gruplanır; maç, iptal, abone ve not", async 
   assert.equal(det.not, "Kaporayı hep 2 parça atıyor");
 });
 
-test("Panel girişi: kurulum kodu, şifre, oturum", async () => {
+test("Panel girişi: kurulum kodu ile Müdür, e-posta + şifre, oturum", async () => {
   const d = demoDepo({ PANEL_KURULUM_KODU: "kod123" });
   assert.equal((await d.panelDurum()).kurulu, false);
-  assert.ok((await d.panelGiris("x")).hata);
-  assert.match((await d.panelKur({ kurulumKodu: "yanlis", sifre: "12345678" })).hata, /Kurulum kodu/);
-  assert.match((await d.panelKur({ kurulumKodu: "kod123", sifre: "kisa" })).hata, /8 karakter/);
-  const k = await d.panelKur({ kurulumKodu: "kod123", sifre: "aysu-2026!" });
-  assert.ok(k.basarili && (await d.oturumGecerli(k.token)));
-  assert.match((await d.panelGiris("yanlis-sifre")).hata, /hatalı/);
-  const g = await d.panelGiris("aysu-2026!");
-  assert.ok(await d.oturumGecerli(g.token));
+  assert.ok((await d.panelGiris({ eposta: "a@b.com", sifre: "x" })).hata);
+  assert.match((await d.panelKur({ kurulumKodu: "yanlis", eposta: "mudur@aysu.com", sifre: "12345678" })).hata, /Kurulum kodu/);
+  assert.match((await d.panelKur({ kurulumKodu: "kod123", eposta: "mudur@aysu.com", sifre: "kisa" })).hata, /8 karakter/);
+  assert.match((await d.panelKur({ kurulumKodu: "kod123", eposta: "bozuk", sifre: "aysu-2026!" })).hata, /e-posta/);
+  const k = await d.panelKur({ kurulumKodu: "kod123", eposta: "Mudur@Aysu.com", ad: "Ahmet Aysu", sifre: "aysu-2026!" });
+  assert.ok(k.basarili);
+  assert.equal((await d.oturum(k.token)).rol, "mudur");
+  assert.equal((await d.panelDurum()).kurulu, true);
+  assert.match((await d.panelGiris({ eposta: "mudur@aysu.com", sifre: "yanlis-sifre" })).hata, /hatalı/);
+  const g = await d.panelGiris({ eposta: " MUDUR@aysu.com ", sifre: "aysu-2026!" });
+  assert.equal((await d.oturum(g.token)).eposta, "mudur@aysu.com");
+  assert.equal((await d.oturum(g.token)).hash, undefined, "şifre bilgisi dışarı çıkmamalı");
   await d.cikis(g.token);
-  assert.equal(await d.oturumGecerli(g.token), false);
-  assert.equal(await d.oturumGecerli("abc"), false);
-  // Şifre sıfırlama eski oturumları kapatır
-  await d.panelKur({ kurulumKodu: "kod123", sifre: "yeni-sifre-1" });
-  assert.equal(await d.oturumGecerli(k.token), false);
+  assert.equal(await d.oturum(g.token), null);
+  assert.equal(await d.oturum("abc"), null);
+  // Kurulum koduyla yeniden şifre: eski oturumlar kapanır
+  await d.panelKur({ kurulumKodu: "kod123", eposta: "mudur@aysu.com", sifre: "yeni-sifre-1" });
+  assert.equal(await d.oturum(k.token), null);
+});
+
+test("Kayıt → onay bekler → rol verilince girer; roller ve yetkiler", async () => {
+  const d = demoDepo({ PANEL_KURULUM_KODU: "kod123" });
+  const m = await d.panelKur({ kurulumKodu: "kod123", eposta: "mudur@aysu.com", ad: "Ahmet", sifre: "aysu-2026!" });
+  const mudur = await d.oturum(m.token);
+
+  assert.ok((await d.kayitOl({ eposta: "temiz@aysu.com", ad: "Ayşe Temiz", sifre: "temizlik-1" })).basarili);
+  assert.match((await d.kayitOl({ eposta: "temiz@aysu.com", ad: "Tekrar", sifre: "temizlik-1" })).hata, /zaten/);
+  assert.match((await d.panelGiris({ eposta: "temiz@aysu.com", sifre: "temizlik-1" })).hata, /onay/);
+  assert.match((await d.kullaniciGuncelle({ eposta: "temiz@aysu.com", durum: "aktif" }, mudur)).hata, /rol/);
+  assert.ok((await d.kullaniciGuncelle({ eposta: "temiz@aysu.com", rol: "temizlik", durum: "aktif" }, mudur)).basarili);
+  const t = await d.panelGiris({ eposta: "temiz@aysu.com", sifre: "temizlik-1" });
+  const temiz = await d.oturum(t.token);
+  assert.equal(temiz.rolAd, "Temizlik Şefi");
+  // Salt-okur rol kimseyi yönetemez
+  assert.match((await d.kullaniciGuncelle({ eposta: "temiz@aysu.com", rol: "mudur" }, temiz)).hata, /yetki/);
+
+  // Müdür Yardımcısı: Müdür'e dokunamaz, kimseyi Müdür yapamaz
+  await d.kayitOl({ eposta: "yrd@aysu.com", ad: "Mehmet Yrd", sifre: "yardimci-1" });
+  await d.kullaniciGuncelle({ eposta: "yrd@aysu.com", rol: "mudur_yrd", durum: "aktif" }, mudur);
+  const yrd = await d.oturum((await d.panelGiris({ eposta: "yrd@aysu.com", sifre: "yardimci-1" })).token);
+  assert.match((await d.kullaniciGuncelle({ eposta: "mudur@aysu.com", durum: "pasif" }, yrd)).hata, /Müdür/);
+  assert.match((await d.kullaniciGuncelle({ eposta: "temiz@aysu.com", rol: "mudur" }, yrd)).hata, /Müdür/);
+  assert.match((await d.kullaniciGuncelle({ eposta: "yrd@aysu.com", rol: "personel" }, yrd)).hata, /Kendi/);
+  // Pasife alınan kullanıcının oturumu kapanır
+  assert.ok((await d.kullaniciGuncelle({ eposta: "temiz@aysu.com", durum: "pasif" }, yrd)).basarili);
+  assert.equal(await d.oturum(t.token), null);
+  // Son Müdür kendini/başkası tarafından düşürülemez
+  assert.match((await d.kullaniciSil("mudur@aysu.com", mudur)).hata, /Kendi/);
+  const liste = await d.kullanicilar();
+  assert.equal(liste.length, 3);
+  assert.ok(liste.every((u) => u.hash === undefined && u.tuz === undefined));
+});
+
+test("Şifremi unuttum: tek kullanımlık, 1 saatlik bağlantı", async () => {
+  const d = demoDepo({ PANEL_KURULUM_KODU: "kod123" });
+  const m = await d.panelKur({ kurulumKodu: "kod123", eposta: "mudur@aysu.com", sifre: "aysu-2026!" });
+  assert.ok((await d.sifirlamaOlustur("yok@aysu.com")).yok);
+  const s = await d.sifirlamaOlustur("mudur@aysu.com");
+  assert.match((await d.sifreSifirla({ token: s.token, sifre: "kisa" })).hata, /8 karakter/);
+  const r = await d.sifreSifirla({ token: s.token, sifre: "yepyeni-sifre" });
+  assert.ok(r.basarili && r.token);
+  assert.equal(await d.oturum(m.token), null, "eski oturumlar kapanır");
+  assert.match((await d.sifreSifirla({ token: s.token, sifre: "baska-sifre1" })).hata, /süresi|geçersiz/i);
+  assert.ok((await d.panelGiris({ eposta: "mudur@aysu.com", sifre: "yepyeni-sifre" })).basarili);
+  // Süresi dolan bağlantı
+  const s2 = await d.sifirlamaOlustur("mudur@aysu.com");
+  saatiAyarla("2026-10-19T12:30");
+  assert.match((await d.sifreSifirla({ token: s2.token, sifre: "baska-sifre1" })).hata, /süresi/);
+});
+
+test("Mesai planı: ilk maçtan 1 saat önce başlama; alıcılar sadece Personel / Temizlik Şefi", async () => {
+  const d = demoDepo({ PANEL_KURULUM_KODU: "kod123" });
+  const m = await d.panelKur({ kurulumKodu: "kod123", eposta: "mudur@aysu.com", sifre: "aysu-2026!" });
+  const mudur = await d.oturum(m.token);
+  await d.kayitOl({ eposta: "p@aysu.com", ad: "Personel Bir", sifre: "personel-1" });
+  await d.kullaniciGuncelle({ eposta: "p@aysu.com", rol: "personel", durum: "aktif" }, mudur);
+  await d.kayitOl({ eposta: "bekleyen@aysu.com", ad: "Onaysız", sifre: "personel-1" });
+  await d.panelRezEkle({ gunTarihi: "2026-10-23", saat: "19:00", ad: "Fevzi", telefon: "" });
+  await d.panelRezEkle({ gunTarihi: "2026-10-23", saat: "01:00", ad: "Gece", telefon: "" });
+  const p = await d.mesaiPlani("2026-10-23");
+  assert.equal(p.ilk, "19:00");
+  assert.equal(p.baslama, "18:00");
+  assert.equal(p.son, "01:00");
+  assert.equal(p.bitis, "02:00");
+  assert.deepEqual(p.alicilar.map((a) => a.eposta), ["p@aysu.com"]);
+  assert.equal((await d.mesaiPlani("2026-10-28")).maclar.length >= 0, true);
 });
 
 test("Çok saatli abone: tüm saatler dolu; toplu 'gelmiyor' saat / gün / hafta", async () => {

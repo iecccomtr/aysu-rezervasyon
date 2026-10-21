@@ -3,7 +3,8 @@
 
 import { simdi, isletmeGunu, gunEkle } from "./time.js";
 import { KURALLAR, FIYATLAR, IBAN, ISLETME } from "./config.js";
-import { bildir } from "./bildirim.js";
+import { bildir, epostaYolla } from "./bildirim.js";
+import { ROLLER } from "./store.js";
 export { RezervasyonDeposu } from "./store.js";
 
 const OTURUM_CEREZ = "aysu_panel";
@@ -66,6 +67,29 @@ async function govdeOku(request) {
   }
 }
 
+/**
+ * Bot koruması: Cloudflare Turnstile (görünmez "ben robot değilim" doğrulaması).
+ * TURNSTILE_SECRET tanımlı değilse atlanır (site yine çalışır; hız sınırı + bot tuzağı devrede).
+ */
+async function insanMi(env, request, token) {
+  if (!env.TURNSTILE_SECRET) return true;
+  if (!token || typeof token !== "string" || token.length > 4096) return false;
+  try {
+    const form = new FormData();
+    form.append("secret", env.TURNSTILE_SECRET);
+    form.append("response", token);
+    const ip = request.headers.get("cf-connecting-ip");
+    if (ip) form.append("remoteip", ip);
+    const r = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", { method: "POST", body: form });
+    const v = await r.json();
+    return v.success === true;
+  } catch (e) {
+    console.error("Turnstile doğrulanamadı", e);
+    return false;
+  }
+}
+const robotHatasi = () => json({ hata: "Güvenlik doğrulaması başarısız. Sayfayı yenileyip tekrar deneyin.", dogrulama: true }, 403);
+
 const cokFazla = () => json({ hata: "Çok fazla deneme yapıldı. Birkaç dakika sonra tekrar deneyin." }, 429);
 
 function onbellegiTemizle(request, ctx) {
@@ -115,40 +139,79 @@ function oturumCerezi(token, bitis) {
 
 // ================= Panel API =================
 
+/** Salt-okur roller (Temizlik Şefi, Personel) için hafta: sadece kim/ne zaman; telefon, kapora, not yok. */
+function haftaSaltOkur(h) {
+  return {
+    baslangic: h.baslangic, bugun: h.bugun, bekleyenler: [],
+    gunler: h.gunler.map((g) => ({
+      ...g,
+      saatler: g.saatler.map((s) => ({
+        saat: s.saat, tarih: s.tarih, gecmis: s.gecmis, tur: s.tur,
+        ...(s.rez ? { rez: { ad: s.rez.ad, durum: s.rez.durum, kaynak: s.rez.kaynak } } : {}),
+        ...(s.abone ? { abone: { ad: s.abone.ad } } : {}),
+      })),
+    })),
+  };
+}
+
 async function panel(request, env, ctx, yol) {
   const d = depo(env);
   const url = new URL(request.url);
   const post = request.method === "POST";
   if (post && !ayniKaynak(request)) return json({ hata: "Yetkisiz istek." }, 403);
   const token = cerez(request, OTURUM_CEREZ);
+  const girisCevabi = (r, hataKodu = 400) => (r.basarili && r.token
+    ? json({ basarili: true }, 200, { "set-cookie": oturumCerezi(r.token, r.bitis) })
+    : json(r, r.basarili ? 200 : hataKodu));
 
   if (yol === "durum") {
     const { kurulu } = await d.panelDurum();
-    return json({ kurulu, girisli: await d.oturumGecerli(token) });
+    const k = await d.oturum(token);
+    return json({ kurulu, girisli: Boolean(k), kullanici: k, eposta: Boolean(env.RESEND_API_KEY), dogrulama: env.TURNSTILE_SITE_KEY || null });
   }
-  if (yol === "kur" && post) {
+  if (post && ["kur", "giris", "kayit", "sifre-unuttum", "sifre-sifirla"].includes(yol)) {
     if (await sinirAsildi(env, request, "giris")) return cokFazla();
     const g = (await govdeOku(request)) || {};
-    const r = await d.panelKur({ kurulumKodu: g.kurulumKodu, sifre: g.sifre });
-    if (!r.basarili) return json(r, 400);
-    return json({ basarili: true }, 200, { "set-cookie": oturumCerezi(r.token, r.bitis) });
-  }
-  if (yol === "giris" && post) {
-    if (await sinirAsildi(env, request, "giris")) return cokFazla();
-    const g = (await govdeOku(request)) || {};
-    const r = await d.panelGiris(g.sifre);
-    if (!r.basarili) return json(r, 401);
-    return json({ basarili: true }, 200, { "set-cookie": oturumCerezi(r.token, r.bitis) });
+    if (g.web) return json({ hata: "İstek reddedildi." }, 400); // bot tuzağı
+    if ((yol === "kayit" || yol === "sifre-unuttum") && !(await insanMi(env, request, g.dogrulama))) return robotHatasi();
+    if (yol === "kur") return girisCevabi(await d.panelKur(g));
+    if (yol === "giris") return girisCevabi(await d.panelGiris(g), 401);
+    if (yol === "sifre-sifirla") return girisCevabi(await d.sifreSifirla(g));
+    if (yol === "kayit") {
+      const r = await d.kayitOl(g);
+      if (r.basarili) {
+        ctx.waitUntil(bildir(env, {
+          konu: `Panel: yeni kayıt onay bekliyor (${r.kullanici.ad})`,
+          satirlar: [["Ad", r.kullanici.ad], ["E-posta", r.kullanici.eposta], ["Telefon", r.kullanici.telefon || "-"],
+            ["Ne yapmalı?", "Panel → Kullanıcılar bölümünden rol seçip onaylayın."]],
+        }));
+      }
+      return json(r.basarili ? { basarili: true } : r, r.basarili ? 200 : 400);
+    }
+    // Şifremi unuttum: hesap olsun olmasın aynı cevap (kimin kayıtlı olduğu anlaşılmasın)
+    const r = await d.sifirlamaOlustur(g.eposta);
+    if (r.basarili) {
+      const link = `${url.origin}/panel/#sifirla=${r.token}`;
+      ctx.waitUntil(epostaYolla(env, {
+        kime: [r.eposta], konu: "Aysu Halı Saha panel şifre sıfırlama",
+        satirlar: [["Merhaba", r.ad], ["Şifrenizi yenilemek için", link], ["Geçerlilik", "1 saat"]],
+        alt: "Bu isteği siz yapmadıysanız bu e-postayı yok sayın.",
+      }));
+    }
+    return json({ basarili: true, eposta: Boolean(env.RESEND_API_KEY) });
   }
   if (yol === "cikis" && post) {
     await d.cikis(token);
     return json({ basarili: true }, 200, { "set-cookie": `${OTURUM_CEREZ}=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0` });
   }
 
-  // Tablodan toplu aktarım: oturum ya da kurulum kodu (x-kurulum-kodu başlığı) ile
+  const ben = await d.oturum(token);
+  const yonetici = Boolean(ben && ROLLER[ben.rol]?.yonetici);
+
+  // Tablodan toplu aktarım: yönetici oturumu ya da kurulum kodu (x-kurulum-kodu başlığı) ile
   if (yol === "ice-aktar" && post) {
     const kod = request.headers.get("x-kurulum-kodu");
-    const yetkili = (kod && env.PANEL_KURULUM_KODU && kod === env.PANEL_KURULUM_KODU) || (await d.oturumGecerli(token));
+    const yetkili = (kod && env.PANEL_KURULUM_KODU && kod === env.PANEL_KURULUM_KODU) || yonetici;
     if (!yetkili) return json({ hata: "Yetkisiz." }, 401);
     const g = (await govdeOku(request)) || {};
     const r = await d.iceAktar(g);
@@ -157,16 +220,23 @@ async function panel(request, env, ctx, yol) {
   }
 
   // --- Buradan sonrası giriş ister ---
-  if (!(await d.oturumGecerli(token))) return json({ hata: "Oturum kapalı. Lütfen giriş yapın.", giris: true }, 401);
+  if (!ben) return json({ hata: "Oturum kapalı. Lütfen giriş yapın.", giris: true }, 401);
+
+  // Temizlik Şefi ve Personel: sadece haftalık tabloyu görür
+  if (request.method === "GET" && yol === "hafta") {
+    const h = await d.panelHafta(url.searchParams.get("bas"));
+    return json(yonetici ? h : haftaSaltOkur(h));
+  }
+  if (!yonetici) return json({ hata: "Bu işlem için yetkiniz yok." }, 403);
 
   const g = post ? (await govdeOku(request)) || {} : null;
   const degisti = (r) => {
     if (r && r.basarili) onbellegiTemizle(request, ctx);
     return json(r, r && r.hata ? 400 : 200);
   };
+  const sonuc = (r) => json(r, r && r.hata ? 400 : 200);
 
   switch (`${request.method} ${yol}`) {
-    case "GET hafta": return json(await d.panelHafta(url.searchParams.get("bas")));
     case "POST rez": return degisti(await d.panelRezEkle({
       gunTarihi: g.gun, saat: g.saat, ad: g.ad, telefon: g.telefon, not: g.not, durum: g.durum, kapora: g.kapora,
     }));
@@ -178,8 +248,43 @@ async function panel(request, env, ctx, yol) {
     case "GET musteriler": return json(await d.musteriler());
     case "GET musteri": return json(await d.musteriDetay(url.searchParams.get("tel")));
     case "POST musteri-not": return degisti(await d.musteriNot(g));
+    case "GET kullanicilar": return json(await d.kullanicilar());
+    case "POST kullanici": return sonuc(await d.kullaniciGuncelle(g, ben));
+    case "POST kullanici-sil": return sonuc(await d.kullaniciSil(g.eposta, ben));
+    case "POST sifirlama-linki": {
+      // E-posta kurulu değilse yönetici bağlantıyı alıp WhatsApp'tan iletebilir
+      const r = await d.sifirlamaOlustur(g.eposta);
+      if (!r.basarili) return json({ hata: "Kullanıcı bulunamadı." }, 400);
+      return json({ basarili: true, link: `${url.origin}/panel/#sifirla=${r.token}` });
+    }
+    case "GET mesai": {
+      const n = simdi();
+      return json(await d.mesaiPlani(url.searchParams.get("gun") || gunEkle(isletmeGunu(n.tarih, n.saat), 1)));
+    }
+    case "POST mesai-gonder": return sonuc(await mesaiGonder(env, d, g.gun));
     default: return json({ hata: "Bulunamadı" }, 404);
   }
+}
+
+/** Personel ve Temizlik Şefi'ne bir günün çalışma saatini e-postayla gönderir. */
+async function mesaiGonder(env, d, gun) {
+  const plan = await d.mesaiPlani(gun);
+  if (plan.hata) return plan;
+  if (!env.RESEND_API_KEY) return { hata: "E-posta gönderimi henüz kurulmadı (RESEND_API_KEY)." };
+  if (!plan.alicilar.length) return { hata: "Mesai e-postası alacak aktif Personel / Temizlik Şefi yok." };
+  const [y, a, g] = plan.gun.split("-");
+  const tarihYazi = `${Number(g)}.${a}.${y} ${plan.gunAdi}`;
+  const satirlar = plan.maclar.length
+    ? [["Gün", tarihYazi], ["İşe başlama", plan.baslama], ["İlk maç", plan.ilk], ["Son maç", plan.son], ["Tahmini bitiş", plan.bitis],
+      ["Maçlar", plan.maclar.map((m) => `${m.saat} ${m.ad}${m.abone ? " (abone)" : ""}`).join(" · ")]]
+    : [["Gün", tarihYazi], ["Durum", "Bu gün için kayıtlı maç yok."]];
+  await Promise.all(plan.alicilar.map((k) => epostaYolla(env, {
+    kime: [k.eposta],
+    konu: plan.maclar.length ? `Çalışma saati: ${tarihYazi} — ${plan.baslama}'da sahada olun` : `Çalışma saati: ${tarihYazi} — maç yok`,
+    satirlar: [["Merhaba", k.ad], ...satirlar],
+    alt: "Saatler e-postanın gönderildiği andaki rezervasyonlara göredir. Güncel tablo: panel → Takvim.",
+  })));
+  return { basarili: true, gonderilen: plan.alicilar.length, plan };
 }
 
 export default {
@@ -202,7 +307,7 @@ export default {
     if (yol === "/api/musaitlik" && request.method === "GET") {
       return onbellekli(request, ctx, 10, async () => {
         try {
-          return json({ gunler: await gunleriGetir(env), fiyat: FIYATLAR.gunduz, kapora: FIYATLAR.kapora });
+          return json({ gunler: await gunleriGetir(env), fiyat: FIYATLAR.gunduz, kapora: FIYATLAR.kapora, dogrulama: env.TURNSTILE_SITE_KEY || null });
         } catch (e) {
           console.error(e);
           return json({ hata: "Boş saatler şu an okunamıyor." }, 503);
@@ -230,6 +335,7 @@ export default {
       if (!g) return json({ hata: "Geçersiz istek." }, 400);
       if (g.web) return json({ hata: "İstek reddedildi." }, 400); // bot tuzağı
       if (g.kvkk !== true) return json({ hata: "Devam etmek için aydınlatma metnini onaylayın." }, 400);
+      if (!(await insanMi(env, request, g.dogrulama))) return robotHatasi();
       try {
         const r = await depo(env).olustur({ gunTarihi: g.tarih, saat: g.saat, ad: g.ad, telefon: g.telefon, not: g.not || "" });
         if (!r.basarili) return json(r, 409);
@@ -292,5 +398,12 @@ export default {
       }
     }
     return statik;
+  },
+
+  // Her akşam (wrangler.jsonc → triggers.crons) ertesi günün çalışma saatini personele gönderir.
+  async scheduled(event, env, ctx) {
+    const n = simdi();
+    const yarin = gunEkle(isletmeGunu(n.tarih, n.saat), 1);
+    ctx.waitUntil(mesaiGonder(env, depo(env), yarin).then((r) => { if (r.hata) console.log("Mesai e-postası:", r.hata); }));
   },
 };

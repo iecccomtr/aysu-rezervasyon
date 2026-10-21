@@ -244,7 +244,7 @@ test("Abone numarası: nottan okunur, boşsa ilk boş numara, çakışma reddedi
   assert.deepEqual((await d.aboneListe()).map((a) => a.no), [1, 2, 17], "liste abone numarasına göre sıralı");
 });
 
-test("Özel saat: panel 05:00'e maç yazar, müşteri yazamaz; haftada ve mesaide görünür", async () => {
+test("Özel saat: panel 05:00'e maç yazar, müşteri yazamaz; haftada görünür", async () => {
   const d = demoDepo();
   assert.ok((await d.olustur({ gunTarihi: "2026-10-23", saat: "05:00", ...ALI })).hata);
   const r = await d.panelRezEkle({ gunTarihi: "2026-10-23", saat: "05:00", ad: "Sabahçılar", telefon: "" });
@@ -257,7 +257,6 @@ test("Özel saat: panel 05:00'e maç yazar, müşteri yazamaz; haftada ve mesaid
   assert.equal(cuma.saatler.at(-1).ozel, true);
   assert.equal(h.gunler[0].saatler.length, cuma.saatler.length, "tüm günler aynı satırlara sahip");
   assert.match((await d.panelRezEkle({ gunTarihi: "2026-10-23", saat: "05:00", ad: "İkinci", telefon: "" })).hata, /dolu/);
-  assert.equal((await d.mesaiPlani("2026-10-23")).son, "05:00");
   assert.ok((await d.panelRezEkle({ gunTarihi: "2026-10-23", saat: "06:00", ad: "Erkenci", telefon: "" })).basarili);
   assert.equal((await d.panelHafta("2026-10-19")).gunler[4].saatler[0].saat, "06:00");
 });
@@ -298,24 +297,6 @@ test("Şifremi unuttum: tek kullanımlık, 1 saatlik bağlantı", async () => {
   const s2 = await d.sifirlamaOlustur("mudur@aysu.com");
   saatiAyarla("2026-10-19T12:30");
   assert.match((await d.sifreSifirla({ token: s2.token, sifre: "baska-sifre1" })).hata, /süresi/);
-});
-
-test("Mesai planı: ilk maçtan 1 saat önce başlama; alıcılar sadece Personel / Temizlik Şefi", async () => {
-  const d = demoDepo({ PANEL_KURULUM_KODU: "kod123" });
-  const m = await d.panelKur({ kurulumKodu: "kod123", eposta: "mudur@aysu.com", sifre: "aysu-2026!" });
-  const mudur = await d.oturum(m.token);
-  await d.kayitOl({ eposta: "p@aysu.com", ad: "Personel Bir", sifre: "personel-1", rol: "personel" });
-  await d.kullaniciGuncelle({ eposta: "p@aysu.com", rol: "personel", durum: "aktif" }, mudur);
-  await d.kayitOl({ eposta: "bekleyen@aysu.com", ad: "Onaysız", sifre: "personel-1", rol: "personel" });
-  await d.panelRezEkle({ gunTarihi: "2026-10-23", saat: "19:00", ad: "Fevzi", telefon: "" });
-  await d.panelRezEkle({ gunTarihi: "2026-10-23", saat: "01:00", ad: "Gece", telefon: "" });
-  const p = await d.mesaiPlani("2026-10-23");
-  assert.equal(p.ilk, "19:00");
-  assert.equal(p.baslama, "18:00");
-  assert.equal(p.son, "01:00");
-  assert.equal(p.bitis, "02:00");
-  assert.deepEqual(p.alicilar.map((a) => a.eposta), ["p@aysu.com"]);
-  assert.equal((await d.mesaiPlani("2026-10-28")).maclar.length >= 0, true);
 });
 
 test("Çok saatli abone: tüm saatler dolu; toplu 'gelmiyor' saat / gün / hafta", async () => {

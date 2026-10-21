@@ -42,9 +42,6 @@ Takvim tablosunda aboneler adla değil **numarayla** görünür ("Abone 3"). Num
 - E-posta kurulu değilse: Müdür, **Kullanıcılar → kişi → Şifre yenileme bağlantısı al** ile bağlantıyı alıp WhatsApp'tan iletir.
 - Admin şifresini unutursa: **Şifremi unuttum → Admin: kurulum koduyla sıfırla** (kurulum kodu + e-posta + yeni şifre).
 
-### Mesai e-postası
-Her akşam **18:00**'de ertesi günün çalışma saati, rolü Temizlik Şefi veya Personel olan aktif kullanıcılara e-postayla gider: **işe başlama = ilk maçtan 1 saat önce**, ilk/son maç ve tahmini bitiş (son maçtan 1 saat sonra). E-posta gittikten sonra yeni rezervasyon, iptal ya da abone değişikliği başlama saatini değiştirirse personele otomatik **"GÜNCELLEME"** e-postası gider (önceki ve yeni saatle). Önizleme ve **Şimdi gönder** düğmesi: Panel → Kullanıcılar → Mesai e-postası. Kişi bazında kapatılabilir.
-
 ---
 
 ## Günlük kullanım
@@ -81,8 +78,8 @@ Kurallar: en fazla 4 hafta ileriye rezervasyon (sayfada haftalar ‹ › okları
 
 ## İsteğe bağlı
 
-### E-posta (bildirim, şifre sıfırlama, mesai) — önerilir
-Şifre sıfırlama ve mesai e-postalarının personele gidebilmesi için:
+### E-posta (bildirim, şifre sıfırlama) — isteğe bağlı
+"Şifremi unuttum" bağlantısının e-postayla gidebilmesi için (kurulmazsa yönetici bağlantıyı panelden alıp WhatsApp'tan iletir):
 1. resend.com'da **aysuhalisaha@gmail.com** ile ücretsiz hesap açın (ayda 3.000 e-posta).
 2. Resend → **Domains → Add domain** → `aysuhalisaha.com`. Gösterilen DNS kayıtlarını Cloudflare → aysuhalisaha.com → **DNS**'e ekleyin (Resend'in "Sign in to Cloudflare" düğmesi bunu otomatik de yapabilir). Gmail kullanımınızı etkilemez.
 3. Resend → **API Keys → Create** ile anahtar alın.

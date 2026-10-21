@@ -14,7 +14,7 @@ const VARSAYILAN_GONDEREN = "Aysu Halı Saha <onboarding@resend.dev>";
 
 const kacis = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
-/** Herhangi bir alıcıya e-posta (şifre sıfırlama, mesai). Anahtar yoksa sessizce atlar. */
+/** Herhangi bir alıcıya e-posta (şifre sıfırlama). Anahtar yoksa sessizce atlar. */
 export async function epostaYolla(env, { kime, konu, satirlar, alt = "" }) {
   if (!env.RESEND_API_KEY || !kime?.length) return false;
   const html = `<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.5;color:#13261b">

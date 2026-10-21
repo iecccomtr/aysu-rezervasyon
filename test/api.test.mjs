@@ -162,38 +162,6 @@ test("Panel: kayıt, onay, Temizlik Şefi sadece haftayı telefonsuz görür; ş
   assert.equal((await istek("/api/panel/hafta")).durum, 200);
 });
 
-test("Mesai e-postası: Personel'e ilk maçtan 1 saat önce; zamanlanmış görev", async () => {
-  const { istek, depo } = await kur({ RESEND_API_KEY: "re_test" });
-  await istek("/api/panel/kur", { kurulumKodu: "kurulum-kodu", eposta: "m@aysu.com", sifre: "aysu-sifre-1" });
-  await istek("/api/panel/kayit", { eposta: "p@aysu.com", ad: "Personel Bir", sifre: "personel-1", rol: "personel" });
-  await istek("/api/panel/kullanici", { eposta: "p@aysu.com", rol: "personel", durum: "aktif" });
-  // Perşembe 22 Ekim: Abone Üç 21:00
-  const onizleme = (await istek("/api/panel/mesai?gun=2026-10-22")).veri;
-  assert.equal(onizleme.baslama, "20:00");
-  const n = epostalar.length;
-  const r = await worker.scheduled({ cron: "0 15 * * *" }, {
-    RESEND_API_KEY: "re_test", REZERVASYON_DEPOSU: { idFromName: () => "aysu", get: () => depo },
-  }, { waitUntil: (p) => p });
-  await new Promise((ok) => setTimeout(ok, 10));
-  assert.equal(r, undefined);
-  const e = epostalar.slice(n);
-  assert.equal(e.length, 1);
-  assert.deepEqual(e[0].to, ["p@aysu.com"]);
-  assert.match(e[0].subject, /20:00'da sahada olun/);
-
-  // E-posta gittikten sonra daha erken bir rezervasyon gelirse otomatik güncelleme gider
-  const m = epostalar.length;
-  assert.equal((await istek("/api/rezervasyon", { ...REZ, saat: "18:00" })).durum, 200);
-  const g = epostalar.slice(m).filter((x) => x.to[0] === "p@aysu.com");
-  assert.equal(g.length, 1);
-  assert.match(g[0].subject, /^GÜNCELLEME — .*17:00'da sahada olun/);
-  assert.match(g[0].text, /Önceki başlama: 20:00/);
-  // Başlama saatini değiştirmeyen rezervasyon e-posta göndermez
-  const k = epostalar.length;
-  await istek("/api/rezervasyon", { ...REZ, saat: "23:00", telefon: "0532 222 33 44" });
-  assert.equal(epostalar.slice(k).filter((x) => x.to[0] === "p@aysu.com").length, 0);
-});
-
 test("Panel: telefon rezervasyonu, kapora onayı, abone 'gelmiyor', CRM", async () => {  const { istek, depo } = await kur();
   await istek("/api/panel/kur", { kurulumKodu: "kurulum-kodu", eposta: "m@aysu.com", sifre: "aysu-sifre-1" });
 

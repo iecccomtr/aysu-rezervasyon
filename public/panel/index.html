@@ -42,8 +42,6 @@
   .rozet.r-rol { background: #e3eefb; color: #0b4f8a; }
   .rozet.r-onay { background: #fff1d6; color: #8a5a00; }
   .rozet.r-pasif { background: #eee; color: #666; }
-  .mesai-kutu { padding: 14px; }
-  .mesai-kutu .buyuk { font: 700 30px/1 "Barlow Condensed", sans-serif; color: var(--cim); }
   .salt-okur .arti, .salt-okur .h-bos { pointer-events: none; }
   .ozel-satir th.saat-b { color: var(--turuncu, #ef7f1a); }
   .ozel-satir th.saat-b small { display: block; font-size: 10px; font-weight: 600; }
@@ -327,8 +325,6 @@
       <div class="baslik-satir"><h2>Kullanıcılar</h2><span class="soluk sag" id="kullanici-sayi"></span></div>
       <p class="soluk" style="margin-bottom:12px">Personel <b>/panel</b> adresinden e-postasıyla kayıt olur. Burada rol seçip hesabı açarsınız. Temizlik Şefi ve Personel sadece haftalık tabloyu görür.</p>
       <div class="kutu" id="kullanici-liste"></div>
-      <div class="baslik-satir" style="margin-top:22px"><h2>Mesai e-postası</h2></div>
-      <div class="kutu mesai-kutu" id="mesai"></div>
       <div id="islem-alan" hidden>
         <div class="baslik-satir" style="margin-top:22px"><h2>İşlem kaydı</h2><span class="soluk sag">Sadece Admin görür</span></div>
         <div class="ara-kutu">
@@ -1064,7 +1060,6 @@
           : `<span class="rozet r-rol">${kacis(u.rolAd)}</span>`}
       </button>`).join("") || '<p class="soluk" style="padding:14px">Henüz kullanıcı yok.</p>';
     $("kullanici-liste").querySelectorAll("[data-i]").forEach((el) => el.addEventListener("click", () => kullaniciDetay(kullanicilar[el.dataset.i])));
-    mesaiYukle();
     islemYukle();
   }
 
@@ -1079,7 +1074,6 @@
         <select id="d-rol"><option value="">— Rol seçin —</option>${roller.map(([k, ad]) => `<option value="${k}"${(u.rol || u.istenenRol) === k ? " selected" : ""}>${ad}</option>`).join("")}</select>
       </div>
       <p class="soluk" style="font-size:14px;margin:-4px 0 12px">Admin, Müdür ve Müdür Yardımcısı her şeye erişir; herkes sadece kendinden alt görevleri yönetir. Temizlik Şefi ve Personel sadece haftalık tabloyu görür, değişiklik yapamaz.</p>
-      <label style="display:flex;gap:8px;align-items:center;margin-bottom:14px"><input type="checkbox" id="d-mesai"${u.mesaiEposta !== false ? " checked" : ""}> Çalışma saati e-postası alsın (Temizlik Şefi / Personel)</label>
       <div class="eylemler" style="display:grid;gap:8px">
         ${u.durum === "aktif"
           ? '<button class="dugme" type="button" id="d-kaydet">Kaydet</button><button class="dugme ikincil" type="button" id="d-kapat">Hesabı kapat</button>'
@@ -1091,7 +1085,7 @@
     `);
     if (kilitli) return;
     const kaydet = async (ek) => {
-      const r = await api("kullanici", { eposta: u.eposta, rol: $("d-rol").value || undefined, mesaiEposta: $("d-mesai").checked, ...ek });
+      const r = await api("kullanici", { eposta: u.eposta, rol: $("d-rol").value || undefined, ...ek });
       if (r.hata) return dlgUyari(r.hata);
       dlg.close(); bildir("Kaydedildi"); kullaniciYukle();
     };
@@ -1134,24 +1128,6 @@
   }
   $("islem-ara").addEventListener("input", islemCiz);
 
-  async function mesaiYukle() {
-    const p = await api("mesai").catch(() => null);
-    if (!p || p.hata) return;
-    const [y, a, g] = p.gun.split("-");
-    const kim = p.alicilar.length ? p.alicilar.map((k) => kacis(k.ad)).join(", ") : "henüz kimse yok";
-    $("mesai").innerHTML = `
-      <p class="soluk" style="margin-bottom:10px">Her akşam 18:00'de ertesi günün çalışma saati Temizlik Şefi ve Personel'e otomatik e-postayla gider. İşe başlama = ilk maçtan 1 saat önce. Sonradan gelen rezervasyon veya iptal bu saati değiştirirse otomatik güncelleme e-postası gider.</p>
-      <p style="margin-bottom:4px"><b>Yarın · ${Number(g)} ${AYLAR[Number(a) - 1]} ${kacis(p.gunAdi)}</b></p>
-      ${p.maclar.length
-        ? `<div class="buyuk">${p.baslama}</div><p class="soluk">işe başlama · ilk maç ${p.ilk}, son maç ${p.son}, tahmini bitiş ${p.bitis} · ${p.maclar.length} maç</p>`
-        : '<p class="soluk">Yarın için kayıtlı maç yok.</p>'}
-      <p style="margin:10px 0">Alıcılar: ${kim}</p>
-      <button class="dugme ikincil kucuk" type="button" id="mesai-gonder">Şimdi gönder</button>`;
-    $("mesai-gonder").addEventListener("click", async () => {
-      const r = await api("mesai-gonder", { gun: p.gun });
-      bildir(r.hata || `${r.gonderilen} kişiye gönderildi`);
-    });
-  }
 
   // Başka bir haftaya geçildiyse ve 2 dakika dokunulmadıysa bugünün haftasına dön
   let sonHareket = Date.now();

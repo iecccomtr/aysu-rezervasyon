@@ -23,13 +23,13 @@ export const GUNLER = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", 
 const DURUMLAR = [DURUM.bekliyor, DURUM.onayli, DURUM.iptal];
 const OTURUM_GUN = 30;
 
-/** Panel rolleri. yonetici: her şeye erişir; mesai: günlük çalışma saati e-postası alır. */
+/** Panel rolleri. yonetici: her şeye erişir; diğerleri sadece haftalık tabloyu görür. */
 export const ROLLER = {
   admin: { ad: "Admin", yonetici: true },
   mudur: { ad: "Müdür", yonetici: true },
   mudur_yrd: { ad: "Müdür Yardımcısı", yonetici: true },
-  temizlik: { ad: "Temizlik Şefi", yonetici: false, mesai: true },
-  personel: { ad: "Personel", yonetici: false, mesai: true },
+  temizlik: { ad: "Temizlik Şefi", yonetici: false },
+  personel: { ad: "Personel", yonetici: false },
 };
 const ROL_SIRA = { admin: 0, mudur: 1, mudur_yrd: 2, temizlik: 3, personel: 4 };
 /** Yetki seviyesi: kişi sadece kendinden alt seviyedeki hesapları yönetir (Admin herkesi). */
@@ -265,7 +265,7 @@ export class RezervasyonDeposu extends DurableObject {
   }
 
   // ================= Panel: kullanıcılar ve giriş =================
-  //   u:<eposta>   kullanıcı { eposta, ad, telefon, rol, durum: bekliyor|aktif|pasif, hash, tuz, kayit, mesaiEposta }
+  //   u:<eposta>   kullanıcı { eposta, ad, telefon, rol, durum: bekliyor|aktif|pasif, hash, tuz, kayit }
   //   o:<token>    oturum { eposta, bitis }
   //   s:<token>    şifre sıfırlama { eposta, bitis } (1 saat geçerli, tek kullanımlık)
 
@@ -289,7 +289,7 @@ export class RezervasyonDeposu extends DurableObject {
       const eski = await this.st.get(`u:${e}`);
       const tuz = rastgele(16);
       await this.st.put(`u:${e}`, {
-        ...(eski || { kayit: simdiYazi(), telefon: "", mesaiEposta: true }),
+        ...(eski || { kayit: simdiYazi(), telefon: "" }),
         eposta: e, ad: kirp(ad, 60) || eski?.ad || "Admin", rol: "admin", durum: "aktif",
         hash: await sifreHash(sifre, tuz), tuz,
       });
@@ -311,7 +311,7 @@ export class RezervasyonDeposu extends DurableObject {
       const tuz = rastgele(16);
       const u = {
         eposta: e, ad: kirp(ad, 60), telefon: telefonNormalize(tel) || "", rol: null, istenenRol: rol, durum: "bekliyor",
-        hash: await sifreHash(sifre, tuz), tuz, kayit: simdiYazi(), mesaiEposta: true,
+        hash: await sifreHash(sifre, tuz), tuz, kayit: simdiYazi(),
       };
       await this.st.put(`u:${e}`, u);
       await this.kayitTut(u, "Kayıt oldu", `İstenen görev: ${ROLLER[rol].ad}`);
@@ -403,7 +403,7 @@ export class RezervasyonDeposu extends DurableObject {
   }
 
   /** Rol / durum / bilgi değişikliği. Yapan: oturumdaki yönetici. */
-  async kullaniciGuncelle({ eposta, rol, durum, ad, telefon: tel, mesaiEposta }, yapan) {
+  async kullaniciGuncelle({ eposta, rol, durum, ad, telefon: tel }, yapan) {
     return this.kilitli(async () => {
       const e = epostaNormalize(eposta);
       const u = e && (await this.st.get(`u:${e}`));
@@ -419,7 +419,6 @@ export class RezervasyonDeposu extends DurableObject {
       }
       if (ad !== undefined && kirp(ad, 60).length >= 2) yeni.ad = kirp(ad, 60);
       if (tel !== undefined) yeni.telefon = telefonNormalize(tel) || "";
-      if (mesaiEposta !== undefined) yeni.mesaiEposta = Boolean(mesaiEposta);
       if (yeni.durum === "aktif" && !ROLLER[yeni.rol]) return { hata: "Hesabı açmak için önce bir rol seçin." };
 
       const hata = this.yetkiKontrol(u, yeni, yapan);
@@ -476,33 +475,6 @@ export class RezervasyonDeposu extends DurableObject {
   async islemler(adet = 200) {
     const m = await this.st.list({ prefix: "l:", reverse: true, limit: Math.min(Number(adet) || 200, 500) });
     return [...m.values()];
-  }
-
-  // ================= Mesai planı (personel e-postası) =================
-  //   ms:<işletme günü>  { baslama, gonderim } — o gün için gönderilen son mesai e-postası
-
-  async mesaiKaydi(gun) { return (await this.st.get(`ms:${gun}`)) || null; }
-  async mesaiKaydiYaz(gun, kayit) { await this.st.put(`ms:${gun}`, { ...kayit, gonderim: simdiYazi() }); }
-
-
-  /** İşletme günü için ilk/son dolu saat ve personelin başlama/bitiş saati (ilk maçtan 1 saat önce). */
-  async mesaiPlani(gunGirdi) {
-    return this.kilitli(async () => {
-      const gun = tarihNormalize(gunGirdi);
-      if (!gun) return { hata: "Geçersiz tarih." };
-      const d = await this.durumYukle(gun, gun);
-      const maclar = this.saatListesi(d, gun, gun).map((saat) => ({ saat, s: this.slot(d, gun, saat) }))
-        .filter((x) => x.s.tur === "rez" || x.s.tur === "abone")
-        .map((x) => ({ saat: x.saat, ad: x.s.tur === "rez" ? x.s.rez.ad : x.s.abone.ad, abone: x.s.tur === "abone" }));
-      const alicilar = (await this.kullaniciListesi())
-        .filter((u) => u.durum === "aktif" && ROLLER[u.rol]?.mesai && u.mesaiEposta !== false)
-        .map((u) => ({ eposta: u.eposta, ad: u.ad, rol: u.rol }));
-      const plan = { gun, gunAdi: gunAdi(gun), maclar, alicilar };
-      if (!maclar.length) return plan;
-      const ilk = maclar[0].saat, son = maclar[maclar.length - 1].saat;
-      const saatKaydir = (s, n) => `${String((Number(s.slice(0, 2)) + n + 24) % 24).padStart(2, "0")}:00`;
-      return { ...plan, ilk, son, baslama: saatKaydir(ilk, -1), bitis: saatKaydir(son, 1) };
-    });
   }
 
   // ================= Panel: takvim =================
@@ -810,7 +782,6 @@ export class RezervasyonDeposu extends DurableObject {
       }
       const atla = await this.st.list({ start: "x:", end: `x:${sinir}` });
       silinecek.push(...atla.keys());
-      silinecek.push(...(await this.st.list({ start: "ms:", end: `ms:${sinir}` })).keys());
       // süresi dolmuş oturum ve şifre bağlantıları
       for (const onek of ["o:", "s:"]) {
         for (const [k, v] of await this.st.list({ prefix: onek })) if (!v.bitis || v.bitis < Date.now()) silinecek.push(k);

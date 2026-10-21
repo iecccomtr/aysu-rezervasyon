@@ -31,7 +31,11 @@
   "keep_vars": true,
 
   // Yönetim paneli (/panel) ilk kurulum ve şifre sıfırlama kodu. Gizli tutun.
-  "vars": { "PANEL_KURULUM_KODU": "BVY3oMi4BoyVVkGS" }
+  "vars": {
+    "PANEL_KURULUM_KODU": "BVY3oMi4BoyVVkGS",
+    // E-postalar bu Gmail hesabından gider. Uygulama şifresi Cloudflare'de Secret olarak: GMAIL_UYGULAMA_SIFRESI
+    "GMAIL_ADRES": "halisahaaysu@gmail.com"
+  }
 
   // İsteğe bağlı gizli değerler (Cloudflare paneli → Settings → Variables and Secrets → Secret):
   //   RESEND_API_KEY, BILDIRIM_EPOSTA, GONDEREN_EPOSTA  (e-posta: bildirim, şifre sıfırlama)

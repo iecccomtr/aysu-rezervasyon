@@ -92,7 +92,7 @@ E-postalar işletmenin Gmail hesabından gider:
 1. O Gmail hesabında myaccount.google.com → **Güvenlik** → **2 Adımlı Doğrulama**'yı açın.
 2. Arama kutusuna **Uygulama şifreleri** yazın → ad "Aysu site" → **Oluştur**. 16 haneli şifreyi kopyalayın.
 3. Cloudflare → Workers → aysu-rezervasyon → **Settings → Variables and Secrets**:
-   - `GMAIL_ADRES` → **Text**: Gmail adresi
+   - (`GMAIL_ADRES` = halisahaaysu@gmail.com, `wrangler.jsonc`'de tanımlı)
    - `GMAIL_UYGULAMA_SIFRESI` → **Secret**: 16 haneli uygulama şifresi
 
 Bundan sonra:

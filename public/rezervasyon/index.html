@@ -638,7 +638,7 @@
       k.innerHTML = `
         <h3>${tl(v.kapora)} kapora gönderin</h3>
         <div class="iban"><code></code><button type="button" class="kopyala">IBAN'ı kopyala</button></div>
-        <p>Hesap adı: <b class="alici"></b><br>Açıklamaya kayıt numaranızı yazın: <b style="white-space:nowrap">${v.kayitNo}</b></p>
+        <p>Hesap adı: <b class="alici"></b></p>
         <p>Kalan <b>${tl(v.kalan)}</b> maç günü sahada ödenir.</p>`;
       k.querySelector("code").textContent = v.iban;
       k.querySelector(".alici").textContent = v.alici || "";

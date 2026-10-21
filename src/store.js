@@ -878,7 +878,9 @@ export class RezervasyonDeposu extends DurableObject {
       }
       for (const a of aboneler) {
         if (!a.telefon) continue;
-        for (const x of slotSirala(slotlarOf(a))) kisi(a.telefon, a.ad).abone.push(`${GUNLER[x.gun]} ${x.saat}`);
+        const k = kisi(a.telefon, a.ad);
+        if (!a.bitis && aboneNo(a)) k.aboneNo = Math.min(k.aboneNo || 999, aboneNo(a));
+        for (const x of slotSirala(slotlarOf(a))) k.abone.push(`${GUNLER[x.gun]} ${x.saat}`);
       }
       for (const [anahtar, v] of notlar) {
         const k = kisi(anahtar.slice(2), v.ad || "");
@@ -973,7 +975,7 @@ export class RezervasyonDeposu extends DurableObject {
       .filter((r) => r.telefon === telefon)
       .sort((a, b) => (b.tarih + b.saat).localeCompare(a.tarih + a.saat));
     const m = (await this.st.get(`m:${telefon}`)) || {};
-    const abone = (await this.aboneler()).filter((a) => a.telefon === telefon).map((a) => ({ ...a, slotlar: slotSirala(slotlarOf(a)) }));
+    const abone = (await this.aboneler()).filter((a) => a.telefon === telefon).map((a) => ({ ...a, no: aboneNo(a), slotlar: slotSirala(slotlarOf(a)) }));
     return { telefon, ad: tum[0]?.ad || abone[0]?.ad || m.ad || "", not: m.not || "", etiket: m.etiket || "", rezervasyonlar: tum.slice(0, 100), abone, arsiv: m.arsiv || null };
   }
 

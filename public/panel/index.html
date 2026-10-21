@@ -1037,7 +1037,7 @@
   }
   function musteriCiz() {
     const q = sade($("musteri-ara").value);
-    const l = musteriler.filter((m) => !q || sade(m.ad).includes(q) || m.telefon.includes(q.replace(/\D/g, "") || "§") || sade(m.etiket).includes(q));
+    const l = musteriler.filter((m) => !q || sade(m.ad).includes(q) || (m.aboneNo && sade(`abone ${m.aboneNo}`).includes(q)) || m.telefon.includes(q.replace(/\D/g, "") || "§") || sade(m.etiket).includes(q));
     $("musteri-sayi").textContent = `${musteriler.length} müşteri`;
     if (!l.length) {
       $("musteri-liste").innerHTML = `<p class="bos-durum">${musteriler.length ? "Aramaya uyan müşteri yok." : "Rezervasyonlar geldikçe müşteriler burada listelenir."}</p>`;
@@ -1046,8 +1046,8 @@
     $("musteri-liste").innerHTML = l.slice(0, 300).map((m) => `
       <button type="button" class="satir musteri" data-tel="${m.telefon}">
         <span class="i">
-          <span class="ust-satir"><b>${kacis(m.ad || "İsimsiz")}</b>${m.etiket ? `<span class="rozet r-etiket">${kacis(m.etiket)}</span>` : ""}${m.abone.length ? '<span class="rozet r-abone">Abone</span>' : ""}${m.bekleyen ? '<span class="rozet r-bekliyor">Kapora</span>' : ""}</span>
-          <small>${telYazi(m.telefon)} · ${m.mac} maç${m.son ? " · son " + tarihYazi(m.son) : ""}${m.iptal ? ` · ${m.iptal} iptal` : ""}${m.gelecek ? ` · sıradaki ${tarihYazi(m.gelecek.tarih)} ${m.gelecek.saat}` : ""}</small>
+          <span class="ust-satir"><b>${m.aboneNo ? `Abone ${m.aboneNo}` : kacis(m.ad || "İsimsiz")}</b>${m.etiket ? `<span class="rozet r-etiket">${kacis(m.etiket)}</span>` : ""}${m.abone.length ? '<span class="rozet r-abone">Abone</span>' : ""}${m.bekleyen ? '<span class="rozet r-bekliyor">Kapora</span>' : ""}</span>
+          <small>${m.aboneNo ? "Bilgiler için dokunun" : telYazi(m.telefon)} · ${m.mac} maç${m.son ? " · son " + tarihYazi(m.son) : ""}${m.iptal ? ` · ${m.iptal} iptal` : ""}${m.gelecek ? ` · sıradaki ${tarihYazi(m.gelecek.tarih)} ${m.gelecek.saat}` : ""}</small>
         </span>
       </button>`).join("");
     $("musteri-liste").querySelectorAll("[data-tel]").forEach((el) => el.addEventListener("click", () => musteriDetay(el.dataset.tel)));
@@ -1058,8 +1058,10 @@
     const m = await api("musteri?tel=" + encodeURIComponent(tel));
     if (m.hata) return bildir(m.hata);
     const aktif = m.rezervasyonlar.filter((r) => r.durum !== "İptal");
-    ac(m.ad || telYazi(m.telefon), `
+    const no = (m.abone.find((a) => !a.bitis && a.no) || {}).no;
+    ac(no ? `Abone ${no}` : m.ad || telYazi(m.telefon), `
       <div class="satirlar">
+        ${no ? `<div><span>Ad</span><b>${kacis(m.ad || m.abone[0].ad || "")}</b></div>` : ""}
         <div><span>Telefon</span><a href="tel:${m.telefon}">${telYazi(m.telefon)}</a></div>
         <div><span>Maçlar</span>${aktif.length + (m.arsiv?.mac || 0)} rezervasyon${m.rezervasyonlar.length - aktif.length + (m.arsiv?.iptal || 0) ? `, ${m.rezervasyonlar.length - aktif.length + (m.arsiv?.iptal || 0)} iptal` : ""}${m.arsiv ? `<small class="soluk" style="display:block">${m.arsiv.mac} eski maç arşivde (liste haftalık temizlenir)</small>` : ""}</div>
         ${m.abone.length ? `<div><span>Abonelik</span>${m.abone.map((a) => kacis(slotOzet(a.slotlar || []))).join(" / ")}</div>` : ""}

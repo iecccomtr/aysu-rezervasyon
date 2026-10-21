@@ -1,0 +1,686 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Aysu Panel</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="/img/favicon.png">
+<meta name="theme-color" content="#062a45">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --cim: #0067a4; --cim-koyu: #062a45; --cim-acik: #e1eef8;
+    --kirmizi: #ef7f1a; --tebesir: #f5f8fb; --isik: #f5d90a;
+    --murekkep: #10202d; --gri: #566270; --cizgi: #d5dde5; --kart: #fff; --zemin: #eef2f6;
+    --mavi: #1d4ed8; --mavi-acik: #e5edff; --sari-acik: #fff6c2; --sari-koyu: #6b5900;
+    --hata: #a4161a;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { font: 400 16px/1.45 "Barlow", system-ui, sans-serif; color: var(--murekkep); background: var(--zemin); min-height: 100dvh; }
+  h1, h2, h3 { font-family: "Barlow Condensed", sans-serif; font-weight: 700; line-height: 1.05; margin: 0; }
+  p { margin: 0; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  [hidden] { display: none !important; }
+  :focus-visible { outline: 3px solid var(--isik); outline-offset: 2px; }
+  a { color: var(--cim); }
+
+  /* ---------- Giriş ---------- */
+  .giris { min-height: 100dvh; display: grid; place-items: center; padding: 24px 16px; background: var(--cim-koyu); }
+  .giris form { width: 100%; max-width: 360px; background: var(--kart); border-radius: 16px; padding: 24px; }
+  .giris h1 { font-size: 34px; color: var(--cim); }
+  .giris p.alt { color: var(--gri); margin: 4px 0 18px; }
+
+  /* ---------- Üst çubuk ---------- */
+  .ust { position: sticky; top: 0; z-index: 5; background: var(--cim-koyu); color: var(--tebesir); padding: max(10px, env(safe-area-inset-top)) 16px 10px; }
+  .ust .ic { max-width: 900px; margin: 0 auto; display: flex; align-items: center; gap: 12px; }
+  .ust h1 { font-size: 24px; }
+  .ust .logo { display: flex; background: #fff; border-radius: 8px; padding: 3px 6px; }
+  .ust .logo img { display: block; height: 30px; width: auto; }
+  .ust .sag { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+  .ust button { background: transparent; color: var(--tebesir); border: 1px solid #2a6c99; border-radius: 999px; padding: 6px 12px; cursor: pointer; font-size: 14px; }
+
+  main { max-width: 900px; margin: 0 auto; padding: 16px 16px calc(96px + env(safe-area-inset-bottom)); }
+
+  /* ---------- Alt sekmeler ---------- */
+  .sekmeler { position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; background: var(--kart); border-top: 1px solid var(--cizgi); padding-bottom: env(safe-area-inset-bottom); }
+  .sekmeler .ic { max-width: 900px; margin: 0 auto; display: grid; grid-template-columns: repeat(3, 1fr); }
+  .sekmeler button { background: none; border: 0; padding: 10px 4px 12px; cursor: pointer; font-weight: 600; color: var(--gri); display: grid; justify-items: center; gap: 2px; font-size: 14px; }
+  .sekmeler svg { width: 24px; height: 24px; }
+  .sekmeler button[aria-current="page"] { color: var(--cim); }
+  .sekmeler button[aria-current="page"] svg { stroke-width: 2.4; }
+
+  /* ---------- Ortak ---------- */
+  .kutu { background: var(--kart); border: 1px solid var(--cizgi); border-radius: 14px; }
+  .baslik-satir { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; flex-wrap: wrap; }
+  .baslik-satir h2 { font-size: 26px; }
+  .baslik-satir .sag { margin-left: auto; }
+  .dugme { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 0; border-radius: 999px; padding: 11px 18px; cursor: pointer; font-weight: 600; text-decoration: none; background: var(--cim); color: var(--tebesir); }
+  .dugme.ikincil { background: var(--kart); color: var(--cim); border: 2px solid var(--cim); padding: 9px 16px; }
+  .dugme.tehlike { background: var(--kart); color: var(--hata); border: 2px solid #e6b5b5; padding: 9px 16px; }
+  .dugme.kucuk { padding: 7px 12px; font-size: 14px; }
+  .dugme.tam { width: 100%; }
+  .dugme:disabled { opacity: .55; cursor: default; }
+  .rozet { display: inline-block; font-size: 13px; font-weight: 600; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+  .r-bekliyor { background: var(--sari-acik); color: var(--sari-koyu); }
+  .r-onayli { background: var(--cim-acik); color: var(--cim); }
+  .r-iptal { background: #fde8e8; color: var(--hata); }
+  .r-abone { background: var(--mavi-acik); color: var(--mavi); }
+  .r-gelmiyor { background: #eceeed; color: var(--gri); }
+  .r-etiket { background: var(--murekkep); color: var(--tebesir); }
+  .soluk { color: var(--gri); }
+  .uyari { background: #fff1f1; border: 1px solid #f2c4c4; color: var(--hata); border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; }
+  .bilgi { background: var(--sari-acik); border: 1px solid #ecd97a; border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; color: var(--sari-koyu); }
+  .bos-durum { text-align: center; color: var(--gri); padding: 28px 12px; }
+
+  .alan { margin-bottom: 12px; }
+  .alan label { display: block; font-weight: 600; margin-bottom: 5px; font-size: 15px; }
+  .alan input, .alan select, .alan textarea { width: 100%; background: var(--kart); border: 1px solid #b5c3cf; border-radius: 10px; padding: 11px 12px; font-size: 16px; }
+  .alan textarea { min-height: 70px; resize: vertical; }
+  .alan input:focus, .alan select:focus, .alan textarea:focus { outline: none; border-color: var(--cim); box-shadow: 0 0 0 2px var(--cim); }
+  .iki-alan { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  /* ---------- Kapora bekleyenler ---------- */
+  .bekleyenler { margin-bottom: 18px; border-color: #ecd97a; background: #fffbe6; }
+  .bekleyenler h3 { font-size: 20px; padding: 12px 14px 4px; color: var(--sari-koyu); }
+  .bekleyen { display: flex; gap: 10px; align-items: center; padding: 10px 14px; border-top: 1px solid #f1e6a8; cursor: pointer; background: none; border-left: 0; border-right: 0; border-bottom: 0; width: 100%; text-align: left; }
+  .bekleyen:first-of-type { border-top: 0; }
+  .bekleyen .z { flex: none; width: 64px; text-align: center; line-height: 1.1; }
+  .bekleyen .z small { display: block; font-size: 13px; color: var(--sari-koyu); }
+  .bekleyen .z b { display: block; font: 700 22px/1.05 "Barlow Condensed", sans-serif; }
+  .bekleyen .k { flex: 1; min-width: 0; }
+  .bekleyen .k b { display: block; }
+
+  /* ---------- Hafta & günler ---------- */
+  .hafta-nav { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .hafta-nav .ay { font: 700 22px/1 "Barlow Condensed", sans-serif; flex: 1; text-align: center; }
+  .ok { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--cizgi); background: var(--kart); cursor: pointer; font-size: 20px; line-height: 1; }
+  .gunler { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; margin-bottom: 12px; }
+  .gun { border: 1px solid var(--cizgi); background: var(--kart); border-radius: 10px; padding: 6px 2px 7px; cursor: pointer; text-align: center; line-height: 1.1; }
+  .gun small { display: block; font-size: 12px; color: var(--gri); }
+  .gun b { display: block; font: 700 22px/1.1 "Barlow Condensed", sans-serif; }
+  .gun .doluluk { display: block; height: 4px; margin: 4px 6px 0; border-radius: 2px; background: var(--cim-acik); overflow: hidden; }
+  .gun .doluluk i { display: block; height: 100%; background: var(--cim); }
+  .gun.bugun { border-color: var(--cim); border-width: 2px; }
+  .gun[aria-pressed="true"] { background: var(--cim); border-color: var(--cim); color: var(--tebesir); }
+  .gun[aria-pressed="true"] small { color: #b8d3e8; }
+  .gun[aria-pressed="true"] .doluluk { background: #2a6c99; }
+  .gun[aria-pressed="true"] .doluluk i { background: var(--isik); }
+
+  /* ---------- Saat listesi ---------- */
+  .saatler { overflow: hidden; }
+  .grup-ad { font-size: 13px; color: var(--gri); padding: 8px 14px; background: #f5f7fa; border-top: 1px solid var(--cizgi); }
+  .satir { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 10px 14px; border: 0; border-top: 1px solid var(--cizgi); background: none; cursor: pointer; min-height: 58px; }
+  .satir:first-child { border-top: 0; }
+  .satir:hover { background: #f7f9fb; }
+  .satir .s { font: 700 24px/1 "Barlow Condensed", sans-serif; width: 60px; flex: none; }
+  .satir .i { flex: 1; min-width: 0; }
+  .satir .i b { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .satir .i small { color: var(--gri); }
+  .satir.bos .i { color: var(--gri); }
+  .satir.bos .arti { color: var(--cim); font-weight: 600; }
+  .satir.gecmis { opacity: .5; }
+  .satir.t-rez { box-shadow: inset 4px 0 0 var(--cim); }
+  .satir.t-rez.bekliyor { box-shadow: inset 4px 0 0 var(--isik); }
+  .satir.t-abone { box-shadow: inset 4px 0 0 var(--mavi); }
+
+  /* ---------- Aboneler ---------- */
+  .abone-gun h3 { font-size: 18px; padding: 10px 14px 6px; color: var(--gri); }
+  .abone-gun + .abone-gun { border-top: 1px solid var(--cizgi); }
+
+  /* ---------- Müşteriler ---------- */
+  .ara-kutu { position: relative; margin-bottom: 12px; }
+  .ara-kutu input { width: 100%; padding: 12px 14px 12px 40px; border-radius: 999px; border: 1px solid #b5c3cf; background: var(--kart); font-size: 16px; }
+  .ara-kutu svg { position: absolute; left: 14px; top: 50%; width: 18px; height: 18px; transform: translateY(-50%); color: var(--gri); }
+  .musteri .i b { display: inline; }
+  .musteri .ust-satir { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+
+  /* ---------- Dialog ---------- */
+  dialog { border: 0; border-radius: 18px 18px 0 0; padding: 0; width: 100%; max-width: 560px; margin: auto auto 0; max-height: 92dvh; }
+  dialog::backdrop { background: rgba(4, 24, 40, .55); }
+  @media (min-width: 640px) { dialog { border-radius: 18px; margin: auto; } }
+  .d-ust { position: sticky; top: 0; background: var(--kart); display: flex; align-items: center; gap: 10px; padding: 16px 18px 10px; border-bottom: 1px solid var(--cizgi); z-index: 1; }
+  .d-ust h2 { font-size: 26px; }
+  .d-ust .kapat { margin-left: auto; width: 36px; height: 36px; border-radius: 50%; border: 0; background: var(--zemin); cursor: pointer; font-size: 20px; }
+  .d-ic { padding: 14px 18px calc(20px + env(safe-area-inset-bottom)); }
+  .d-ic .satirlar { display: grid; gap: 6px; margin-bottom: 14px; }
+  .d-ic .satirlar div { display: flex; gap: 10px; }
+  .d-ic .satirlar span { color: var(--gri); min-width: 86px; }
+  .eylemler { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+  .durum-sec { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 12px; }
+  .durum-sec button { border: 2px solid var(--cizgi); background: var(--kart); border-radius: 10px; padding: 9px 4px; font-weight: 600; cursor: pointer; font-size: 14px; }
+  .durum-sec button[aria-pressed="true"][data-durum="Kapora bekleniyor"] { border-color: #d4b400; background: var(--sari-acik); }
+  .durum-sec button[aria-pressed="true"][data-durum="Onaylı"] { border-color: var(--cim); background: var(--cim-acik); }
+  .durum-sec button[aria-pressed="true"][data-durum="İptal"] { border-color: var(--hata); background: #fde8e8; }
+  .gecmis-liste { list-style: none; padding: 0; margin: 0; border: 1px solid var(--cizgi); border-radius: 10px; overflow: hidden; }
+  .gecmis-liste li { display: flex; gap: 10px; padding: 8px 12px; border-top: 1px solid var(--cizgi); font-size: 15px; align-items: center; }
+  .gecmis-liste li:first-child { border-top: 0; }
+  .gecmis-liste li span:first-child { flex: 1; }
+
+  .bildirim { position: fixed; left: 50%; bottom: calc(84px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 20; background: var(--murekkep); color: var(--tebesir); padding: 10px 18px; border-radius: 999px; font-weight: 600; box-shadow: 0 6px 18px rgba(0,0,0,.25); max-width: calc(100% - 32px); }
+</style>
+</head>
+<body>
+
+<!-- ================= Giriş ================= -->
+<section class="giris" id="giris" hidden>
+  <form id="giris-form" novalidate>
+    <img src="/img/aysu-logo.svg" alt="Aysu Halı Saha" width="140" height="60" style="display:block;margin-bottom:10px">
+    <h1>Yönetim paneli</h1>
+    <p class="alt" id="giris-alt">Yönetim paneline giriş</p>
+    <div id="giris-uyari" class="uyari" role="alert" hidden></div>
+    <div id="kurulum-alanlari" hidden>
+      <div class="alan"><label for="g-kod">Kurulum kodu</label><input id="g-kod" autocomplete="off" autocapitalize="off"></div>
+    </div>
+    <div class="alan"><label for="g-sifre" id="g-sifre-etiket">Şifre</label><input id="g-sifre" type="password" autocomplete="current-password"></div>
+    <div class="alan" id="g-sifre2-alan" hidden><label for="g-sifre2">Şifre (tekrar)</label><input id="g-sifre2" type="password" autocomplete="new-password"></div>
+    <button class="dugme tam" type="submit" id="giris-dugme">Giriş yap</button>
+    <p class="soluk" style="margin-top:14px;font-size:14px" id="giris-not"></p>
+  </form>
+</section>
+
+<!-- ================= Uygulama ================= -->
+<div id="uygulama" hidden>
+  <header class="ust">
+    <div class="ic">
+      <a class="logo" href="/panel/" aria-label="Aysu Panel"><img src="/img/aysu-logo.svg" alt="Aysu Halı Saha" width="80" height="34"></a><h1>Panel</h1>
+      <div class="sag">
+        <a href="/rezervasyon/" target="_blank" style="color:#b8d3e8;font-size:14px">Site</a>
+        <button type="button" id="cikis">Çıkış</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- Takvim -->
+    <section id="v-takvim" data-gorunum>
+      <div id="bekleyenler"></div>
+      <div class="hafta-nav">
+        <button class="ok" type="button" id="onceki" aria-label="Önceki hafta">‹</button>
+        <div class="ay" id="hafta-baslik"></div>
+        <button class="ok" type="button" id="sonraki" aria-label="Sonraki hafta">›</button>
+      </div>
+      <div class="gunler" id="gunler"></div>
+      <div class="baslik-satir">
+        <h2 id="gun-baslik"></h2>
+        <button class="dugme ikincil kucuk sag" type="button" id="bugune">Bugün</button>
+      </div>
+      <div class="kutu saatler" id="saatler"></div>
+    </section>
+
+    <!-- Aboneler -->
+    <section id="v-aboneler" data-gorunum hidden>
+      <div class="baslik-satir">
+        <h2>Aboneler</h2>
+        <button class="dugme kucuk sag" type="button" id="abone-ekle">+ Abone ekle</button>
+      </div>
+      <p class="soluk" style="margin-bottom:12px">Aboneler her hafta aynı gün ve saatte otomatik dolu görünür. Bu hafta gelmeyecek aboneyi Takvim'den işaretleyin.</p>
+      <div class="kutu" id="abone-liste"></div>
+    </section>
+
+    <!-- Müşteriler -->
+    <section id="v-musteriler" data-gorunum hidden>
+      <div class="baslik-satir"><h2>Müşteriler</h2><span class="soluk sag" id="musteri-sayi"></span></div>
+      <div class="ara-kutu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="musteri-ara" type="search" placeholder="İsim, telefon veya etiket ara" aria-label="Müşteri ara">
+      </div>
+      <div class="kutu saatler" id="musteri-liste"></div>
+    </section>
+  </main>
+
+  <nav class="sekmeler" aria-label="Panel bölümleri">
+    <div class="ic">
+      <button type="button" data-sekme="takvim" aria-current="page">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>Takvim
+      </button>
+      <button type="button" data-sekme="aboneler">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3"/><path d="M18 3v4h-4M6 21v-4h4"/></svg>Aboneler
+      </button>
+      <button type="button" data-sekme="musteriler">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14.8c2 .7 3.2 2.4 3.6 5.2"/></svg>Müşteriler
+      </button>
+    </div>
+  </nav>
+</div>
+
+<dialog id="dlg" aria-labelledby="dlg-baslik">
+  <div class="d-ust"><h2 id="dlg-baslik"></h2><button class="kapat" type="button" aria-label="Kapat" onclick="this.closest('dialog').close()">×</button></div>
+  <div class="d-ic" id="dlg-ic"></div>
+</dialog>
+
+<div class="bildirim" id="bildirim" role="status" hidden></div>
+
+<script>
+(() => {
+  // ================= Yardımcılar =================
+  const $ = (id) => document.getElementById(id);
+  const AYLAR = ["Ocak","Şubat","Mart","Nisan","Mayıs","Haziran","Temmuz","Ağustos","Eylül","Ekim","Kasım","Aralık"];
+  const GUNLER = ["Pazartesi","Salı","Çarşamba","Perşembe","Cuma","Cumartesi","Pazar"];
+  const KISA = ["Pzt","Sal","Çar","Per","Cum","Cmt","Paz"];
+  const SAATLER = ["08:00","09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00","19:00","20:00","21:00","22:00","23:00","00:00","01:00","02:00"];
+  const DURUMLAR = ["Kapora bekleniyor", "Onaylı", "İptal"];
+  const kacis = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const tarihYazi = (t, yil) => { const [y, a, g] = t.split("-").map(Number); return `${g} ${AYLAR[a - 1]}${yil ? " " + y : ""}`; };
+  const gunEkle = (t, n) => { const d = new Date(t + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+  const gunNo = (t) => (new Date(t + "T00:00:00Z").getUTCDay() + 6) % 7;
+  const gece = (s) => Number(s.slice(0, 2)) < 6;
+  const telYazi = (t) => t && t.length === 11 ? `${t.slice(0, 4)} ${t.slice(4, 7)} ${t.slice(7, 9)} ${t.slice(9)}` : (t || "");
+  const wa = (t) => `https://wa.me/90${String(t).replace(/^0/, "")}`;
+  const durumSinif = (d) => d === "Onaylı" ? "r-onayli" : d === "İptal" ? "r-iptal" : "r-bekliyor";
+
+  async function api(yol, govde) {
+    const r = await fetch("/api/panel/" + yol, govde === undefined ? { cache: "no-store" } : {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(govde),
+    });
+    const v = await r.json().catch(() => ({ hata: "Sunucuya ulaşılamadı." }));
+    if (r.status === 401 && v.giris) { girisGoster(); throw new Error(v.hata); }
+    return v;
+  }
+
+  let bildirimZaman;
+  function bildir(metin) {
+    const el = $("bildirim");
+    el.textContent = metin; el.hidden = false;
+    clearTimeout(bildirimZaman);
+    bildirimZaman = setTimeout(() => { el.hidden = true; }, 2600);
+  }
+
+  const dlg = $("dlg");
+  function ac(baslik, html) {
+    $("dlg-baslik").textContent = baslik;
+    $("dlg-ic").innerHTML = html;
+    if (!dlg.open) dlg.showModal();
+    return $("dlg-ic");
+  }
+  dlg.addEventListener("click", (e) => { if (e.target === dlg) dlg.close(); });
+  const dlgUyari = (metin) => {
+    let u = $("dlg-ic").querySelector(".uyari");
+    if (!u) { u = document.createElement("div"); u.className = "uyari"; u.setAttribute("role", "alert"); $("dlg-ic").prepend(u); }
+    u.textContent = metin;
+    u.scrollIntoView({ block: "nearest" });
+  };
+
+  // ================= Giriş =================
+  let kurulumModu = false;
+  async function basla() {
+    try {
+      const d = await (await fetch("/api/panel/durum", { cache: "no-store" })).json();
+      if (d.girisli) return uygulamaGoster();
+      kurulumModu = !d.kurulu;
+      girisGoster();
+    } catch {
+      girisGoster();
+      $("giris-uyari").textContent = "Sunucuya ulaşılamadı. Sayfayı yenileyin."; $("giris-uyari").hidden = false;
+    }
+  }
+
+  function girisGoster(sifirla) {
+    if (sifirla !== undefined) kurulumModu = sifirla;
+    $("uygulama").hidden = true; $("giris").hidden = false;
+    $("kurulum-alanlari").hidden = !kurulumModu;
+    $("g-sifre2-alan").hidden = !kurulumModu;
+    $("giris-alt").textContent = kurulumModu ? "Paneli kurun: kurulum kodunu girip bir şifre belirleyin." : "Yönetim paneline giriş";
+    $("g-sifre-etiket").textContent = kurulumModu ? "Yeni şifre (en az 8 karakter)" : "Şifre";
+    $("g-sifre").autocomplete = kurulumModu ? "new-password" : "current-password";
+    $("giris-dugme").textContent = kurulumModu ? "Şifreyi kaydet ve gir" : "Giriş yap";
+    $("giris-not").innerHTML = kurulumModu ? "" : '<a href="#" id="sifre-unuttum">Şifremi unuttum</a>';
+    const u = $("sifre-unuttum");
+    if (u) u.addEventListener("click", (e) => { e.preventDefault(); girisGoster(true); $("giris-alt").textContent = "Şifre sıfırlama: kurulum kodu ve yeni şifre girin."; });
+    setTimeout(() => (kurulumModu ? $("g-kod") : $("g-sifre")).focus(), 50);
+  }
+
+  $("giris-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const uyari = $("giris-uyari"); uyari.hidden = true;
+    const sifre = $("g-sifre").value;
+    if (kurulumModu && sifre !== $("g-sifre2").value) { uyari.textContent = "Şifreler aynı değil."; uyari.hidden = false; return; }
+    $("giris-dugme").disabled = true;
+    try {
+      const r = await fetch(kurulumModu ? "/api/panel/kur" : "/api/panel/giris", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify(kurulumModu ? { kurulumKodu: $("g-kod").value.trim(), sifre } : { sifre }),
+      });
+      const v = await r.json().catch(() => ({}));
+      if (!r.ok) { uyari.textContent = v.hata || "Giriş yapılamadı."; uyari.hidden = false; return; }
+      $("g-sifre").value = ""; $("g-sifre2").value = ""; $("g-kod").value = "";
+      uygulamaGoster();
+    } catch {
+      uyari.textContent = "Bağlantı kurulamadı."; uyari.hidden = false;
+    } finally {
+      $("giris-dugme").disabled = false;
+    }
+  });
+
+  $("cikis").addEventListener("click", async () => {
+    await fetch("/api/panel/cikis", { method: "POST" }).catch(() => {});
+    girisGoster(false);
+  });
+
+  // ================= Sekmeler =================
+  let sekme = "takvim";
+  document.querySelectorAll("[data-sekme]").forEach((b) => b.addEventListener("click", () => sekmeAc(b.dataset.sekme)));
+  function sekmeAc(ad) {
+    sekme = ad;
+    document.querySelectorAll("[data-sekme]").forEach((b) => b.toggleAttribute("aria-current", b.dataset.sekme === ad));
+    document.querySelectorAll("[data-sekme]").forEach((b) => b.dataset.sekme === ad && b.setAttribute("aria-current", "page"));
+    document.querySelectorAll("[data-gorunum]").forEach((s) => { s.hidden = s.id !== "v-" + ad; });
+    if (ad === "takvim") haftaYukle();
+    if (ad === "aboneler") aboneYukle();
+    if (ad === "musteriler") musteriYukle();
+    window.scrollTo({ top: 0 });
+  }
+
+  function uygulamaGoster() {
+    $("giris").hidden = true; $("uygulama").hidden = false;
+    sekmeAc(sekme);
+  }
+
+  // ================= Takvim =================
+  let hafta = null, haftaBas = null, seciliGun = null;
+
+  async function haftaYukle(bas) {
+    try {
+      hafta = await api("hafta" + (bas || haftaBas ? `?bas=${bas || haftaBas}` : ""));
+    } catch { return; }
+    if (hafta.hata) { bildir(hafta.hata); return; }
+    haftaBas = hafta.baslangic;
+    if (!seciliGun || !hafta.gunler.some((g) => g.tarih === seciliGun)) {
+      seciliGun = hafta.gunler.some((g) => g.tarih === hafta.bugun) ? hafta.bugun : hafta.gunler[0].tarih;
+    }
+    takvimCiz();
+  }
+
+  function takvimCiz() {
+    // Kapora bekleyenler
+    const b = hafta.bekleyenler || [];
+    $("bekleyenler").innerHTML = b.length ? `<div class="kutu bekleyenler"><h3>Kapora bekleyen ${b.length} rezervasyon</h3>${b.map((r) => `
+      <button type="button" class="bekleyen" data-kayit="${kacis(r.kayitNo)}">
+        <span class="z"><small>${KISA[gunNo(r.isletmeGunu || r.tarih)]} ${Number((r.isletmeGunu || r.tarih).slice(8))} ${AYLAR[Number((r.isletmeGunu || r.tarih).slice(5, 7)) - 1].slice(0, 3)}</small><b>${r.saat}</b></span>
+        <span class="k"><b>${kacis(r.ad)}</b><small class="soluk" style="white-space:nowrap">${telYazi(r.telefon)}</small></span>
+        <span class="rozet r-bekliyor">Bekliyor</span>
+      </button>`).join("")}</div>` : "";
+    $("bekleyenler").querySelectorAll("[data-kayit]").forEach((el) => el.addEventListener("click", () => {
+      const r = b.find((x) => x.kayitNo === el.dataset.kayit);
+      rezDetay(r);
+    }));
+
+    // Hafta başlığı
+    const ilk = hafta.gunler[0].tarih, son = hafta.gunler[6].tarih;
+    $("hafta-baslik").textContent = `${tarihYazi(ilk).split(" ")[0]}${ilk.slice(5, 7) !== son.slice(5, 7) ? " " + tarihYazi(ilk).split(" ")[1] : ""} – ${tarihYazi(son)}`;
+
+    // Günler
+    $("gunler").innerHTML = hafta.gunler.map((g, i) => {
+      const dolu = g.saatler.filter((s) => s.tur === "rez" || s.tur === "abone").length;
+      return `<button type="button" class="gun${g.tarih === hafta.bugun ? " bugun" : ""}" data-gun="${g.tarih}" aria-pressed="${g.tarih === seciliGun}" aria-label="${g.gun} ${tarihYazi(g.tarih)}, ${dolu} dolu">
+        <small>${KISA[i]}</small><b>${Number(g.tarih.slice(8))}</b><span class="doluluk"><i style="width:${Math.round(dolu / g.saatler.length * 100)}%"></i></span></button>`;
+    }).join("");
+    $("gunler").querySelectorAll("[data-gun]").forEach((el) => el.addEventListener("click", () => { seciliGun = el.dataset.gun; takvimCiz(); }));
+
+    // Saatler
+    const g = hafta.gunler.find((x) => x.tarih === seciliGun);
+    $("gun-baslik").textContent = `${g.gun} ${tarihYazi(g.tarih)}`;
+    const satir = (s) => {
+      let sinif = "satir", ic = "";
+      if (s.tur === "rez") {
+        const r = s.rez;
+        sinif += ` t-rez${r.durum === "Kapora bekleniyor" ? " bekliyor" : ""}`;
+        ic = `<span class="i"><b>${kacis(r.ad)}</b><small>${telYazi(r.telefon) || "telefonsuz"} · ${r.kaynak === "Online" ? "Online" : "Telefon"}${r.kapora ? " · kapora " + kacis(r.kapora) : ""}</small></span>
+              <span class="rozet ${durumSinif(r.durum)}">${r.durum === "Kapora bekleniyor" ? "Kapora" : kacis(r.durum)}</span>`;
+      } else if (s.tur === "abone") {
+        sinif += " t-abone";
+        ic = `<span class="i"><b>${kacis(s.abone.ad)}</b><small>${telYazi(s.abone.telefon) || "abone"}</small></span><span class="rozet r-abone">Abone</span>`;
+      } else if (s.tur === "abone-gelmiyor") {
+        sinif += " bos";
+        ic = `<span class="i">Boş <small>· ${kacis(s.abone.ad)} bu hafta gelmiyor</small></span><span class="arti">+ Ekle</span>`;
+      } else {
+        sinif += " bos";
+        ic = `<span class="i">Boş</span>${s.gecmis ? "" : '<span class="arti">+ Ekle</span>'}`;
+      }
+      if (s.gecmis) sinif += " gecmis";
+      return `<button type="button" class="${sinif}" data-saat="${s.saat}"><span class="s">${s.saat}</span>${ic}</button>`;
+    };
+    const gunduz = g.saatler.filter((s) => !gece(s.saat)), geceler = g.saatler.filter((s) => gece(s.saat));
+    $("saatler").innerHTML = gunduz.map(satir).join("") + `<div class="grup-ad">${g.gun} gecesi</div>` + geceler.map(satir).join("");
+    $("saatler").querySelectorAll("[data-saat]").forEach((el) => el.addEventListener("click", () => {
+      const s = g.saatler.find((x) => x.saat === el.dataset.saat);
+      if (s.tur === "rez") rezDetay(s.rez);
+      else if (s.tur === "abone") aboneSlot(g, s);
+      else rezEkle(g, s);
+    }));
+  }
+
+  $("onceki").addEventListener("click", () => { haftaBas = gunEkle(haftaBas, -7); seciliGun = haftaBas; haftaYukle(); });
+  $("sonraki").addEventListener("click", () => { haftaBas = gunEkle(haftaBas, 7); seciliGun = haftaBas; haftaYukle(); });
+  $("bugune").addEventListener("click", () => { haftaBas = null; seciliGun = null; haftaYukle(); });
+
+  function durumSecici(secili) {
+    return `<div class="durum-sec" role="group" aria-label="Durum">${DURUMLAR.map((d) =>
+      `<button type="button" data-durum="${d}" aria-pressed="${d === secili}">${d === "Kapora bekleniyor" ? "Kapora bekleniyor" : d}</button>`).join("")}</div>`;
+  }
+  function durumSeciciBagla(ic) {
+    ic.querySelectorAll("[data-durum]").forEach((b) => b.addEventListener("click", () =>
+      ic.querySelectorAll("[data-durum]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)))));
+    return () => ic.querySelector('[data-durum][aria-pressed="true"]')?.dataset.durum;
+  }
+
+  function rezEkle(g, s) {
+    const gelmiyor = s.tur === "abone-gelmiyor";
+    const ic = ac(`${KISA[gunNo(g.tarih)]} ${tarihYazi(g.tarih)} · ${s.saat}`, `
+      ${gelmiyor ? `<div class="bilgi">${kacis(s.abone.ad)} (abone) bu hafta gelmiyor olarak işaretli.
+        <button type="button" class="dugme ikincil kucuk" id="d-geliyor" style="margin-top:8px">Abone yine geliyor</button></div>` : ""}
+      ${s.gecmis ? '<div class="bilgi">Bu saat geçti. Yine de geçmişe kayıt ekleyebilirsiniz.</div>' : ""}
+      <form id="d-form" novalidate>
+        <div class="alan"><label for="d-ad">Ad soyad / takım</label><input id="d-ad" autocomplete="off" required></div>
+        <div class="alan"><label for="d-tel">Telefon</label><input id="d-tel" type="tel" inputmode="tel" placeholder="05XX XXX XX XX"></div>
+        <label style="font-weight:600;display:block;margin-bottom:5px">Durum</label>
+        ${durumSecici("Onaylı").replace('<button type="button" data-durum="İptal" aria-pressed="false">İptal</button>', "")}
+        <div class="iki-alan">
+          <div class="alan"><label for="d-kapora">Alınan kapora</label><input id="d-kapora" placeholder="ör. 1200"></div>
+          <div class="alan"><label for="d-not">Not</label><input id="d-not"></div>
+        </div>
+        <button class="dugme tam" type="submit">Rezervasyonu kaydet</button>
+      </form>`);
+    ic.querySelector(".durum-sec").style.gridTemplateColumns = "1fr 1fr";
+    const durumAl = durumSeciciBagla(ic);
+    setTimeout(() => $("d-ad").focus(), 50);
+    if (gelmiyor) $("d-geliyor").addEventListener("click", async () => {
+      const r = await api("abone-atla", { id: s.abone.id, gun: g.tarih, gelmiyor: false });
+      if (r.hata) return dlgUyari(r.hata);
+      dlg.close(); bildir("Abone bu hafta geliyor olarak işaretlendi"); haftaYukle();
+    });
+    $("d-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const btn = e.submitter; btn.disabled = true;
+      try {
+        const r = await api("rez", { gun: g.tarih, saat: s.saat, ad: $("d-ad").value, telefon: $("d-tel").value, kapora: $("d-kapora").value, not: $("d-not").value, durum: durumAl() });
+        if (r.hata) return dlgUyari(r.hata);
+        dlg.close(); bildir(`${s.saat} kaydedildi`); haftaYukle();
+      } finally { btn.disabled = false; }
+    });
+  }
+
+  function rezDetay(r) {
+    const gun = r.isletmeGunu || r.tarih;
+    const ic = ac(`${KISA[gunNo(gun)]} ${tarihYazi(gun)} · ${r.saat}`, `
+      <div class="satirlar">
+        <div><span>Ad</span><b>${kacis(r.ad)}</b></div>
+        <div><span>Telefon</span>${r.telefon ? `<a href="tel:${r.telefon}">${telYazi(r.telefon)}</a>` : "—"}</div>
+        <div><span>Kayıt no</span><b>${kacis(r.kayitNo)}</b></div>
+        <div><span>Kaynak</span>${kacis(r.kaynak || "")} · ${kacis(r.olusturma || "")}</div>
+      </div>
+      ${r.telefon ? `<div class="eylemler">
+        <a class="dugme ikincil kucuk" href="tel:${r.telefon}">Ara</a>
+        <a class="dugme ikincil kucuk" target="_blank" rel="noopener" href="${wa(r.telefon)}?text=${encodeURIComponent(`Merhaba ${r.ad}, Aysu Halı Saha ${tarihYazi(gun)} ${r.saat} rezervasyonunuz hakkında yazıyoruz.`)}">WhatsApp</a>
+        <button class="dugme ikincil kucuk" type="button" id="d-musteri">Müşteri kartı</button>
+      </div>` : ""}
+      <form id="d-form" novalidate>
+        <label style="font-weight:600;display:block;margin-bottom:5px">Durum</label>
+        ${durumSecici(r.durum)}
+        <div class="alan"><label for="d-kapora">Ödenen kapora</label><input id="d-kapora" value="${kacis(r.kapora || "")}" placeholder="ör. 1000 + 200"></div>
+        <div class="alan"><label for="d-not">Not</label><textarea id="d-not">${kacis(r.not || "")}</textarea></div>
+        <button class="dugme tam" type="submit">Kaydet</button>
+      </form>`);
+    const durumAl = durumSeciciBagla(ic);
+    const m = $("d-musteri");
+    if (m) m.addEventListener("click", () => musteriDetay(r.telefon));
+    $("d-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const durum = durumAl();
+      if (durum === "İptal" && r.durum !== "İptal" && !confirm(`${r.ad} – ${r.saat} rezervasyonu iptal edilsin mi? Saat boşa çıkar.`)) return;
+      const btn = e.submitter; btn.disabled = true;
+      try {
+        const v = await api("rez-guncelle", { kayitNo: r.kayitNo, durum, kapora: $("d-kapora").value, not: $("d-not").value });
+        if (v.hata) return dlgUyari(v.hata);
+        dlg.close(); bildir(durum === "İptal" ? "İptal edildi, saat boşaldı" : "Kaydedildi");
+        if (sekme === "takvim") haftaYukle(); else if (sekme === "musteriler") musteriYukle();
+      } finally { btn.disabled = false; }
+    });
+  }
+
+  function aboneSlot(g, s) {
+    const a = s.abone;
+    ac(`${KISA[gunNo(g.tarih)]} ${tarihYazi(g.tarih)} · ${s.saat}`, `
+      <div class="satirlar">
+        <div><span>Abone</span><b>${kacis(a.ad)}</b></div>
+        <div><span>Telefon</span>${a.telefon ? `<a href="tel:${a.telefon}">${telYazi(a.telefon)}</a>` : "—"}</div>
+        ${a.not ? `<div><span>Not</span>${kacis(a.not)}</div>` : ""}
+      </div>
+      ${a.telefon ? `<div class="eylemler"><a class="dugme ikincil kucuk" href="tel:${a.telefon}">Ara</a>
+        <a class="dugme ikincil kucuk" target="_blank" rel="noopener" href="${wa(a.telefon)}">WhatsApp</a></div>` : ""}
+      <button class="dugme tam" type="button" id="d-gelmiyor">Bu hafta gelmiyor</button>
+      <p class="soluk" style="margin-top:8px;font-size:14px">Saat sadece bu tarih için boşa çıkar ve sitede rezervasyona açılır. Sonraki haftalar dolu kalır.</p>`);
+    $("d-gelmiyor").addEventListener("click", async () => {
+      const r = await api("abone-atla", { id: a.id, gun: g.tarih, gelmiyor: true });
+      if (r.hata) return dlgUyari(r.hata);
+      dlg.close(); bildir(`${a.ad} bu hafta gelmiyor, saat açıldı`); haftaYukle();
+    });
+  }
+
+  // ================= Aboneler =================
+  let aboneler = [];
+  async function aboneYukle() {
+    try { aboneler = await api("aboneler"); } catch { return; }
+    if (!aboneler.length) {
+      $("abone-liste").innerHTML = '<p class="bos-durum">Henüz abone yok. "+ Abone ekle" ile ekleyin.</p>';
+      return;
+    }
+    $("abone-liste").innerHTML = GUNLER.map((gun, i) => {
+      const l = aboneler.filter((a) => a.gun === i);
+      if (!l.length) return "";
+      const sirali = l.sort((a, b) => (gece(a.saat) - gece(b.saat)) || a.saat.localeCompare(b.saat));
+      return `<div class="abone-gun"><h3>${gun}</h3>${sirali.map((a) => `
+        <button type="button" class="satir t-abone" data-abone="${a.id}"><span class="s">${a.saat}</span>
+        <span class="i"><b>${kacis(a.ad)}</b><small>${telYazi(a.telefon) || "telefon yok"}${a.ucret ? " · " + kacis(a.ucret) : ""}${a.not ? " · " + kacis(a.not) : ""}</small></span></button>`).join("")}</div>`;
+    }).join("");
+    $("abone-liste").querySelectorAll("[data-abone]").forEach((el) => el.addEventListener("click", () => aboneForm(aboneler.find((a) => a.id === el.dataset.abone))));
+  }
+  $("abone-ekle").addEventListener("click", () => aboneForm());
+
+  function aboneForm(a) {
+    const yeni = !a;
+    a = a || { ad: "", telefon: "", gun: 0, saat: "20:00", baslangic: "", not: "", ucret: "" };
+    ac(yeni ? "Yeni abone" : a.ad, `
+      <form id="d-form" novalidate>
+        <div class="alan"><label for="d-ad">Ad / takım</label><input id="d-ad" value="${kacis(a.ad)}" required></div>
+        <div class="alan"><label for="d-tel">Telefon</label><input id="d-tel" type="tel" inputmode="tel" value="${kacis(telYazi(a.telefon))}" placeholder="05XX XXX XX XX"></div>
+        <div class="iki-alan">
+          <div class="alan"><label for="d-gun">Gün</label><select id="d-gun">${GUNLER.map((g, i) => `<option value="${i}" ${i === a.gun ? "selected" : ""}>${g}</option>`).join("")}</select></div>
+          <div class="alan"><label for="d-saat">Saat</label><select id="d-saat">${SAATLER.map((s) => `<option ${s === a.saat ? "selected" : ""}>${s}</option>`).join("")}</select></div>
+        </div>
+        <div class="iki-alan">
+          <div class="alan"><label for="d-bas">Başlangıç</label><input id="d-bas" type="date" value="${kacis(a.baslangic || "")}"></div>
+          <div class="alan"><label for="d-ucret">Ücret / depozito</label><input id="d-ucret" value="${kacis(a.ucret || "")}" placeholder="ör. 2.300 TL"></div>
+        </div>
+        <div class="alan"><label for="d-not">Not</label><input id="d-not" value="${kacis(a.not || "")}"></div>
+        <p class="soluk" style="font-size:14px;margin-bottom:12px">00:00–02:00 saatleri seçilen günün gecesidir (ör. Cuma 01:00 = Cuma'yı Cumartesi'ye bağlayan gece).</p>
+        <button class="dugme tam" type="submit">${yeni ? "Aboneyi ekle" : "Kaydet"}</button>
+        ${yeni ? "" : '<button class="dugme tehlike tam" type="button" id="d-sil" style="margin-top:10px">Aboneliği sonlandır</button>'}
+      </form>`);
+    $("d-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const btn = e.submitter; btn.disabled = true;
+      try {
+        const r = await api("abone", { id: yeni ? undefined : a.id, ad: $("d-ad").value, telefon: $("d-tel").value, gun: Number($("d-gun").value), saat: $("d-saat").value, baslangic: $("d-bas").value, ucret: $("d-ucret").value, not: $("d-not").value });
+        if (r.hata) return dlgUyari(r.hata);
+        dlg.close(); bildir(r.uyari || (yeni ? "Abone eklendi" : "Kaydedildi")); aboneYukle();
+      } finally { btn.disabled = false; }
+    });
+    const sil = $("d-sil");
+    if (sil) sil.addEventListener("click", async () => {
+      if (!confirm(`${a.ad} aboneliği sonlandırılsın mı? ${GUNLER[a.gun]} ${a.saat} her hafta boşa çıkar.`)) return;
+      const r = await api("abone-sil", { id: a.id });
+      if (r.hata) return dlgUyari(r.hata);
+      dlg.close(); bildir("Abonelik sonlandırıldı"); aboneYukle();
+    });
+  }
+
+  // ================= Müşteriler (CRM) =================
+  let musteriler = [];
+  const sade = (s) => String(s || "").toLocaleLowerCase("tr").replace(/\s/g, "");
+  async function musteriYukle() {
+    try { musteriler = await api("musteriler"); } catch { return; }
+    musteriCiz();
+  }
+  function musteriCiz() {
+    const q = sade($("musteri-ara").value);
+    const l = musteriler.filter((m) => !q || sade(m.ad).includes(q) || m.telefon.includes(q.replace(/\D/g, "") || "§") || sade(m.etiket).includes(q));
+    $("musteri-sayi").textContent = `${musteriler.length} müşteri`;
+    if (!l.length) {
+      $("musteri-liste").innerHTML = `<p class="bos-durum">${musteriler.length ? "Aramaya uyan müşteri yok." : "Rezervasyonlar geldikçe müşteriler burada listelenir."}</p>`;
+      return;
+    }
+    $("musteri-liste").innerHTML = l.slice(0, 300).map((m) => `
+      <button type="button" class="satir musteri" data-tel="${m.telefon}">
+        <span class="i">
+          <span class="ust-satir"><b>${kacis(m.ad || "İsimsiz")}</b>${m.etiket ? `<span class="rozet r-etiket">${kacis(m.etiket)}</span>` : ""}${m.abone.length ? '<span class="rozet r-abone">Abone</span>' : ""}${m.bekleyen ? '<span class="rozet r-bekliyor">Kapora</span>' : ""}</span>
+          <small>${telYazi(m.telefon)} · ${m.mac} maç${m.son ? " · son " + tarihYazi(m.son) : ""}${m.iptal ? ` · ${m.iptal} iptal` : ""}${m.gelecek ? ` · sıradaki ${tarihYazi(m.gelecek.tarih)} ${m.gelecek.saat}` : ""}</small>
+        </span>
+      </button>`).join("");
+    $("musteri-liste").querySelectorAll("[data-tel]").forEach((el) => el.addEventListener("click", () => musteriDetay(el.dataset.tel)));
+  }
+  $("musteri-ara").addEventListener("input", musteriCiz);
+
+  async function musteriDetay(tel) {
+    const m = await api("musteri?tel=" + encodeURIComponent(tel));
+    if (m.hata) return bildir(m.hata);
+    const aktif = m.rezervasyonlar.filter((r) => r.durum !== "İptal");
+    ac(m.ad || telYazi(m.telefon), `
+      <div class="satirlar">
+        <div><span>Telefon</span><a href="tel:${m.telefon}">${telYazi(m.telefon)}</a></div>
+        <div><span>Maçlar</span>${aktif.length} rezervasyon${m.rezervasyonlar.length - aktif.length ? `, ${m.rezervasyonlar.length - aktif.length} iptal` : ""}</div>
+        ${m.abone.length ? `<div><span>Abonelik</span>${m.abone.map((a) => `${GUNLER[a.gun]} ${a.saat}`).join(", ")}</div>` : ""}
+      </div>
+      <div class="eylemler">
+        <a class="dugme ikincil kucuk" href="tel:${m.telefon}">Ara</a>
+        <a class="dugme ikincil kucuk" target="_blank" rel="noopener" href="${wa(m.telefon)}">WhatsApp</a>
+      </div>
+      <form id="d-form" novalidate>
+        <div class="alan"><label for="d-etiket">Etiket</label><input id="d-etiket" value="${kacis(m.etiket)}" placeholder="ör. VIP, Kurumsal, Dikkat"></div>
+        <div class="alan"><label for="d-not">Müşteri notu</label><textarea id="d-not" placeholder="ör. Kaporayı iki parça gönderiyor">${kacis(m.not)}</textarea></div>
+        <button class="dugme tam" type="submit">Notu kaydet</button>
+      </form>
+      <h3 style="font-size:20px;margin:18px 0 8px">Rezervasyon geçmişi</h3>
+      ${m.rezervasyonlar.length ? `<ul class="gecmis-liste">${m.rezervasyonlar.map((r) => `
+        <li><span>${tarihYazi(r.isletmeGunu || r.tarih, true)} ${r.saat}<br><small class="soluk">${kacis(r.kaynak || "")} · ${kacis(r.kayitNo)}${r.kapora ? " · kapora " + kacis(r.kapora) : ""}</small></span>
+        <span class="rozet ${durumSinif(r.durum)}">${kacis(r.durum)}</span></li>`).join("")}</ul>` : '<p class="soluk">Kayıt yok.</p>'}`);
+    $("d-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const r = await api("musteri-not", { telefon: m.telefon, not: $("d-not").value, etiket: $("d-etiket").value, ad: m.ad });
+      if (r.hata) return dlgUyari(r.hata);
+      dlg.close(); bildir("Not kaydedildi");
+      if (sekme === "musteriler") musteriYukle();
+    });
+  }
+
+  // Panel açıkken takvimi her dakika tazele (yeni online rezervasyonlar görünsün)
+  setInterval(() => { if (!$("uygulama").hidden && sekme === "takvim" && !dlg.open && document.visibilityState === "visible") haftaYukle(); }, 60_000);
+
+  basla();
+})();
+</script>
+</body>
+</html>

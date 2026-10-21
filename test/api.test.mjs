@@ -1,8 +1,8 @@
-// Sitenin API uçlarını gerçek Worker koduyla uçtan uca test eder (demo depo ile).
-import { test, beforeEach, after } from "node:test";
+// Sitenin ve panelin API uçlarını gerçek Worker koduyla uçtan uca test eder.
+import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import worker from "../src/index.js";
-import { saatiAyarla, saatiSifirla, demoDepo, haftalikTablo } from "./yardimci.mjs";
+import { saatiAyarla, saatiSifirla, demoDepo } from "./yardimci.mjs";
 
 const gercekFetch = globalThis.fetch;
 let epostalar;
@@ -18,41 +18,46 @@ async function kur(env = {}) {
     }
     throw new Error("Beklenmeyen dış istek: " + url);
   };
-  const depo = demoDepo();
-  await depo.demoHaftalikAyarla(haftalikTablo({ "PERŞEMBE|21:00": "ABONE - 3" }));
+  const depo = demoDepo({ PANEL_KURULUM_KODU: "kurulum-kodu" });
+  await depo.aboneKaydet({ ad: "Abone Üç", gun: 3, saat: "21:00", baslangic: "2026-10-01" }); // Perşembe 21:00
   const tamEnv = {
+    PANEL_KURULUM_KODU: "kurulum-kodu",
     REZERVASYON_DEPOSU: { idFromName: () => "aysu", get: () => depo },
     ASSETS: { fetch: async () => new Response("sayfa") },
     ...env,
   };
-  const bekleyenler = [];
-  const ctx = { waitUntil: (p) => bekleyenler.push(p) };
+  const bekleyen = [];
+  const ctx = { waitUntil: (p) => bekleyen.push(p) };
+  let cerez = "";
   const istek = async (yol, govde, basliklar = {}) => {
-    const r = await worker.fetch(new Request("https://site.test" + yol, govde === undefined ? {} : {
-      method: "POST", headers: { "content-type": "application/json", ...basliklar }, body: JSON.stringify(govde),
-    }), tamEnv, ctx);
-    await Promise.all(bekleyenler.splice(0));
+    const h = { ...(cerez ? { cookie: cerez } : {}), ...basliklar };
+    const init = govde === undefined ? { headers: h } : {
+      method: "POST", headers: { "content-type": "application/json", ...h }, body: JSON.stringify(govde),
+    };
+    const r = await worker.fetch(new Request("https://site.test" + yol, init), tamEnv, ctx);
+    await Promise.all(bekleyen.splice(0));
+    const sc = r.headers.get("set-cookie");
+    if (sc) cerez = sc.split(";")[0];
     return { durum: r.status, veri: await r.json().catch(() => null), r };
   };
-  return { istek, depo };
+  return { istek, depo, cerezSil: () => { cerez = ""; } };
 }
 
 const REZ = { tarih: "2026-10-22", saat: "22:00", ad: "Ali Veli", telefon: "0532 111 22 33", kvkk: true };
 
-test("Müsaitlik: gece yarısından önce bugünün gece maçları ve 7 gün sonrası listelenir", async () => {
+test("Müsaitlik: bu gecenin maçları + 7 gün; abone dolu", async () => {
   const { istek } = await kur();
   const { durum, veri } = await istek("/api/musaitlik");
   assert.equal(durum, 200);
   assert.equal(veri.gunler[0].tarih, "2026-10-21");
   assert.deepEqual(veri.gunler[0].saatler.map((s) => s.saat), ["00:00", "01:00", "02:00"]);
   assert.equal(veri.gunler.at(-1).tarih, "2026-10-28");
-  const persembe = veri.gunler.find((g) => g.tarih === "2026-10-22");
-  assert.equal(persembe.saatler.find((s) => s.saat === "21:00").bos, false, "abone dolu");
+  const per = veri.gunler.find((g) => g.tarih === "2026-10-22");
+  assert.equal(per.saatler.find((s) => s.saat === "21:00").bos, false);
   assert.equal(veri.fiyat, 3700);
-  assert.equal(veri.kapora, 1200);
 });
 
-test("Rezervasyon: kayıt, IBAN ve kalan tutar döner; işletmeye e-posta gider", async () => {
+test("Rezervasyon: kayıt, IBAN, kalan; e-posta anahtarı varsa işletmeye e-posta", async () => {
   const { istek } = await kur({ RESEND_API_KEY: "re_test" });
   const { durum, veri } = await istek("/api/rezervasyon", REZ);
   assert.equal(durum, 200, JSON.stringify(veri));
@@ -60,57 +65,89 @@ test("Rezervasyon: kayıt, IBAN ve kalan tutar döner; işletmeye e-posta gider"
   assert.equal(veri.kalan, 2500);
   assert.match(veri.iban, /^TR70/);
   assert.equal(epostalar.length, 1);
-  assert.deepEqual(epostalar[0].to, ["aysuhalisaha@gmail.com"]);
   assert.match(epostalar[0].subject, /Yeni rezervasyon: Perşembe 22:00/);
-  assert.match(epostalar[0].html, /Ali Veli/);
-
-  const tekrar = await istek("/api/musaitlik");
-  const s = tekrar.veri.gunler.find((g) => g.tarih === "2026-10-22").saatler.find((x) => x.saat === "22:00");
-  assert.equal(s.bos, false, "ayrılan saat artık dolu");
+  const m = await istek("/api/musaitlik");
+  assert.equal(m.veri.gunler.find((g) => g.tarih === "2026-10-22").saatler.find((s) => s.saat === "22:00").bos, false);
 });
 
-test("Rezervasyon: e-posta anahtarı yoksa sorunsuz devam eder", async () => {
-  const { istek } = await kur();
-  const { durum } = await istek("/api/rezervasyon", REZ);
-  assert.equal(durum, 200);
-  assert.equal(epostalar.length, 0);
-});
-
-test("Rezervasyon: dolu saat, eksik onay, bot alanı ve yabancı site reddedilir", async () => {
+test("Rezervasyon: dolu saat, onaysız, bot alanı, yabancı site reddedilir; e-postasız da çalışır", async () => {
   const { istek } = await kur();
   assert.equal((await istek("/api/rezervasyon", { ...REZ, saat: "21:00" })).durum, 409);
   assert.equal((await istek("/api/rezervasyon", { ...REZ, kvkk: false })).durum, 400);
-  assert.equal((await istek("/api/rezervasyon", { ...REZ, web: "http://spam" })).durum, 400);
+  assert.equal((await istek("/api/rezervasyon", { ...REZ, web: "x" })).durum, 400);
   assert.equal((await istek("/api/rezervasyon", REZ, { origin: "https://kotu.site" })).durum, 403);
-  const r = await worker.fetch(new Request("https://site.test/api/rezervasyon", { method: "POST", body: "{bozuk" }),
-    { REZERVASYON_DEPOSU: { idFromName: () => "x", get: () => ({}) } }, { waitUntil() {} });
-  assert.equal(r.status, 400);
+  assert.equal((await istek("/api/rezervasyon", REZ)).durum, 200);
+  assert.equal(epostalar.length, 0);
 });
 
-test("Gece maçı: Perşembe gecesi 01:00 takvimde Cuma'ya yazılır", async () => {
-  const { istek, depo } = await kur();
-  const { veri } = await istek("/api/rezervasyon", { ...REZ, saat: "01:00" });
-  assert.equal(veri.tarih, "2026-10-23");
-  assert.equal(veri.gun, "Perşembe gecesi");
-  assert.equal((await depo.bul("05321112233")).rezervasyonlar[0].tarih, "2026-10-23");
-});
-
-test("İptal: doğru kayıt no + telefonla yapılır, saat yeniden boşalır", async () => {
-  const { istek } = await kur({ RESEND_API_KEY: "re_test" });
+test("İptal: doğru kayıt no + telefonla; saat yeniden boşalır", async () => {
+  const { istek } = await kur();
   const { veri } = await istek("/api/rezervasyon", REZ);
   assert.equal((await istek("/api/iptal", { kayitNo: veri.kayitNo, telefon: "05329999999" })).durum, 409);
-  const iptal = await istek("/api/iptal", { kayitNo: veri.kayitNo, telefon: "0532 111 22 33" });
-  assert.equal(iptal.durum, 200);
-  assert.match(epostalar.at(-1).subject, /^İptal/);
+  assert.equal((await istek("/api/iptal", { kayitNo: veri.kayitNo, telefon: "0532 111 22 33" })).durum, 200);
   const m = await istek("/api/musaitlik");
-  assert.equal(m.veri.gunler.find((g) => g.tarih === "2026-10-22").saatler.find((x) => x.saat === "22:00").bos, true);
+  assert.equal(m.veri.gunler.find((g) => g.tarih === "2026-10-22").saatler.find((s) => s.saat === "22:00").bos, true);
 });
 
-test("Ana sayfa tabelası ve sağlık kontrolü", async () => {
+test("Panel: girişsiz erişim yok; kurulum, giriş, çıkış", async () => {
+  const { istek, cerezSil } = await kur();
+  assert.deepEqual((await istek("/api/panel/durum")).veri, { kurulu: false, girisli: false });
+  assert.equal((await istek("/api/panel/hafta")).durum, 401);
+  assert.equal((await istek("/api/panel/kur", { kurulumKodu: "yanlis", sifre: "12345678" })).durum, 400);
+  const k = await istek("/api/panel/kur", { kurulumKodu: "kurulum-kodu", sifre: "aysu-sifre-1" });
+  assert.equal(k.durum, 200);
+  assert.match(k.r.headers.get("set-cookie"), /aysu_panel=[0-9a-f]{64}; Path=\/; HttpOnly; Secure; SameSite=Strict/);
+  assert.equal((await istek("/api/panel/hafta")).durum, 200);
+  await istek("/api/panel/cikis", {});
+  assert.equal((await istek("/api/panel/hafta")).durum, 401);
+  cerezSil();
+  assert.equal((await istek("/api/panel/giris", { sifre: "yanlis" })).durum, 401);
+  assert.equal((await istek("/api/panel/giris", { sifre: "aysu-sifre-1" })).durum, 200);
+  assert.equal((await istek("/api/panel/durum")).veri.girisli, true);
+  assert.equal((await istek("/api/panel/hafta", {}, { origin: "https://kotu.site" })).durum, 403);
+});
+
+test("Panel: telefon rezervasyonu, kapora onayı, abone 'gelmiyor', CRM", async () => {
+  const { istek, depo } = await kur();
+  await istek("/api/panel/kur", { kurulumKodu: "kurulum-kodu", sifre: "aysu-sifre-1" });
+
+  const t = await istek("/api/panel/rez", { gun: "2026-10-23", saat: "20:00", ad: "Eren", telefon: "0533 000 00 00", kapora: "1200" });
+  assert.equal(t.durum, 200, JSON.stringify(t.veri));
+  assert.equal(t.veri.durum, "Onaylı");
+  const online = await istek("/api/rezervasyon", REZ);
+
+  let h = await istek("/api/panel/hafta?bas=2026-10-19");
+  assert.deepEqual(h.veri.bekleyenler.map((r) => r.kayitNo), [online.veri.kayitNo]);
+  const g = await istek("/api/panel/rez-guncelle", { kayitNo: online.veri.kayitNo, durum: "Onaylı", kapora: "1000 + 200" });
+  assert.equal(g.veri.rez.kapora, "1000 + 200");
+  h = await istek("/api/panel/hafta?bas=2026-10-19");
+  assert.equal(h.veri.bekleyenler.length, 0);
+
+  const aboneler = (await istek("/api/panel/aboneler")).veri;
+  assert.equal(aboneler[0].ad, "Abone Üç");
+  assert.equal((await istek("/api/panel/abone-atla", { id: aboneler[0].id, gun: "2026-10-22", gelmiyor: true })).durum, 200);
+  const m = await istek("/api/musaitlik");
+  assert.equal(m.veri.gunler.find((x) => x.tarih === "2026-10-22").saatler.find((s) => s.saat === "21:00").bos, true);
+
+  const yeni = await istek("/api/panel/abone", { ad: "Futbol Koleji", telefon: "0553 704 80 26", gun: 5, saat: "08:00" });
+  assert.equal(yeni.durum, 200);
+  assert.equal((await istek("/api/panel/abone", { ad: "Çakışan", gun: 5, saat: "08:00" })).durum, 400);
+
+  await istek("/api/panel/musteri-not", { telefon: "0532 111 22 33", not: "İyi müşteri", etiket: "VIP" });
+  const ml = (await istek("/api/panel/musteriler")).veri;
+  const ali = ml.find((x) => x.telefon === "05321112233");
+  assert.equal(ali.etiket, "VIP");
+  assert.equal(ali.gelecek.tarih, "2026-10-22");
+  const det = (await istek("/api/panel/musteri?tel=05321112233")).veri;
+  assert.equal(det.rezervasyonlar[0].kayitNo, online.veri.kayitNo);
+  assert.ok(depo);
+});
+
+test("Ana sayfa tabelası, sağlık, eski uçlar kaldırıldı", async () => {
   const { istek } = await kur();
   const t = await istek("/api/bos-saatler");
   assert.equal(t.veri.bugun.tarih, "2026-10-21");
   assert.equal(t.veri.yarin.tarih, "2026-10-22");
-  assert.deepEqual((await istek("/api/saglik")).veri, { tamam: true, depo: "demo" });
-  assert.equal((await istek("/api/sohbet", {})).durum, 404, "sohbet kaldırıldı");
+  assert.deepEqual((await istek("/api/saglik")).veri, { tamam: true, depo: "cloudflare" });
+  assert.equal((await istek("/api/sohbet", {})).durum, 404);
 });

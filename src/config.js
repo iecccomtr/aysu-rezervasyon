@@ -43,17 +43,7 @@ export const KURALLAR = {
   iptalEnGecSaat: 3,            // maçtan en geç kaç saat önce çevrimiçi iptal edilebilir
 };
 
-// ---------- Google E-Tablo ----------
-// Çalışanların kullandığı haftalık tablo (sadece OKUNUR, asla değiştirilmez)
-export const HAFTALIK_SEKME = "REZERVASYON";
-// Sitenin rezervasyon yazdığı sekme (yoksa otomatik oluşturulur)
-export const ONLINE_SEKME = "Online Rezervasyonlar";
-export const SUTUNLAR = [
-  "Tarih", "Gün", "Saat", "Ad Soyad", "Telefon",
-  "Durum", "Kayıt No", "Not", "Oluşturma", "Ödenen Kapora",
-];
-// "Ödenen Kapora" sütununu çalışanlar doldurur (ör. "1000 + 200").
-// Site bu sütuna hiç dokunmaz; ödeme gelince Durum'u "Onaylı" yapın.
+// Rezervasyon durumları (panelde değiştirilir)
 export const DURUM = {
   bekliyor: "Kapora bekleniyor",
   onayli: "Onaylı",

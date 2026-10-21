@@ -5,12 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Aysu Halı Saha · Eskişehir Batıkent kapalı halı saha</title>
 <meta name="description" content="Eskişehir Batıkent'te kapalı halı saha. Her gün 08:00–02:00 açık, maç ücreti 3700 TL. Boş saatleri görün, online rezervasyon yapın.">
-<meta name="theme-color" content="#14532d">
+<link rel="icon" href="/img/favicon.png">
+<meta name="theme-color" content="#0067a4">
 <link rel="canonical" href="https://www.aysuhalisaha.com/">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Aysu Halı Saha · Eskişehir kapalı halı saha">
 <meta property="og:description" content="Boş saatleri görün, maçınızı online ayırtın. Her gün 08:00–02:00.">
-<meta property="og:image" content="https://www.aysuhalisaha.com/galeri/saha.jpg">
+<meta property="og:image" content="https://www.aysuhalisaha.com/img/aysu-logo.png">
 <meta property="og:locale" content="tr_TR">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -43,14 +44,14 @@
 </script>
 <style>
   :root {
-    --cim: #14532d;
-    --cim-koyu: #0b331b;
-    --kirmizi: #c4161c;      /* balon çatının kırmızı şeritleri */
-    --tebesir: #f4f7f1;
-    --murekkep: #13261b;
-    --gri: #55645a;
-    --zemin: #eef2ec;
-    --cizgi: #d6dfd3;
+    --cim: #0067a4;
+    --cim-koyu: #062a45;
+    --kirmizi: #ef7f1a;      /* logodaki turuncu */
+    --tebesir: #f5f8fb;
+    --murekkep: #10202d;
+    --gri: #566270;
+    --zemin: #eef2f6;
+    --cizgi: #d5dde5;
     --isik: #f5d90a;
     --gutter: 16px;
     --en: 1120px;
@@ -73,8 +74,9 @@
     position: absolute; inset: 0 0 auto; z-index: 3; color: var(--tebesir);
     padding-top: env(safe-area-inset-top);
   }
-  .ust .kap { display: flex; align-items: center; gap: 24px; height: 68px; }
-  .marka { font: 700 26px/1 "Barlow Condensed", sans-serif; text-decoration: none; letter-spacing: .01em; }
+  .ust .kap { display: flex; align-items: center; gap: 24px; height: 80px; }
+  .marka { display: flex; background: #fff; border-radius: 10px; padding: 5px 9px; }
+  .marka img { display: block; height: 42px; width: auto; }
   .ust nav { display: flex; gap: 22px; margin-left: auto; font-weight: 500; }
   .ust nav a { text-decoration: none; opacity: .9; }
   .ust nav a:hover { opacity: 1; text-decoration: underline; text-underline-offset: 4px; }
@@ -92,7 +94,7 @@
   }
   .giris::after {
     content: ""; position: absolute; inset: 0;
-    background: linear-gradient(180deg, rgba(8,30,16,.55) 0%, rgba(8,30,16,.25) 35%, rgba(8,30,16,.85) 78%, var(--cim-koyu) 100%);
+    background: linear-gradient(180deg, rgba(4,24,40,.55) 0%, rgba(4,24,40,.25) 35%, rgba(4,24,40,.85) 78%, var(--cim-koyu) 100%);
   }
   .giris .kap { position: relative; z-index: 1; width: 100%; }
   .giris h1 { font-size: clamp(54px, 11vw, 132px); letter-spacing: -.01em; max-width: 9ch; }
@@ -103,23 +105,23 @@
     font: 600 17px/1 "Barlow", sans-serif; text-decoration: none; cursor: pointer;
     padding: 16px 22px; border-radius: 999px; border: 2px solid transparent;
   }
-  .dugme.ana { background: var(--kirmizi); color: #fff; }
-  .dugme.ana:hover { background: #a91217; }
+  .dugme.ana { background: var(--kirmizi); color: var(--cim-koyu); }
+  .dugme.ana:hover { background: #d96d0c; }
   .dugme.ikinci { border-color: rgba(244,247,241,.7); color: var(--tebesir); }
   .dugme.ikinci:hover { background: rgba(244,247,241,.1); }
 
   /* ---------- Saha tabelası (boş saatler) ---------- */
   .tabela-alan { position: relative; z-index: 1; margin-top: 48px; padding-bottom: 40px; }
   .tabela {
-    background: #082414; border: 2px solid #1f6b3d; border-radius: 14px;
-    padding: 18px 18px 20px; box-shadow: 0 0 0 6px rgba(8,36,20,.6);
+    background: #041c2e; border: 2px solid #1b5f8f; border-radius: 14px;
+    padding: 18px 18px 20px; box-shadow: 0 0 0 6px rgba(4,28,46,.6);
   }
   .tabela-ust { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; margin-bottom: 14px; }
   .tabela h2 { font-size: 28px; color: var(--tebesir); }
   .sekmeler { display: flex; gap: 6px; margin-left: auto; }
   .sekmeler button {
-    font: 600 15px/1 "Barlow", sans-serif; color: #b9d3c1; background: transparent;
-    border: 1px solid #2c6e45; border-radius: 999px; padding: 8px 14px; cursor: pointer;
+    font: 600 15px/1 "Barlow", sans-serif; color: #b8d3e8; background: transparent;
+    border: 1px solid #2a6c99; border-radius: 999px; padding: 8px 14px; cursor: pointer;
   }
   .sekmeler button[aria-selected="true"] { background: var(--tebesir); color: var(--cim-koyu); border-color: var(--tebesir); }
   .saatler { display: grid; grid-template-columns: repeat(auto-fill, minmax(68px, 1fr)); gap: 6px; }
@@ -127,10 +129,10 @@
     display: grid; place-items: center; height: 54px; border-radius: 8px;
     font: 700 24px/1 "Barlow Condensed", sans-serif; letter-spacing: .03em; text-decoration: none;
   }
-  .saatler a { background: #10391f; color: var(--isik); border: 1px solid #2c6e45; text-shadow: 0 0 10px rgba(245,217,10,.35); }
+  .saatler a { background: #0a3352; color: var(--isik); border: 1px solid #2a6c99; text-shadow: 0 0 10px rgba(245,217,10,.35); }
   .saatler a:hover { background: var(--isik); color: #1d1a00; text-shadow: none; }
-  .saatler span { color: #3f6a4f; border: 1px dashed #24563a; text-decoration: line-through; font-weight: 600; }
-  .tabela-not { color: #9fbca9; font-size: 14px; margin-top: 12px; }
+  .saatler span { color: #4a6a82; border: 1px dashed #24527a; text-decoration: line-through; font-weight: 600; }
+  .tabela-not { color: #9fbdd3; font-size: 14px; margin-top: 12px; }
   .tabela-not b { color: var(--isik); font-weight: 600; }
 
   /* ---------- Bilgi şeridi ---------- */
@@ -148,10 +150,10 @@
     display: grid; gap: 10px;
     grid-template-columns: repeat(6, 1fr); grid-auto-rows: 170px;
   }
-  .izgara figure { margin: 0; position: relative; overflow: hidden; border-radius: 10px; background: #cfd8cc; }
+  .izgara figure { margin: 0; position: relative; overflow: hidden; border-radius: 10px; background: #cfd8e0; }
   .izgara img { width: 100%; height: 100%; object-fit: cover; }
   .izgara figcaption {
-    position: absolute; left: 10px; bottom: 10px; background: rgba(11,51,27,.85); color: var(--tebesir);
+    position: absolute; left: 10px; bottom: 10px; background: rgba(6,42,69,.85); color: var(--tebesir);
     font-size: 14px; font-weight: 500; padding: 4px 10px; border-radius: 999px;
   }
   .f1 { grid-column: span 4; grid-row: span 2; }
@@ -179,12 +181,12 @@
   .metin p + p { margin-top: 14px; }
   .metin p { max-width: 60ch; }
   .metin h2 { margin-bottom: 18px; }
-  .harita { width: 100%; aspect-ratio: 4 / 3; border: 0; border-radius: 12px; background: #d9e1d6; }
+  .harita { width: 100%; aspect-ratio: 4 / 3; border: 0; border-radius: 12px; background: #d6dee6; }
   .adres { margin-top: 18px; display: grid; gap: 6px; }
   .adres a { font-weight: 600; }
 
 
-  footer { background: var(--cim-koyu); color: #b9d3c1; padding: 40px 0 calc(40px + env(safe-area-inset-bottom)); font-size: 15px; }
+  footer { background: var(--cim-koyu); color: #b8d3e8; padding: 40px 0 calc(40px + env(safe-area-inset-bottom)); font-size: 15px; }
   footer .kap { display: flex; gap: 24px; flex-wrap: wrap; justify-content: space-between; }
   footer a { color: var(--tebesir); }
   footer nav { display: flex; gap: 18px; flex-wrap: wrap; }
@@ -212,7 +214,7 @@
 
 <header class="ust">
   <div class="kap">
-    <a class="marka" href="/">Aysu Halı Saha</a>
+    <a class="marka" href="/" aria-label="Aysu Halı Saha ana sayfa"><img src="/img/aysu-logo.svg" alt="Aysu Halı Saha" width="122" height="52"></a>
     <nav aria-label="Ana menü">
       <a href="#tesis">Tesis</a>
       <a href="#rezervasyon">Rezervasyon</a>
@@ -399,12 +401,13 @@
   const kutu = document.getElementById("saatler");
   const sekmeler = document.querySelectorAll(".sekmeler button");
   let veri = null, secili = "bugun";
+  const etiket = { bugun: "Bugün", yarin: "Yarın" };
 
   function ciz() {
     const gun = veri && veri[secili];
     if (!gun) { kutu.innerHTML = '<p class="tabela-not">Boş saatler şu an gösterilemiyor. Rezervasyon sayfasından bakabilir ya da arayabilirsiniz.</p>'; return; }
     if (!gun.saatler.length) { kutu.innerHTML = '<p class="tabela-not">Bu gün için kalan saat yok. Yarına bakın.</p>'; return; }
-    const ad = secili === "bugun" ? "Bugün" : "Yarın";
+    const ad = etiket[secili];
     kutu.innerHTML = gun.saatler.map((s) => s.bos
       ? `<a href="/rezervasyon/?tarih=${gun.tarih}&saat=${encodeURIComponent(s.saat)}" aria-label="${ad} ${s.saat} boş, rezervasyon yap">${s.saat}</a>`
       : `<span aria-label="${s.saat} dolu">${s.saat}</span>`).join("");
@@ -416,7 +419,16 @@
     ciz();
   }));
 
-  fetch("/api/bos-saatler").then((r) => r.ok ? r.json() : null).then((v) => { veri = v; ciz(); }).catch(() => ciz());
+  fetch("/api/bos-saatler").then((r) => r.ok ? r.json() : null).then((v) => {
+    veri = v;
+    // Gece yarısından sonra ilk gün hâlâ dünün gecesiyse sekme adlarını düzelt.
+    const trBugun = new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10);
+    if (v && v.bugun && v.bugun.tarih < trBugun) {
+      etiket.bugun = "Bu gece"; etiket.yarin = "Bugün";
+      sekmeler.forEach((b) => { b.textContent = etiket[b.dataset.gun]; });
+    }
+    ciz();
+  }).catch(() => ciz());
 })();
 </script>
 </body>

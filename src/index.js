@@ -6,16 +6,15 @@ import { KURALLAR, FIYATLAR, IBAN, ISLETME } from "./config.js";
 import { bildir } from "./bildirim.js";
 export { RezervasyonDeposu } from "./store.js";
 
-const json = (veri, durum = 200, onbellekSn = 0) => new Response(JSON.stringify(veri), {
+const OTURUM_CEREZ = "aysu_panel";
+
+const json = (veri, durum = 200, ek = {}) => new Response(JSON.stringify(veri), {
   status: durum,
-  headers: {
-    "content-type": "application/json; charset=utf-8",
-    "cache-control": onbellekSn ? `public, max-age=${onbellekSn}` : "no-store",
-  },
+  headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", ...ek },
 });
 
 function depo(env) {
-  // Tek bir depo örneği: tüm rezervasyon işlemleri sırayla yürür, çift kayıt olmaz.
+  // Tek bir depo örneği: tüm işlemler sırayla yürür, çift kayıt olmaz.
   return env.REZERVASYON_DEPOSU.get(env.REZERVASYON_DEPOSU.idFromName("aysu"));
 }
 
@@ -46,16 +45,7 @@ async function govdeOku(request) {
   }
 }
 
-/** Kısa süreli önbellek: Google E-Tablo okuma kotasını korur. */
-async function onbellekli(request, ctx, sn, uret) {
-  const onbellek = typeof caches !== "undefined" ? caches.default : null;
-  const anahtar = new Request(new URL(request.url).origin + new URL(request.url).pathname);
-  const kayitli = onbellek && (await onbellek.match(anahtar));
-  if (kayitli) return kayitli;
-  const cevap = await uret();
-  if (onbellek && cevap.ok) ctx.waitUntil(onbellek.put(anahtar, cevap.clone()));
-  return cevap;
-}
+const cokFazla = () => json({ hata: "Çok fazla deneme yapıldı. Birkaç dakika sonra tekrar deneyin." }, 429);
 
 function onbellegiTemizle(request, ctx) {
   if (typeof caches === "undefined") return;
@@ -64,19 +54,100 @@ function onbellegiTemizle(request, ctx) {
     .map((p) => caches.default.delete(new Request(koken + p)))));
 }
 
-/**
- * Rezervasyon sayfasının göstereceği günler: bugünden itibaren KURALLAR.enFazlaGunSonra gün.
- * Gece yarısından sonra önceki günün gece maçları hâlâ açıksa o gün de listede kalır.
- */
+/** Kısa süreli önbellek (yoğun anlarda depoyu korur). Rezervasyon sonrası temizlenir. */
+async function onbellekli(request, ctx, sn, uret) {
+  const onbellek = typeof caches !== "undefined" ? caches.default : null;
+  const u = new URL(request.url);
+  const anahtar = new Request(u.origin + u.pathname);
+  const kayitli = onbellek && (await onbellek.match(anahtar));
+  if (kayitli) return kayitli;
+  const cevap = await uret();
+  if (onbellek && cevap.ok) {
+    const c = new Response(cevap.clone().body, cevap);
+    c.headers.set("cache-control", `public, max-age=${sn}`);
+    ctx.waitUntil(onbellek.put(anahtar, c));
+  }
+  return cevap;
+}
+
+/** Sitenin göstereceği günler: bugünden itibaren KURALLAR.enFazlaGunSonra gün. */
 async function gunleriGetir(env) {
   const n = simdi();
   const ilk = isletmeGunu(n.tarih, n.saat);
   const tarihler = [];
   for (let t = ilk; t <= gunEkle(n.tarih, KURALLAR.enFazlaGunSonra); t = gunEkle(t, 1)) tarihler.push(t);
-  const sonuc = await depo(env).musaitlikCoklu(tarihler);
-  return sonuc
+  return (await depo(env).musaitlikCoklu(tarihler))
     .filter((g) => !g.hata && g.detay.length > 0)
     .map((g) => ({ tarih: g.tarih, gun: g.gun, saatler: g.detay.map((s) => ({ saat: s.saat, bos: s.bos })) }));
+}
+
+function cerez(request, ad) {
+  const c = request.headers.get("cookie") || "";
+  const m = c.match(new RegExp(`(?:^|;\\s*)${ad}=([^;]+)`));
+  return m ? m[1] : null;
+}
+
+function oturumCerezi(token, bitis) {
+  const sn = Math.max(0, Math.floor((bitis - Date.now()) / 1000));
+  return `${OTURUM_CEREZ}=${token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${sn}`;
+}
+
+// ================= Panel API =================
+
+async function panel(request, env, ctx, yol) {
+  const d = depo(env);
+  const url = new URL(request.url);
+  const post = request.method === "POST";
+  if (post && !ayniKaynak(request)) return json({ hata: "Yetkisiz istek." }, 403);
+  const token = cerez(request, OTURUM_CEREZ);
+
+  if (yol === "durum") {
+    const { kurulu } = await d.panelDurum();
+    return json({ kurulu, girisli: await d.oturumGecerli(token) });
+  }
+  if (yol === "kur" && post) {
+    if (await sinirAsildi(env, request, "giris")) return cokFazla();
+    const g = (await govdeOku(request)) || {};
+    const r = await d.panelKur({ kurulumKodu: g.kurulumKodu, sifre: g.sifre });
+    if (!r.basarili) return json(r, 400);
+    return json({ basarili: true }, 200, { "set-cookie": oturumCerezi(r.token, r.bitis) });
+  }
+  if (yol === "giris" && post) {
+    if (await sinirAsildi(env, request, "giris")) return cokFazla();
+    const g = (await govdeOku(request)) || {};
+    const r = await d.panelGiris(g.sifre);
+    if (!r.basarili) return json(r, 401);
+    return json({ basarili: true }, 200, { "set-cookie": oturumCerezi(r.token, r.bitis) });
+  }
+  if (yol === "cikis" && post) {
+    await d.cikis(token);
+    return json({ basarili: true }, 200, { "set-cookie": `${OTURUM_CEREZ}=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0` });
+  }
+
+  // --- Buradan sonrası giriş ister ---
+  if (!(await d.oturumGecerli(token))) return json({ hata: "Oturum kapalı. Lütfen giriş yapın.", giris: true }, 401);
+
+  const g = post ? (await govdeOku(request)) || {} : null;
+  const degisti = (r) => {
+    if (r && r.basarili) onbellegiTemizle(request, ctx);
+    return json(r, r && r.hata ? 400 : 200);
+  };
+
+  switch (`${request.method} ${yol}`) {
+    case "GET hafta": return json(await d.panelHafta(url.searchParams.get("bas")));
+    case "POST rez": return degisti(await d.panelRezEkle({
+      gunTarihi: g.gun, saat: g.saat, ad: g.ad, telefon: g.telefon, not: g.not, durum: g.durum, kapora: g.kapora,
+    }));
+    case "POST rez-guncelle": return degisti(await d.panelRezGuncelle(g));
+    case "GET aboneler": return json(await d.aboneListe());
+    case "POST abone": return degisti(await d.aboneKaydet(g));
+    case "POST abone-sil": return degisti(await d.aboneSil(g.id));
+    case "POST abone-atla": return degisti(await d.aboneAtla(g));
+    case "GET musteriler": return json(await d.musteriler());
+    case "GET musteri": return json(await d.musteriDetay(url.searchParams.get("tel")));
+    case "POST musteri-not": return degisti(await d.musteriNot(g));
+    default: return json({ hata: "Bulunamadı" }, 404);
+  }
 }
 
 export default {
@@ -84,20 +155,22 @@ export default {
     const url = new URL(request.url);
     const yol = url.pathname;
 
-    if (yol === "/api/saglik") {
-      const depoTuru = env.SCRIPT_URL && env.SCRIPT_ANAHTAR ? "google-sheets (apps script)"
-        : env.SHEET_ID ? "google-sheets" : "demo";
-      return json({ tamam: true, depo: depoTuru });
+    if (yol === "/api/saglik") return json({ tamam: true, depo: "cloudflare" });
+
+    if (yol.startsWith("/api/panel/")) {
+      try {
+        return await panel(request, env, ctx, yol.slice("/api/panel/".length));
+      } catch (e) {
+        console.error(e);
+        return json({ hata: "Sunucu hatası. Tekrar deneyin." }, 500);
+      }
     }
 
     // Rezervasyon sayfası: önümüzdeki günlerin tüm saatleri (boş/dolu). Kişisel veri içermez.
     if (yol === "/api/musaitlik" && request.method === "GET") {
-      return onbellekli(request, ctx, 15, async () => {
+      return onbellekli(request, ctx, 10, async () => {
         try {
-          return json({
-            gunler: await gunleriGetir(env),
-            fiyat: FIYATLAR.gunduz, kapora: FIYATLAR.kapora,
-          }, 200, 15);
+          return json({ gunler: await gunleriGetir(env), fiyat: FIYATLAR.gunduz, kapora: FIYATLAR.kapora });
         } catch (e) {
           console.error(e);
           return json({ hata: "Boş saatler şu an okunamıyor." }, 503);
@@ -107,10 +180,10 @@ export default {
 
     // Ana sayfa tabelası: bugün ve yarın.
     if (yol === "/api/bos-saatler" && request.method === "GET") {
-      return onbellekli(request, ctx, 60, async () => {
+      return onbellekli(request, ctx, 30, async () => {
         try {
           const gunler = await gunleriGetir(env);
-          return json({ bugun: gunler[0] || null, yarin: gunler[1] || null }, 200, 60);
+          return json({ bugun: gunler[0] || null, yarin: gunler[1] || null });
         } catch (e) {
           console.error(e);
           return json({ hata: "Boş saatler şu an okunamıyor." }, 503);
@@ -120,38 +193,27 @@ export default {
 
     if (yol === "/api/rezervasyon" && request.method === "POST") {
       if (!ayniKaynak(request)) return json({ hata: "Yetkisiz istek." }, 403);
-      if (await sinirAsildi(env, request, "rez")) {
-        return json({ hata: "Çok fazla deneme yapıldı. Birkaç dakika sonra tekrar deneyin." }, 429);
-      }
+      if (await sinirAsildi(env, request, "rez")) return cokFazla();
       const g = await govdeOku(request);
       if (!g) return json({ hata: "Geçersiz istek." }, 400);
-      // Bot tuzağı: insanların görmediği alan doluysa sessizce reddet.
-      if (g.web) return json({ hata: "İstek reddedildi." }, 400);
+      if (g.web) return json({ hata: "İstek reddedildi." }, 400); // bot tuzağı
       if (g.kvkk !== true) return json({ hata: "Devam etmek için aydınlatma metnini onaylayın." }, 400);
-
       try {
-        const r = await depo(env).olustur({
-          gunTarihi: g.tarih, saat: g.saat, ad: g.ad, telefon: g.telefon, not: g.not || "",
-        });
+        const r = await depo(env).olustur({ gunTarihi: g.tarih, saat: g.saat, ad: g.ad, telefon: g.telefon, not: g.not || "" });
         if (!r.basarili) return json(r, 409);
         onbellegiTemizle(request, ctx);
         ctx.waitUntil(bildir(env, {
           konu: `Yeni rezervasyon: ${r.gun} ${r.saat} (${r.kayitNo})`,
           satirlar: [
             ["Maç", `${r.gun}, ${r.tarih} saat ${r.saat}`],
-            ["Ad soyad", String(g.ad).trim()],
-            ["Telefon", String(g.telefon).trim()],
-            ["Not", String(g.not || "").trim() || "-"],
-            ["Kayıt no", r.kayitNo],
-            ["Durum", `${r.durum} (${FIYATLAR.kapora} TL)`],
+            ["Ad soyad", r.ad], ["Telefon", r.telefon], ["Not", r.not || "-"],
+            ["Kayıt no", r.kayitNo], ["Durum", `${r.durum} (${FIYATLAR.kapora} TL)`],
           ],
         }));
         return json({
-          ...r,
-          kapora: FIYATLAR.kapora,
-          kalan: r.ucret - FIYATLAR.kapora,
-          iban: IBAN.no || null,
-          alici: IBAN.alici || null,
+          basarili: true, kayitNo: r.kayitNo, tarih: r.tarih, gun: r.gun, saat: r.saat, durum: r.durum,
+          ucret: r.ucret, kapora: FIYATLAR.kapora, kalan: r.ucret - FIYATLAR.kapora,
+          iban: IBAN.no || null, alici: IBAN.alici || null,
         });
       } catch (e) {
         console.error(e);
@@ -161,9 +223,7 @@ export default {
 
     if (yol === "/api/iptal" && request.method === "POST") {
       if (!ayniKaynak(request)) return json({ hata: "Yetkisiz istek." }, 403);
-      if (await sinirAsildi(env, request, "iptal")) {
-        return json({ hata: "Çok fazla deneme yapıldı. Birkaç dakika sonra tekrar deneyin." }, 429);
-      }
+      if (await sinirAsildi(env, request, "iptal")) return cokFazla();
       const g = await govdeOku(request);
       if (!g) return json({ hata: "Geçersiz istek." }, 400);
       try {
@@ -181,12 +241,8 @@ export default {
       }
     }
 
-    // Sadece demo/yerel test: haftalık tabloyu taklit etmek için.
-    if (yol === "/api/demo/haftalik" && request.method === "POST" && env.DEMO === "1" && !env.SHEET_ID && !env.SCRIPT_URL) {
-      return json(await depo(env).demoHaftalikAyarla(await request.json()));
-    }
-
     if (yol.startsWith("/api/")) return json({ hata: "Bulunamadı" }, 404);
+    if (yol === "/panel") return Response.redirect(url.origin + "/panel/", 301);
     return env.ASSETS.fetch(request);
   },
 };

@@ -7,7 +7,7 @@
   // Statik sayfalar (site ve rezervasyon sayfası)
   "assets": { "directory": "./public", "binding": "ASSETS" },
 
-  // Rezervasyon deposu: işlemleri sıraya sokar, çift rezervasyonu engeller
+  // Veritabanı: rezervasyonlar, aboneler, müşteri notları; işlemleri sıraya sokar
   "durable_objects": {
     "bindings": [{ "name": "REZERVASYON_DEPOSU", "class_name": "RezervasyonDeposu" }]
   },
@@ -21,14 +21,12 @@
   "observability": { "enabled": true },
 
   // Panelden girilen değişkenler yeni yüklemelerde silinmesin
-  "keep_vars": true
+  "keep_vars": true,
 
-  // Gizli değerler (Cloudflare paneli → Settings → Variables and Secrets → Secret; buraya YAZILMAZ):
-  //   SCRIPT_URL, SCRIPT_ANAHTAR             (Apps Script tablo köprüsü — önerilen kurulum)
-  // veya servis hesabıyla:
-  //   SHEET_ID
-  //   GOOGLE_SERVICE_ACCOUNT_EMAIL
-  //   GOOGLE_PRIVATE_KEY
+  // Yönetim paneli (/panel) ilk kurulum ve şifre sıfırlama kodu. Gizli tutun.
+  "vars": { "PANEL_KURULUM_KODU": "BVY3oMi4BoyVVkGS" }
+
+  // İsteğe bağlı gizli değerler (Cloudflare paneli → Settings → Variables and Secrets → Secret):
   //   RESEND_API_KEY, BILDIRIM_EPOSTA         (e-posta bildirimi)
-  //   TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID   (isteğe bağlı)
+  //   TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID   (Telegram bildirimi)
 }

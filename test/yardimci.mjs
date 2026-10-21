@@ -1,4 +1,4 @@
-// Test yardımcıları: sahte saat, sahte depolama, örnek haftalık tablo.
+// Test yardımcıları: sahte saat ve Durable Object depolamasının bellek içi taklidi.
 import { RezervasyonDeposu } from "../src/store.js";
 
 const gercekNow = Date.now;
@@ -10,35 +10,32 @@ export function saatiAyarla(trSaati) {
 }
 export function saatiSifirla() { Date.now = gercekNow; }
 
-export function demoDepo(env = {}) {
+/** Durable Object storage API'sinin (get/put/delete/list) bellek içi taklidi. */
+export function bellekDeposu() {
   const veri = new Map();
-  const ctx = {
-    storage: {
-      get: async (k) => structuredClone(veri.get(k)),
-      put: async (k, v) => { veri.set(k, structuredClone(v)); },
+  const kopya = (v) => (v === undefined ? undefined : structuredClone(v));
+  return {
+    veri,
+    async get(k) {
+      if (Array.isArray(k)) return new Map(k.filter((x) => veri.has(x)).map((x) => [x, kopya(veri.get(x))]));
+      return kopya(veri.get(k));
+    },
+    async put(k, v) {
+      if (typeof k === "object") for (const [a, b] of Object.entries(k)) veri.set(a, kopya(b));
+      else veri.set(k, kopya(v));
+    },
+    async delete(k) {
+      if (Array.isArray(k)) { let n = 0; for (const x of k) n += veri.delete(x) ? 1 : 0; return n; }
+      return veri.delete(k);
+    },
+    async list({ prefix, start, end } = {}) {
+      const anahtarlar = [...veri.keys()].sort()
+        .filter((k) => (!prefix || k.startsWith(prefix)) && (!start || k >= start) && (!end || k < end));
+      return new Map(anahtarlar.map((k) => [k, kopya(veri.get(k))]));
     },
   };
-  return new RezervasyonDeposu(ctx, env);
 }
 
-/** Çalışanların tablosuna benzeyen haftalık tablo. hucreler: {"CUMA|20:00": "ABONE - 6"} */
-export function haftalikTablo(hucreler = {}) {
-  const gunler = ["PAZARTESİ", "SALI", "ÇARŞAMBA", "PERŞEMBE", "CUMA", "CUMARTESİ", "PAZAR"];
-  // Gerçek tablodaki gibi: A boş, B SAAT, C-E Pzt-Çrş, F SAAT, G-J Prş-Pazar, K SAAT
-  const baslik = ["", "SAAT", "PAZARTESİ", "SALI", "ÇARŞAMBA", "SAAT", "PERŞEMBE", "CUMA", "CUMARTESİ", "PAZAR", "SAAT"];
-  const sutun = { PAZARTESİ: 2, SALI: 3, ÇARŞAMBA: 4, PERŞEMBE: 6, CUMA: 7, CUMARTESİ: 8, PAZAR: 9 };
-  const saatler = ["08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00",
-    "17:00", "18:00", "19:00", "20:00", "21:00", "22:00", "23:00", "00:00", "01:00", "02:00"];
-  const satirlar = [[""], baslik];
-  for (const s of saatler) {
-    const r = ["", s, "", "", "", s, "", "", "", "", s];
-    for (const g of gunler) {
-      const v = hucreler[`${g}|${s}`];
-      if (v) r[sutun[g]] = v;
-    }
-    satirlar.push(r);
-  }
-  satirlar.push(baslik); // alt başlık satırı
-  satirlar.push([""], ["", "ABONE KAYIT LİSTESİ"], ["", "İSİM SOYİSİM", "TELEFON", "GÜN", "SAAT"]);
-  return satirlar;
+export function demoDepo(env = {}) {
+  return new RezervasyonDeposu({ storage: bellekDeposu() }, env);
 }

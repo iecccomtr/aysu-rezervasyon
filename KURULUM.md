@@ -1,78 +1,71 @@
-# Aysu Halı Saha: Web Sitesi ve Online Rezervasyon
+# Aysu Halı Saha: Web Sitesi, Online Rezervasyon ve Yönetim Paneli
+
+Her şey kendi sistemimizde (Cloudflare) çalışır. Google tablosu, ek hesap ya da aylık ücret gerekmez.
 
 | Adres | Ne |
 |---|---|
-| `/` | Web sitesi: tanıtım, fiyat ve saatler, **canlı boş saatler tabelası**, tesis galerisi, konum |
-| `/rezervasyon/` | Rezervasyon sayfası (santralin SMS'indeki link buraya gider) |
+| `/` | Web sitesi: tanıtım, fiyat ve saatler, canlı boş saatler tabelası, tesis galerisi, konum |
+| `/rezervasyon/` | Müşterinin rezervasyon yaptığı sayfa (santral SMS'indeki link buraya gider) |
+| `/panel/` | **Yönetim paneli**: takvim, telefon rezervasyonları, kapora takibi, aboneler, müşteriler (CRM) |
 | `/kvkk.html` | Aydınlatma metni (taslak, hukuki kontrol önerilir) |
 
-İki sayfada da sağ altta **WhatsApp** düğmesi var. Konuşmak isteyen müşteri doğrudan 0 555 510 26 26'ya yazar.
-
-## Rezervasyon nasıl işler
-
-1. Müşteri **günü** ve **boş saati** seçer, **ad soyad** ve **cep telefonu** yazar.
-2. Sistem saati hemen tutar ve kaydı Google E-Tablo'daki **"Online Rezervasyonlar"** sekmesine **"Kapora bekleniyor"** durumuyla yazar.
-3. Müşteriye ekranda **kayıt numarası** (ör. `AY-K7P2M`), **IBAN** ve kalan tutar gösterilir. "Dekontu WhatsApp'tan gönder" düğmesi kayıt numaralı hazır bir mesaj açar.
-4. İşletmeye **e-posta** gelir: tarih, saat, ad, telefon, kayıt no.
-5. Kapora gelince tabloda **"Ödenen Kapora"** sütununa tutarı yazın (ör. `1000 + 200`) ve **Durum**'u **Onaylı** yapın. Gelmezse **İptal** yazın, saat yeniden boşalır.
-
-Müşteri kayıt numarası ve telefonuyla sayfadan kendisi iptal edebilir (maçtan en geç 3 saat önce). İptallerde de e-posta gelir.
-
-### Doluluk kuralları
-- Çalışanların kullandığı haftalık **REZERVASYON** tablosu sadece **okunur**, site oraya hiç yazmaz. Telefonla alınan rezervasyonları her zamanki gibi oraya yazın, site o saatleri dolu gösterir.
-- **ABONE** hücreleri her hafta dolu sayılır. **İstisna:** ABONE yazısı **siyahsa** abone bu hafta gelmiyor demektir. O saat bu hafta boş görünür, gelecek hafta yine dolu sayılır. Aktif aboneleri **renkli** (ör. mavi) yazın; hiç renk verilmemiş yazı siyah sayılır.
-- İsimli tek seferlik hücreler (ör. "EREN - 1200/2500 TL") sadece içinde bulunulan hafta için dolu sayılır.
-- "Online Rezervasyonlar" sekmesinde Durum'u **İptal** olmayan her satır dolu sayılır.
-- Gece maçları (00:00, 01:00, 02:00) o günün gecesidir: "Cuma 01:00" = Cumartesi sabahı 01:00.
-- Aynı saate aynı anda iki kişi basarsa sadece biri kaydedilir.
-- Bir telefon numarasıyla aynı anda en fazla 2 ileri tarihli rezervasyon yapılabilir.
+Canlı adres: **https://aysu-rezervasyon.aysuahmt.workers.dev**. GitHub'a gönderilen her değişiklik birkaç dakikada yayına alınır.
 
 ---
 
-## Kurulum
+## Panel kurulumu (bir kez)
 
-Site Cloudflare'de yayında: **https://aysu-rezervasyon.aysuahmt.workers.dev**. GitHub'a gönderilen her değişiklik otomatik olarak yayına alınır. Şu an **demo modunda**: tabloya bağlı değil ve her saati boş gösteriyor.
+1. `/panel/` adresini açın.
+2. **Kurulum kodu** olarak `wrangler.jsonc` dosyasındaki `PANEL_KURULUM_KODU` değerini girin, ardından bir **şifre** belirleyin (en az 8 karakter).
+3. Bitti. Aynı şifreyle telefondan ya da bilgisayardan girebilirsiniz. Oturum 30 gün açık kalır.
 
-Gizli değerler Cloudflare'de **Workers & Pages → aysu-rezervasyon → Settings → Variables and Secrets → Add** yolundan **Secret** olarak girilir. Bu değerleri herkese açık bir yere yazmayın.
+**Şifreyi unutursanız:** Giriş ekranında "Şifremi unuttum"a basın, kurulum kodu ve yeni şifreyle sıfırlayın. Sıfırlama tüm açık oturumları kapatır. Kurulum kodunu kimseyle paylaşmayın; değiştirmek için `wrangler.jsonc`'deki değeri değiştirmek yeterli.
 
-### 1. Tablo köprüsü (Google Apps Script): tablo bağlantısı ve e-posta tek adımda
-Bu adımı **tablonun sahibi** olan Google hesabıyla yapın.
+---
 
-1. "REZERVASYON VE GÖREVLER" tablosunu açın, **Uzantılar → Apps Script**'e girin.
-2. Açılan editördeki kodun hepsini silin, size verilen **Kod.gs** dosyasının içeriğini yapıştırın ve **Kaydet**'e (💾) basın. Dosyada anahtar hazır yazılı gelir. Depodaki `apps-script/Kod.gs` ise anahtarsız şablondur.
-3. Üstteki fonksiyon listesinden **kurulumTesti**'ni seçip **Çalıştır**'a basın. Google izin isteyecek: **İzinleri incele →** hesabınızı seçin → **Gelişmiş → (güvenli değil) sayfasına git → İzin ver**. Bu uyarı, kodu Google'a değil sizin yazdığınız için çıkar. Bir dakika içinde aysuhalisaha@gmail.com'a test e-postası gelir.
-4. Sağ üstte **Dağıt → Yeni dağıtım** yolunu izleyin. Dişli simgesinden **Web uygulaması**'nı seçin:
-   - **Şu kullanıcı olarak yürüt:** Ben
-   - **Erişimi olan:** Herkes
-   - **Dağıt**'a basın ve verilen **Web uygulaması URL'sini** kopyalayın (`https://script.google.com/macros/s/.../exec`).
-5. Cloudflare'de **Workers & Pages → aysu-rezervasyon → Settings → Variables and Secrets → Add** yolundan **iki Secret** ekleyin:
+## Günlük kullanım
 
-   | Ad | Değer |
-   |---|---|
-   | `SCRIPT_URL` | 4. adımdaki web uygulaması URL'si |
-   | `SCRIPT_ANAHTAR` | Kod.gs'nin başındaki `ANAHTAR` değeri (tırnaklar hariç) |
+### Takvim
+- Haftanın her günü ve saati tek listede görünür: **boş**, **rezervasyon** (online ya da telefon) veya **abone**.
+- **Telefonla gelen rezervasyon:** Boş saate dokunun, ad ve telefonu yazıp kaydedin. Durum varsayılan olarak "Onaylı" gelir. Kapora alındıysa tutarını yazın. Site o saati anında dolu gösterir.
+- **Kapora bekleyenler:** Online rezervasyonlar üstte sarı kutuda listelenir. Dokunun, **Onaylı**'yı seçin ve ödenen tutarı yazın (ör. `1000 + 200`).
+- **İptal:** Rezervasyona dokunun, **İptal**'i seçip kaydedin. Saat yeniden boşa çıkar.
+- Panel açıkken takvim her dakika kendini yeniler.
 
-6. `https://aysu-rezervasyon.aysuahmt.workers.dev/api/saglik` adresini açın. `"depo":"google-sheets (apps script)"` görünüyorsa kurulum bitti. Tabloda **"Online Rezervasyonlar"** sekmesi ilk rezervasyonda kendiliğinden açılır.
+### Aboneler
+- **+ Abone ekle** ile ad, telefon, gün ve saat girin. Abone her hafta o saatte otomatik dolu görünür.
+- **Abone bu hafta gelmeyecekse:** Takvim'de abonenin saatine dokunun ve **"Bu hafta gelmiyor"**'a basın. Saat sadece o hafta boşa çıkar, sitede rezervasyona açılır, sonraki haftalar dolu kalır. Fikir değişirse boş saate dokunup **"Abone yine geliyor"**'a basın.
+- Aboneliği bitirmek için abonenin üstüne dokunun ve **"Aboneliği sonlandır"**'a basın.
+- 00:00–02:00 saatleri seçilen günün gecesidir: "Cuma 01:00" = Cuma'yı Cumartesi'ye bağlayan gece.
 
-> Kod.gs'yi sonradan değiştirirseniz **Dağıt → Dağıtımları yönet → düzenle (kalem) → Sürüm: Yeni sürüm → Dağıt** yapın. Yeni dağıtım açarsanız URL değişir ve Cloudflare'deki `SCRIPT_URL`'yi güncellemeniz gerekir.
+### Müşteriler (CRM)
+- Online, telefon ve abone kayıtlarındaki herkes telefon numarasına göre tek kartta toplanır: maç sayısı, son maç, sıradaki maç, iptaller, abonelik, kapora bekleyen.
+- İsim, telefon veya etikete göre arama yapılabilir.
+- Karta dokunarak **etiket** (ör. VIP, Kurumsal, Dikkat) ve **not** ekleyebilir, tüm rezervasyon geçmişini görebilir, tek dokunuşla arayabilir ya da WhatsApp'tan yazabilirsiniz.
 
-Bildirim e-postaları tablonun sahibinin Gmail'inden aysuhalisaha@gmail.com'a gider. Başka bir adrese gitsin isterseniz Cloudflare'e `BILDIRIM_EPOSTA` ekleyin.
+### Müşteri tarafı
+1. Müşteri günü ve boş saati seçer, ad soyad ve cep telefonunu yazar.
+2. Saat hemen tutulur ve rezervasyon panelde **Kapora bekleniyor** olarak görünür.
+3. Müşteri ekranda kayıt numarasını, IBAN'ı ve kalan tutarı görür. "Dekontu WhatsApp'tan gönder" düğmesi kayıt numaralı hazır bir mesaj açar.
+4. Müşteri, maçtan en geç 3 saat önce kayıt numarası ve telefonuyla sayfadan iptal edebilir.
 
-<details><summary>Alternatif: Google servis hesabı ve Resend (ileri seviye)</summary>
+Kurallar: en fazla 7 gün ileriye rezervasyon, bir telefonla en fazla 2 ileri tarihli rezervasyon, aynı saate aynı anda iki kişi basarsa sadece biri kaydedilir.
 
-Apps Script yerine Google Cloud servis hesabı da kullanılabilir: `SHEET_ID`, `GOOGLE_SERVICE_ACCOUNT_EMAIL` ve `GOOGLE_PRIVATE_KEY` secret'larını girin ve tabloyu servis hesabıyla "Düzenleyen" olarak paylaşın. Bu durumda e-posta için resend.com'dan alınan `RESEND_API_KEY` gerekir. İki kurulum birlikte yapılırsa Apps Script köprüsü önceliklidir.
-</details>
+---
 
-### 2. Santral SMS linki
-SMS'teki WhatsApp linkini değiştirin. Örnek metin:
+## İsteğe bağlı
+
+### E-posta bildirimi
+Yeni online rezervasyon ve iptallerde e-posta almak isterseniz resend.com'da **aysuhalisaha@gmail.com** ile ücretsiz hesap açın ve API anahtarını Cloudflare'de **Settings → Variables and Secrets** bölümüne `RESEND_API_KEY` adıyla **Secret** olarak girin. Alan adı Cloudflare'e geçince bu bildirim Resend'siz de kurulabilir.
+
+### Santral SMS linki
 > Aysu Halı Saha'yı aradığınız için teşekkürler. Online rezervasyon: https://aysuhalisaha.com/rezervasyon
 
-### 3. Alan adını yeni siteye geçirme
-Önce her şeyi `workers.dev` adresinde deneyin. Hazır olunca:
+### Alan adını yeni siteye geçirme
 1. Fotoğrafları `public/galeri/` klasörüne koyun (bkz. `BENIOKU.txt`). Şu an fotoğraflar eski siteden çekiliyor.
 2. Cloudflare'de **Add a domain** ile `aysuhalisaha.com`'u ekleyin. Verilen iki nameserver'ı alan adını aldığınız firmanın panelinde güncelleyin.
 3. Worker'da **Settings → Domains & Routes → Add → Custom domain** ile `aysuhalisaha.com` ve `www.aysuhalisaha.com` adreslerini ekleyin.
-4. Birkaç gün sorunsuz çalıştıktan sonra Alastyr hosting'i kapatabilirsiniz. Alan adınızda e-posta (MX) kaydı varsa geçişten sonra kontrol edin.
+4. Birkaç gün sorunsuz çalıştıktan sonra Alastyr hosting'i kapatabilirsiniz.
 
 ---
 
@@ -81,17 +74,14 @@ SMS'teki WhatsApp linkini değiştirin. Örnek metin:
 | Ayar | Ne işe yarar |
 |---|---|
 | `SAATLER` | Maç saatleri (08:00 – 02:00) |
-| `FIYATLAR` | Maç ücreti (3700 TL) ve kapora (1200 TL). Gündüz, akşam ve hafta sonu ayrı ayarlanabilir. |
+| `FIYATLAR` | Maç ücreti (3700 TL) ve kapora (1200 TL); gündüz, akşam ve hafta sonu ayrı ayarlanabilir |
 | `IBAN` | Kapora için gösterilen IBAN ve alıcı |
 | `KURALLAR` | Kaç gün ileriye rezervasyon (7), kişi başı aktif rezervasyon (2), iptal için son saat (3) |
-| `HAFTALIK_SEKME` | Haftalık tablonun sekme adı (`REZERVASYON`) |
 
-GitHub'da dosyayı düzenleyip kaydedin. Cloudflare birkaç dakikada yayına alır.
-
-## Maliyet
-Cloudflare, Google E-Tablolar ve Apps Script ücretsizdir. **Aylık ücret yok.** (Gmail'den günde 100 e-postaya kadar gönderilebilir.)
+## Verinin yeri ve yedek
+Tüm kayıtlar Cloudflare'in **Durable Object** veritabanında tutulur. Cloudflare bu veriyi kendisi yedekler ve son 30 güne geri dönüş imkânı sunar. İleride panelden Excel'e aktarma eklenebilir.
 
 ## Geliştirici notları
-- `npm test`: 24 test (doluluk kuralları, siyah ABONE, gece maçları, çift rezervasyon, iptal, Google bağlantısı, API uçları, e-posta).
-- `node --import ./test/register.mjs test/yerel-sunucu.mjs`: yerel deneme sunucusunu demo depoyla `http://localhost:8787` adresinde açar.
-- Kötüye kullanım koruması: IP başına dakikada 20 istek, görünmez bot tuzağı alanı ve başka sitelerden gelen isteklerin reddi.
+- `npm test`: 20 test (abone ve "bu hafta gelmiyor", gece maçları, çift rezervasyon, iptal, panel girişi, kapora, CRM, API uçları).
+- `node --import ./test/register.mjs test/yerel-sunucu.mjs`: örnek verili yerel sunucuyu `http://localhost:8787` adresinde açar (panel kurulum kodu: `yerel-kurulum`).
+- Güvenlik: panel şifresi PBKDF2 ile saklanır, oturum çerezi HttpOnly + Secure + SameSite=Strict, başka sitelerden gelen POST istekleri reddedilir, IP başına dakikada 20 istek sınırı ve bot tuzağı alanı vardır.

@@ -5,22 +5,23 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Rezervasyon · Aysu Halı Saha</title>
 <meta name="description" content="Aysu Halı Saha online rezervasyon: günü ve saati seçin, maçınızı hemen ayırtın.">
-<meta name="theme-color" content="#14532d">
+<link rel="icon" href="/img/favicon.png">
+<meta name="theme-color" content="#0067a4">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
 <style>
   :root {
-    --cim: #14532d;
-    --cim-koyu: #0b331b;
-    --kirmizi: #c4161c;
-    --tebesir: #f4f7f1;
+    --cim: #0067a4;
+    --cim-koyu: #062a45;
+    --kirmizi: #ef7f1a;
+    --tebesir: #f5f8fb;
     --isik: #f5d90a;
-    --murekkep: #13261b;
-    --gri: #55645a;
-    --cizgi: #d6dfd3;
+    --murekkep: #10202d;
+    --gri: #566270;
+    --cizgi: #d5dde5;
     --kart: #ffffff;
-    --zemin: #eef2ec;
+    --zemin: #eef2f6;
     --hata: #a4161a;
     --wp: #25d366;
   }
@@ -36,18 +37,16 @@
 
   /* ---------- Başlık ---------- */
   .saha {
-    position: relative; overflow: hidden; color: var(--tebesir);
-    background: repeating-linear-gradient(90deg, var(--cim) 0 44px, #175e33 44px 88px);
-    padding: max(14px, env(safe-area-inset-top)) 0 18px;
+    background: #fff; color: var(--murekkep); border-bottom: 4px solid var(--kirmizi);
+    padding: max(10px, env(safe-area-inset-top)) 0 10px;
   }
-  .saha > svg { position: absolute; inset: 0; width: 100%; height: 100%; opacity: .3; pointer-events: none; }
-  .saha .kap { position: relative; display: flex; align-items: center; gap: 12px; }
-  .saha h1 { font-size: 30px; }
-  .saha h1 a { color: inherit; text-decoration: none; }
-  .saha p { font-size: 15px; opacity: .88; margin-top: 2px; }
+  .saha .kap { display: flex; align-items: center; gap: 12px; }
+  .saha .logo { display: block; flex: none; }
+  .saha .logo img { display: block; height: 46px; width: auto; }
+  .saha p { font: 700 19px/1.1 "Barlow Condensed", sans-serif; color: var(--cim); border-left: 1px solid var(--cizgi); padding-left: 12px; }
   .ara {
     margin-left: auto; flex: none; display: inline-flex; align-items: center; gap: 6px;
-    background: var(--tebesir); color: var(--cim-koyu); text-decoration: none;
+    background: var(--cim); color: #fff; text-decoration: none;
     font-weight: 600; font-size: 15px; padding: 10px 14px; border-radius: 999px;
   }
   .ara svg { width: 16px; height: 16px; }
@@ -71,24 +70,24 @@
   .gun .ust-yazi { font-size: 14px; font-weight: 600; }
   .gun .ay { font-size: 15px; font-weight: 600; }
   .gun[aria-pressed="true"] { background: var(--cim); border-color: var(--cim); color: var(--tebesir); }
-  .gun[aria-pressed="true"] small { color: #b9d3c1; }
+  .gun[aria-pressed="true"] small { color: #b8d3e8; }
   .gun.kapali { opacity: .55; }
 
   /* ---------- Saat ızgarası (skorbord) ---------- */
-  .tabela { background: #082414; border-radius: 14px; padding: 14px; border: 2px solid #1f6b3d; }
+  .tabela { background: #041c2e; border-radius: 14px; padding: 14px; border: 2px solid #1b5f8f; }
   .grup + .grup { margin-top: 14px; }
-  .grup-ad { color: #9fbca9; font-size: 14px; margin-bottom: 8px; }
+  .grup-ad { color: #9fbdd3; font-size: 14px; margin-bottom: 8px; }
   .saatler { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 6px; }
   .saat {
     height: 54px; border-radius: 8px; cursor: pointer;
     font: 700 24px/1 "Barlow Condensed", sans-serif; letter-spacing: .03em;
-    background: #10391f; color: var(--isik); border: 1px solid #2c6e45;
+    background: #0a3352; color: var(--isik); border: 1px solid #2a6c99;
     text-shadow: 0 0 10px rgba(245,217,10,.35);
   }
-  .saat:hover { background: #164a29; }
+  .saat:hover { background: #0e426a; }
   .saat[aria-pressed="true"] { background: var(--isik); color: #1d1a00; text-shadow: none; border-color: var(--isik); }
-  .saat:disabled { cursor: default; background: transparent; color: #3f6a4f; border: 1px dashed #24563a; text-decoration: line-through; text-shadow: none; font-weight: 600; }
-  .tabela-not { color: #9fbca9; font-size: 14px; margin-top: 12px; }
+  .saat:disabled { cursor: default; background: transparent; color: #4a6a82; border: 1px dashed #24527a; text-decoration: line-through; text-shadow: none; font-weight: 600; }
+  .tabela-not { color: #9fbdd3; font-size: 14px; margin-top: 12px; }
   .bos-mesaj { color: var(--tebesir); padding: 10px 2px; }
 
   /* ---------- Form ---------- */
@@ -103,7 +102,7 @@
   .alan label { display: block; font-weight: 600; margin-bottom: 6px; }
   .alan label small { font-weight: 400; color: var(--gri); }
   .alan input, .alan textarea {
-    width: 100%; background: var(--kart); border: 1px solid #b8c6b4; border-radius: 10px;
+    width: 100%; background: var(--kart); border: 1px solid #b5c3cf; border-radius: 10px;
     padding: 13px 14px; font-size: 17px;
   }
   .alan textarea { resize: vertical; min-height: 72px; }
@@ -117,9 +116,9 @@
   .dugme {
     display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
     border: 0; border-radius: 999px; padding: 17px 22px; cursor: pointer; text-decoration: none;
-    font: 600 18px/1 "Barlow", sans-serif; background: var(--kirmizi); color: #fff;
+    font: 600 18px/1 "Barlow", sans-serif; background: var(--kirmizi); color: var(--cim-koyu);
   }
-  .dugme:hover { background: #a91217; }
+  .dugme:hover { background: #d96d0c; }
   .dugme:disabled { opacity: .6; cursor: default; }
   .dugme.ikincil { background: transparent; color: var(--cim); border: 2px solid var(--cim); }
   .dugme.wp { background: var(--wp); color: #06331a; }
@@ -174,20 +173,9 @@
 </head>
 <body>
   <header class="saha">
-    <svg viewBox="0 0 400 100" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
-      <g fill="none" stroke="#fff" stroke-width="2">
-        <line x1="290" y1="-10" x2="290" y2="110"/>
-        <circle cx="290" cy="50" r="34"/>
-        <circle cx="290" cy="50" r="2.5" fill="#fff"/>
-        <rect x="-60" y="18" width="110" height="64"/>
-        <rect x="350" y="18" width="110" height="64"/>
-      </g>
-    </svg>
     <div class="kap">
-      <div>
-        <h1><a href="/">Aysu Halı Saha</a></h1>
-        <p>Online rezervasyon</p>
-      </div>
+      <a class="logo" href="/" aria-label="Aysu Halı Saha ana sayfa"><img src="/img/aysu-logo.svg" alt="Aysu Halı Saha" width="108" height="46"></a>
+      <p>Online<br>rezervasyon</p>
       <a class="ara" href="tel:+905555102626">
         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1A17 17 0 0 1 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1z"/></svg>
         Ara

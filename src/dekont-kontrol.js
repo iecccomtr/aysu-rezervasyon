@@ -12,10 +12,12 @@ const METIN_MODELI = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 // Sırayla denenir; biri hata verirse sonraki. (Modellerin görsel giriş biçimleri farklı.)
 const GORSEL_DENEMELER = [
   { model: "@cf/meta/llama-4-scout-17b-16e-instruct", bicim: "openai" },
-  { model: "@cf/mistralai/mistral-small-3.1-24b-instruct", bicim: "openai" },
   { model: "@cf/google/gemma-3-12b-it", bicim: "openai" },
   { model: "@cf/meta/llama-3.2-11b-vision-instruct", bicim: "bayt", onay: true },
 ];
+const DENEME_SURESI = 15_000; // model başına en fazla 15 sn
+const TOPLAM_SURE = 35_000;   // müşteri en fazla ~35 sn bekler
+const zamanAsimi = (p, ms) => Promise.race([p, new Promise((_, red) => setTimeout(() => red(new Error("zaman aşımı")), ms))]);
 
 const TALIMAT = `Bu bir Türk bankası havale/EFT/FAST dekontu. SADECE şu JSON'u döndür, başka hiçbir şey yazma:
 {"alici_iban": "...", "alici_ad": "...", "tutar": 0, "tarih": "YYYY-AA-GG", "aciklama": "...", "gonderen": "...", "tum_metin": "..."}
@@ -57,16 +59,19 @@ export async function dekontOku(env, { tur, veri }) {
     }
     const resim = `data:${tur};base64,${b64(veri)}`;
     const hatalar = [];
+    const basla = Date.now();
     for (const d of GORSEL_DENEMELER) {
+      const kalan = TOPLAM_SURE - (Date.now() - basla);
+      if (kalan < 3000) { hatalar.push("süre doldu"); break; }
       try {
         let girdi;
         if (d.bicim === "openai") {
           girdi = { messages: [{ role: "user", content: [{ type: "text", text: TALIMAT }, { type: "image_url", image_url: { url: resim } }] }], max_tokens: 900 };
         } else {
-          if (d.onay) await env.AI.run(d.model, { prompt: "agree" }).catch(() => {}); // Meta lisans onayı (ilk kullanım)
+          if (d.onay) await zamanAsimi(env.AI.run(d.model, { prompt: "agree" }), 5000).catch(() => {}); // Meta lisans onayı (ilk kullanım)
           girdi = { messages: [{ role: "user", content: TALIMAT }], image: Array.from(veri), max_tokens: 900 };
         }
-        const y = await env.AI.run(d.model, girdi);
+        const y = await zamanAsimi(env.AI.run(d.model, girdi), Math.min(DENEME_SURESI, kalan));
         const j = jsonAl(y);
         if (j) return { ...j, _model: d.model, _metin: j.tum_metin || "" };
         hatalar.push(`${d.model.split("/").pop()}: JSON yok (${String(y?.response ?? "").slice(0, 80)})`);

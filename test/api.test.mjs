@@ -60,15 +60,14 @@ test("Müsaitlik: bu gecenin maçları + 4 hafta; abone dolu", async () => {
   assert.equal(veri.fiyat, 3700);
 });
 
-test("Rezervasyon: kayıt, IBAN, kalan; e-posta anahtarı varsa işletmeye e-posta", async () => {
+test("Rezervasyon (opsiyon): kayıt, IBAN, kalan; kapora gelmeden işletmeye e-posta gitmez", async () => {
   const { istek } = await kur({ RESEND_API_KEY: "re_test" });
   const { durum, veri } = await istek("/api/rezervasyon", REZ);
   assert.equal(durum, 200, JSON.stringify(veri));
   assert.match(veri.kayitNo, /^AY-/);
   assert.equal(veri.kalan, 2500);
   assert.match(veri.iban, /^TR70/);
-  assert.equal(epostalar.length, 1);
-  assert.match(epostalar[0].subject, /Yeni rezervasyon: Perşembe 22:00/);
+  assert.equal(epostalar.length, 0, "opsiyon rezervasyon sayılmaz");
   const m = await istek("/api/musaitlik");
   assert.equal(m.veri.gunler.find((g) => g.tarih === "2026-10-22").saatler.find((s) => s.saat === "22:00").bos, false);
 });
@@ -182,12 +181,10 @@ test("Panel: telefon rezervasyonu, kapora onayı, abone 'gelmiyor', CRM", async 
   assert.equal(t.veri.durum, "Onaylı");
   const online = await istek("/api/rezervasyon", REZ);
 
-  let h = await istek("/api/panel/hafta?bas=2026-10-19");
-  assert.deepEqual(h.veri.bekleyenler.map((r) => r.kayitNo), [online.veri.kayitNo]);
   const g = await istek("/api/panel/rez-guncelle", { kayitNo: online.veri.kayitNo, durum: "Onaylı", kapora: "1000 + 200" });
   assert.equal(g.veri.rez.kapora, "1000 + 200");
-  h = await istek("/api/panel/hafta?bas=2026-10-19");
-  assert.equal(h.veri.bekleyenler.length, 0);
+  const h = await istek("/api/panel/hafta?bas=2026-10-19");
+  assert.equal(h.veri.bekleyenler.length, 0, "kapora bekleyenler listesi yok");
 
   const aboneler = (await istek("/api/panel/aboneler")).veri;
   assert.equal(aboneler[0].ad, "Abone Üç");
@@ -258,7 +255,7 @@ test("Dekont: doğru IBAN/alıcı/tutar → otomatik onay; yanlış IBAN → kon
   assert.equal(y1.durum, 200, JSON.stringify(y1.veri));
   assert.equal(y1.veri.onay, true);
   const ep = epostalar.at(-1);
-  assert.match(ep.subject, /Dekont onaylandı \(otomatik\)/);
+  assert.match(ep.subject, /^Yeni rezervasyon: /);
   assert.equal(ep.attachments.length, 1);
 
   // Aynı dosya başka rezervasyon için → otomatik onay yok

@@ -66,11 +66,13 @@ Takvim tablosunda aboneler adla değil **numarayla** görünür ("Abone 3"). Num
 - İsim, telefon veya etikete göre arama yapılabilir.
 - Karta dokunarak **etiket** (ör. VIP, Kurumsal, Dikkat) ve **not** ekleyebilir, tüm rezervasyon geçmişini görebilir, tek dokunuşla arayabilir ya da WhatsApp'tan yazabilirsiniz.
 
-### Opsiyon ve dekont
-- Online rezervasyon yapılınca yer **15 dakika** müşteriye opsiyonlanır; bu sürede kimse o saati alamaz (müşteri ekranında geri sayım, panelde "x dk opsiyon").
-- Müşteri dekontu yüklerse otomatik kontrol edilir (IBAN, hesap adı, tutar ≥ kapora, tarih, aynı dekont tekrar kullanılmamış). Hepsi doğruysa rezervasyon **Onaylı** olur. Bir sorun varsa yer tutulmaya devam eder, panelde neden yazar; siz karar verirsiniz.
-- 15 dakika içinde dekont gelmezse yer kendiliğinden boşa çıkar (rezervasyon "İptal — opsiyon süresi doldu", size e-posta). Müşteri sonradan dekont yüklerse ve yer hâlâ boşsa rezervasyon geri gelir; doluysa aramasını ister.
-- Telefonla / panelden girilen rezervasyonlar düşmez.
+### Opsiyon ve dekont (kapora gelmeden rezervasyon yok)
+- Online rezervasyon yapılınca yer **15 dakika** müşteriye opsiyonlanır; bu sürede kimse o saati alamaz (sitede ⏳, panelde "⏳ Opsiyon").
+- Müşteri dekontun **ekran görüntüsünü** yükler. Otomatik kontrol (IBAN, hesap adı, tutar ≥ kapora, tarih, aynı dekont tekrar kullanılmamış) tutarsa rezervasyon **Onaylı** olur ve size "Yeni rezervasyon" e-postası gider (dekont ekli).
+- Tutmazsa müşteriye nedeni gösterilir, düzeltip yeniden yükleyebilir. Süre içinde doğrulanmazsa yer kendiliğinden boşa çıkar. Panelden onay vermeniz gerekmez.
+- Aynı numarayla aynı anda sadece bir ödemesi bekleyen opsiyon olabilir; kaporası ödenen rezervasyonlarda sınır yoktur.
+- Bağlantısı kopan müşteri ⏳ saatine dokunup telefonunu yazınca kaldığı yerden devam eder. Sayfanın altındaki **Rezervasyonlarım** bölümünden telefonla dekont yükleyip iptal edebilir.
+- Telefonla / panelden girdiğiniz rezervasyonlar Onaylı kaydedilir.
 
 ### Müşteri silme
 Müşteri kartı → **Müşteriyi sil**: müşterinin notu ve tüm geçmiş rezervasyon kayıtları kalıcı silinir. İleri tarihli aktif rezervasyonu ya da aboneliği varsa önce onları kaldırmanız istenir. İşlem kaydına yazılır.

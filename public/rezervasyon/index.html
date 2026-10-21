@@ -303,9 +303,9 @@
 
       <div class="dekont-kutu" id="t-dekont">
         <h3>Ödeme yaptıktan sonra dekontu yükleyin</h3>
-        <p>Dekonttaki IBAN ve hesap adı doğruysa rezervasyonunuz <b>hemen kesinleşir</b>.</p>
-        <label class="dugme tam" for="t-dosya">Dekontu yükle (fotoğraf / PDF)</label>
-        <input type="file" id="t-dosya" accept="image/*,application/pdf" hidden>
+        <p>Dekonttaki IBAN, hesap adı ve tutar doğruysa rezervasyonunuz <b>hemen kesinleşir</b>. Kapora gelmeden rezervasyon kesinleşmez.</p>
+        <label class="dugme tam" for="t-dosya">Dekontun ekran görüntüsünü yükle</label>
+        <input type="file" id="t-dosya" accept="image/*" hidden>
         <p class="dekont-sonuc" id="t-dekont-sonuc" role="status" aria-live="polite"></p>
       </div>
 
@@ -328,7 +328,7 @@
       </form>
       <div id="bul-uyari" class="uyari" role="alert" hidden></div>
       <div id="bul-liste"></div>
-      <input type="file" id="b-dosya" accept="image/*,application/pdf" hidden>
+      <input type="file" id="b-dosya" accept="image/*" hidden>
       <p class="alt-bilgi" style="text-align:left">Onaylı maça 3 saatten az kaldıysa iptal için lütfen arayın: <a href="tel:+905555102626">0 555 510 26 26</a></p>
     </details>
 
@@ -419,7 +419,7 @@
     const gunduz = g.saatler.filter((s) => !gece(s.saat));
     const geceler = g.saatler.filter((s) => gece(s.saat));
     const dugme = (s) => s.opsiyon
-      ? `<button type="button" class="saat opsiyonlu" data-ops="${s.saat}" aria-label="${s.saat} başka müşteriye ayrılmış">${s.saat}<small>${s.opsiyon.dekont ? "kontrolde" : `⏳ ${s.opsiyon.dk} dk`}</small></button>`
+      ? `<button type="button" class="saat opsiyonlu" data-ops="${s.saat}" aria-label="${s.saat} başka müşteriye ayrılmış">${s.saat}<small>⏳ ${s.opsiyon.dk} dk</small></button>`
       : `<button type="button" class="saat" data-saat="${s.saat}" ${s.bos ? "" : "disabled"} aria-pressed="${s.saat === secilenSaat}" aria-label="${s.saat} ${s.bos ? "boş" : "dolu"}">${s.saat}</button>`;
     let html = "";
     if (gunduz.length) html += `<div class="grup"><div class="saatler">${gunduz.map(dugme).join("")}</div></div>`;
@@ -432,7 +432,7 @@
       const s = g.saatler.find((x) => x.saat === b.dataset.ops);
       const u = $("ops-uyari");
       // Bağlantısı kopan müşteri kendi opsiyonuna telefonla geri döner
-      u.innerHTML = `<p><b>${s.saat} şu an ayrılmış.</b> ${s.opsiyon.dekont ? "Ödemesi kontrol ediliyor." : `Ödeme gelmezse yaklaşık ${s.opsiyon.dk} dakika sonra boşa çıkar.`}</p>
+      u.innerHTML = `<p><b>${s.saat} şu an ayrılmış.</b> Ödeme gelmezse yaklaşık ${s.opsiyon.dk} dakika sonra boşa çıkar.</p>
         <p style="margin-top:8px">Bu saati siz mi ayırdınız? Telefon numaranızı yazın, kaldığınız yerden devam edin:</p>
         <form class="ops-devam" novalidate><input type="tel" inputmode="tel" placeholder="05XX XXX XX XX" autocomplete="off" aria-label="Cep telefonu">
         <button class="dugme kucuk" type="submit">Devam et</button></form><p class="ops-hata" role="alert"></p>`;
@@ -446,7 +446,6 @@
         if (!r || !r.ok) { u.querySelector(".ops-hata").textContent = v.hata || "Bağlantı kurulamadı."; return; }
         sonRez = { kayitNo: v.kayitNo, telefon };
         basariGoster(v, g);
-        if (v.dekont) { $("t-dekont-sonuc").className = "dekont-sonuc bekle"; $("t-dekont-sonuc").textContent = "Dekontunuz alındı, kontrol ediliyor."; }
       });
     }));
     el.querySelectorAll(".saat[data-saat]:not(:disabled)").forEach((b) => b.addEventListener("click", () => {
@@ -566,15 +565,11 @@
 
   // ================= Dekont yükleme =================
   let sonRez = null; // { kayitNo, telefon }
-  /** Fotoğrafı küçültüp JPEG yapar (en fazla 1600 px); PDF olduğu gibi gider. */
+  /** Ekran görüntüsünü küçültüp JPEG yapar (uzun kenar en fazla 2000 px). */
   async function dosyaHazirla(dosya) {
-    if (dosya.type === "application/pdf") {
-      if (dosya.size > 1_800_000) throw new Error("PDF çok büyük (en fazla 1,8 MB). Ekran görüntüsü yükleyebilirsiniz.");
-      return { tur: "application/pdf", veri: new Uint8Array(await dosya.arrayBuffer()), ad: dosya.name };
-    }
-    if (!dosya.type.startsWith("image/")) throw new Error("Dekont fotoğraf ya da PDF olmalı.");
+    if (!dosya.type.startsWith("image/")) throw new Error("Dekontun ekran görüntüsünü (fotoğraf) yükleyin. PDF kabul edilmiyor.");
     const resim = await createImageBitmap(dosya);
-    const oran = Math.min(1, 1600 / Math.max(resim.width, resim.height));
+    const oran = Math.min(1, 2000 / Math.max(resim.width, resim.height));
     const tuval = document.createElement("canvas");
     tuval.width = Math.round(resim.width * oran); tuval.height = Math.round(resim.height * oran);
     tuval.getContext("2d").drawImage(resim, 0, 0, tuval.width, tuval.height);
@@ -588,7 +583,7 @@
 
   async function dekontGonder(kayitNo, telefon, dosya, sonucEl) {
     sonucEl.className = sonucEl.className.replace(/ (iyi|bekle|kotu)/g, "");
-    sonucEl.textContent = "Dekont yükleniyor ve kontrol ediliyor…";
+    sonucEl.textContent = "Dekont kontrol ediliyor, lütfen bekleyin (en fazla 30 saniye)…";
     try {
       const f = await dosyaHazirla(dosya);
       const r = await fetch("/api/dekont", {
@@ -597,10 +592,14 @@
       });
       const v = await r.json().catch(() => ({}));
       if (!r.ok || !v.basarili) { sonucEl.classList.add("kotu"); sonucEl.textContent = v.hata || "Dekont yüklenemedi. WhatsApp'tan gönderebilirsiniz."; return; }
-      clearInterval(sayacZaman); $("t-sayac").textContent = ""; // dekont geldi: süre artık işlemez
       if (v.onay && sonRez && sonRez.kayitNo === kayitNo) sonRez.onayli = true;
-      if (v.onay) { sonucEl.classList.add("iyi"); sonucEl.textContent = "✓ Dekontunuz doğrulandı, rezervasyonunuz kesinleşti. İyi maçlar!"; }
-      else { sonucEl.classList.add("bekle"); sonucEl.textContent = "Dekontunuz alındı. Kısa süre içinde kontrol edilip rezervasyonunuz kesinleştirilecek."; }
+      if (v.onay) {
+        clearInterval(sayacZaman); $("t-sayac").textContent = ""; // kesinleşti: süre artık işlemez
+        sonucEl.classList.add("iyi"); sonucEl.textContent = "✓ Dekontunuz doğrulandı, rezervasyonunuz kesinleşti. İyi maçlar!";
+      } else {
+        sonucEl.classList.add("kotu");
+        sonucEl.textContent = `Dekont doğrulanamadı${v.nedenler && v.nedenler.length ? ": " + v.nedenler.join(" ") : "."} IBAN'ı (TR70 0015 7000 0000 0154 8342 35), hesap adını (Ahmet Aysu) ve tutarı (en az 1.200 TL) kontrol edip dekontu yeniden yükleyin. Opsiyon süresi içinde doğrulanmazsa yer boşa çıkar.`;
+      }
     } catch (e) {
       sonucEl.classList.add("kotu"); sonucEl.textContent = e.message || "Dekont yüklenemedi.";
     }
@@ -694,7 +693,7 @@
     el.innerHTML = bulunan.map((r, i) => {
       const zaman = `${r.gun} ${tarihYazi(r.isletmeGunu)}, ${r.saat}`;
       const durum = r.durum === "Onaylı" ? '<b style="color:#14532d">Onaylı</b>'
-        : r.dekont ? '<b style="color:#8a5a00">Dekont kontrol ediliyor</b>' : '<b style="color:#8a5a00">Kapora bekleniyor</b>';
+        : `<b style="color:#8a5a00">Ödeme bekleniyor${r.opsiyonBitis ? ` · ${Math.max(0, Math.ceil((r.opsiyonBitis - Date.now()) / 60000))} dk kaldı` : ""}</b>`;
       return `<div class="rez-kart">
         <div><b>${zaman}</b><br><small>${r.kayitNo} · ${durum}</small></div>
         <div class="rez-eylem">

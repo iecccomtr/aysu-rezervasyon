@@ -85,13 +85,17 @@ test("Aynı anda aynı saate iki istek: sadece biri kazanır", async () => {
   assert.equal([a, b].filter((x) => x.basarili).length, 1);
 });
 
-test("Müşteri sınırları: kişi başı 4 aktif (ayda haftada bir), geçersiz girdiler", async () => {
+test("Müşteri sınırları: aynı numarayla aynı anda tek ödemesi bekleyen opsiyon; kaporası ödenenlerde sınır yok", async () => {
   const d = demoDepo();
-  assert.ok((await d.olustur({ gunTarihi: "2026-10-21", saat: "18:00", ...ALI })).basarili);
-  assert.ok((await d.olustur({ gunTarihi: "2026-10-28", saat: "18:00", ...ALI })).basarili);
-  assert.ok((await d.olustur({ gunTarihi: "2026-11-04", saat: "18:00", ...ALI })).basarili);
-  assert.ok((await d.olustur({ gunTarihi: "2026-11-11", saat: "18:00", ...ALI })).basarili);
-  assert.match((await d.olustur({ gunTarihi: "2026-10-23", saat: "18:00", ...ALI })).hata, /aktif rezervasyon/);
+  const r1 = await d.olustur({ gunTarihi: "2026-10-21", saat: "18:00", ...ALI });
+  assert.ok(r1.basarili);
+  assert.match((await d.olustur({ gunTarihi: "2026-10-21", saat: "19:00", ...ALI })).hata, /ödemesi beklenen/);
+  await d.panelRezGuncelle({ kayitNo: r1.kayitNo, durum: "Onaylı", kapora: "1200" });
+  for (const gun of ["2026-10-21", "2026-10-28", "2026-11-04", "2026-11-11", "2026-11-12"]) {
+    const r = await d.olustur({ gunTarihi: gun, saat: "19:00", ...ALI });
+    assert.ok(r.basarili, gun);
+    await d.panelRezGuncelle({ kayitNo: r.kayitNo, durum: "Onaylı", kapora: "1200" });
+  }
   assert.ok((await d.olustur({ gunTarihi: "2026-10-21", saat: "05:00", ...ALI })).hata);
   assert.ok((await d.olustur({ gunTarihi: "2026-10-21", saat: "21:00", ad: "Ali", telefon: "123" })).hata);
   assert.ok((await d.olustur({ gunTarihi: "2026-10-19", saat: "09:00", ...ALI })).hata, "geçmiş saat");
@@ -100,6 +104,7 @@ test("Müşteri sınırları: kişi başı 4 aktif (ayda haftada bir), geçersiz
 test("Müşteri iptali: telefon eşleşmeli, onaylı maçta son 3 saatte iptal yok, opsiyon her zaman bırakılır", async () => {
   const d = demoDepo();
   const r1 = await d.olustur({ gunTarihi: "2026-10-21", saat: "21:00", ...ALI });
+  await d.panelRezGuncelle({ kayitNo: r1.kayitNo, durum: "Onaylı", kapora: "1200" });
   const r2 = await d.olustur({ gunTarihi: "2026-10-19", saat: "12:00", ...ALI });
   assert.ok((await d.iptal({ kayitNo: r1.kayitNo, telefon: "05329999999" })).hata);
   await d.panelRezGuncelle({ kayitNo: r2.kayitNo, durum: "Onaylı", kapora: "1200" });
@@ -128,7 +133,7 @@ test("Panel: telefon rezervasyonu sınırsız ve onaylı; kapora/durum güncelle
   assert.ok((await d.panelRezGuncelle({ kayitNo: o.kayitNo, durum: "Bilinmeyen" })).hata);
 });
 
-test("Panel haftası: slot türleri ve kapora bekleyenler", async () => {
+test("Panel haftası: slot türleri", async () => {
   const d = demoDepo();
   const a = await d.aboneKaydet({ ad: "Arda Somer", telefon: "0532 642 19 46", gun: 1, saat: "21:00" }); // Salı
   await d.aboneKaydet({ ad: "Cihan Acar", gun: 1, saat: "22:00" });
@@ -142,14 +147,16 @@ test("Panel haftası: slot türleri ve kapora bekleyenler", async () => {
   assert.equal(sali.find((s) => s.saat === "21:00").abone.ad, "Arda Somer");
   assert.equal(sali.find((s) => s.saat === "22:00").tur, "abone-gelmiyor");
   assert.equal(sali.find((s) => s.saat === "23:00").tur, "bos");
-  assert.deepEqual(h.bekleyenler.map((r) => r.kayitNo), [o.kayitNo]);
+  assert.deepEqual(h.bekleyenler, [], "kapora bekleyenler listesi yok");
+  assert.equal(sali.find((s) => s.saat === "20:00").rez.kayitNo, o.kayitNo);
   assert.ok(a.basarili);
 });
 
 test("CRM: müşteriler telefonla gruplanır; maç, iptal, abone ve not", async () => {
   const d = demoDepo();
   saatiAyarla("2026-10-12T10:00");
-  await d.olustur({ gunTarihi: "2026-10-13", saat: "21:00", ...ALI });
+  const ilk = await d.olustur({ gunTarihi: "2026-10-13", saat: "21:00", ...ALI });
+  await d.panelRezGuncelle({ kayitNo: ilk.kayitNo, durum: "Onaylı", kapora: "1200" });
   const ip = await d.olustur({ gunTarihi: "2026-10-14", saat: "21:00", ...ALI });
   await d.iptal({ kayitNo: ip.kayitNo, telefon: ALI.telefon });
   saatiAyarla("2026-10-19T10:00");
@@ -393,9 +400,9 @@ test("Opsiyon: online rezervasyon 15 dk yer tutar; dekont gelmezse yer boşa ç�
   const geri = await d.dekontYukle({ kayitNo: r.kayitNo, telefon: ALI.telefon, tur: "image/jpeg", ad: "d.jpg", veri: new Uint8Array(200) });
   assert.ok(geri.basarili, JSON.stringify(geri));
   assert.equal(await bos(d, "2026-10-21", "21:00"), false);
-  // Dekontu olan kayıt bir daha düşmez
+  // Geç dekont 5 dk ek süre alır; doğrulanmazsa (kapora gelmeden rezervasyon yok) yine düşer
   saatiAyarla("2026-10-19T12:00");
-  assert.equal((await d.opsiyonlariDusur()).length, 0);
+  assert.equal((await d.opsiyonlariDusur()).length, 1);
 });
 
 test("Opsiyon: süre dolup yer başkasına verildiyse geç dekont kabul edilmez", async () => {

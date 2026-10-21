@@ -407,15 +407,7 @@ export default {
         const r = await depo(env).olustur({ gunTarihi: g.tarih, saat: g.saat, ad: g.ad, telefon: g.telefon, not: g.not || "", ekstra: g.ekstra });
         if (!r.basarili) return json(r, 409);
         onbellegiTemizle(request, ctx);
-        ctx.waitUntil(bildir(env, {
-          konu: `Yeni rezervasyon: ${r.gun} ${r.saat} (${r.kayitNo})`,
-          satirlar: [
-            ["Maç", `${r.gun}, ${r.tarih} saat ${r.saat}`],
-            ["Ad soyad", r.ad], ["Telefon", r.telefon], ["Not", r.not || "-"],
-            ["VIP", r.ekstra.length ? r.ekstra.map((x) => EKSTRALAR[x].ad).join(", ") : "-"], ["Toplam ücret", `${r.ucret} TL`],
-            ["Kayıt no", r.kayitNo], ["Durum", `${r.durum} (${FIYATLAR.kapora} TL)`],
-          ],
-        }));
+        // E-posta gönderilmez: kapora (dekont) doğrulanınca "Yeni rezervasyon" e-postası gider
         return json(rezCevap(r));
       } catch (e) {
         console.error(e);
@@ -441,13 +433,15 @@ export default {
         if (k.onay) onbellegiTemizle(request, ctx);
         const uzanti = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "application/pdf": "pdf" }[r.dekont.tur];
         ctx.waitUntil(bildir(env, {
-          konu: `${k.onay ? "Dekont onaylandı (otomatik)" : "Dekont geldi — kontrol edin"}: ${r.gun} ${r.saat} (${r.kayitNo})`,
+          konu: k.onay ? `Yeni rezervasyon: ${r.gun} ${r.saat} (${r.kayitNo})` : `Dekont doğrulanamadı: ${r.gun} ${r.saat} (${r.kayitNo})`,
           satirlar: [["Maç", `${r.gun}, ${r.tarih} saat ${r.saat}`], ["Ad soyad", r.ad], ["Telefon", r.telefon], ["Kayıt no", r.kayitNo],
-            ["Okunan", `${okunan.alici_ad || "?"} · ${okunan.alici_iban || "?"} · ${k.rez.dekont.kontrol.tutar ?? "?"} TL · ${okunan.tarih || "?"}`],
-            k.onay ? ["Durum", "Onaylı — rezervasyon listesine alındı"] : ["Neden onaylanmadı", k.nedenler.join(" ")]],
+            ["VIP", r.ekstra?.length ? r.ekstra.map((x) => EKSTRALAR[x].ad).join(", ") : "-"], ["Toplam ücret", `${r.ucret} TL`],
+            ["Kapora", `${k.rez.dekont.kontrol.tutar ?? "?"} TL (dekont ekte)`],
+            k.onay ? ["Durum", "Onaylı — kapora dekontla doğrulandı"]
+              : ["Neden", `${k.nedenler.join(" ")} Müşteri süre içinde geçerli dekont yüklemezse yer boşa çıkar.`]],
           ekler: [{ ad: `dekont-${r.kayitNo}.${uzanti}`, tur: r.dekont.tur, veri }],
         }));
-        return json({ basarili: true, kayitNo: r.kayitNo, onay: k.onay });
+        return json({ basarili: true, kayitNo: r.kayitNo, onay: k.onay, nedenler: k.onay ? [] : k.nedenler });
       } catch (e) {
         console.error(e);
         return json({ hata: `Dekont şu an yüklenemedi. WhatsApp'tan gönderebilirsiniz.` }, 502);
@@ -483,7 +477,7 @@ export default {
         const r = await depo(env).iptal({ kayitNo: g.kayitNo, telefon: g.telefon });
         if (!r.basarili) return json(r, 409);
         onbellegiTemizle(request, ctx);
-        ctx.waitUntil(bildir(env, {
+        if (r.onayliydi) ctx.waitUntil(bildir(env, {
           konu: `İptal: ${r.tarih} ${r.saat} (${r.kayitNo})`,
           satirlar: [["Maç", `${r.tarih} saat ${r.saat}`], ["Kayıt no", r.kayitNo], ["Telefon", String(g.telefon).trim()]],
         }));
@@ -523,10 +517,6 @@ export default {
       return;
     }
     // 5 dakikada bir: dekontu gelmeyen online opsiyonları düşür, işletmeye haber ver
-    ctx.waitUntil(depo(env).opsiyonlariDusur().then((dusen) => Promise.all(dusen.map((r) => bildir(env, {
-      konu: `Opsiyon düştü, yer boşa çıktı: ${r.gun} ${r.saat} (${r.kayitNo})`,
-      satirlar: [["Maç", `${r.gun}, ${r.tarih} saat ${r.saat}`], ["Ad soyad", r.ad], ["Telefon", r.telefon], ["Kayıt no", r.kayitNo],
-        ["Neden", `${KURALLAR.opsiyonDakika} dakika içinde dekont gelmedi`]],
-    })))));
+    ctx.waitUntil(depo(env).opsiyonlariDusur());
   },
 };

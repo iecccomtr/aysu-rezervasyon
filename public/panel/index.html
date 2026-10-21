@@ -292,7 +292,7 @@
         <ul class="lejant" aria-label="Renklerin anlamı">
           <li><i class="l-bos"></i>Boş</li>
           <li><i class="l-onayli"></i>Onaylı</li>
-          <li><i class="l-bekliyor"></i>Kapora bekleniyor</li>
+          <li><i class="l-bekliyor"></i>⏳ Opsiyon (ödeme bekleniyor)</li>
           <li><i class="l-abone"></i>Abone</li>
           <li><i class="l-gelmiyor"></i>Abone gelmiyor (boş)</li>
         </ul>
@@ -373,7 +373,7 @@
   const GUNLER = ["Pazartesi","Salı","Çarşamba","Perşembe","Cuma","Cumartesi","Pazar"];
   const KISA = ["Pzt","Sal","Çar","Per","Cum","Cmt","Paz"];
   const SAATLER = ["08:00","09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00","19:00","20:00","21:00","22:00","23:00","00:00","01:00","02:00"];
-  const DURUMLAR = ["Kapora bekleniyor", "Onaylı", "İptal"];
+  const DURUMLAR = ["Onaylı", "İptal"]; // kapora gelmeden rezervasyon yok; online ödeme bekleyenler "opsiyon"dur
   const kacis = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const tarihYazi = (t, yil) => { const [y, a, g] = t.split("-").map(Number); return `${g} ${AYLAR[a - 1]}${yil ? " " + y : ""}`; };
   const gunEkle = (t, n) => { const d = new Date(t + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
@@ -669,7 +669,7 @@
         const r = s.rez;
         sinif += ` t-rez${r.durum === "Kapora bekleniyor" ? " bekliyor" : ""}`;
         ic = `<span class="i"><b>${kacis(r.ad)}</b><small>${yonetici() ? (telYazi(r.telefon) || "telefonsuz") + " · " : ""}${r.kaynak === "Online" ? "Online" : "Telefon"}${r.kapora ? " · kapora " + kacis(r.kapora) : ""}</small></span>
-              <span class="rozet ${durumSinif(r.durum)}">${r.durum === "Kapora bekleniyor" ? "Kapora" : kacis(r.durum)}</span>`;
+              <span class="rozet ${durumSinif(r.durum)}">${r.durum === "Kapora bekleniyor" ? (r.kaynak === "Online" ? "⏳ Opsiyon" : "Kapora") : kacis(r.durum)}</span>`;
       } else if (s.tur === "abone") {
         sinif += " t-abone";
         ic = `<span class="i"><b>${aboneEtiket(s.abone)}</b>${yonetici() ? `<small>${kacis(s.abone.ad)}${s.abone.telefon ? " · " + telYazi(s.abone.telefon) : ""}</small>` : ""}</span><span class="rozet r-abone">Abone</span>`;
@@ -715,7 +715,7 @@
       if (s.tur === "rez") {
         const bek = s.rez.durum === "Kapora bekleniyor";
         sinif = `h ${bek ? "h-bekliyor" : "h-onayli"}`;
-        yazi = (s.rez.ekstra && s.rez.ekstra.length ? "★ " : "") + kacis(kisaAd(s.rez.ad)); // ★ = VIP
+        yazi = (bek ? "⏳ " : "") + (s.rez.ekstra && s.rez.ekstra.length ? "★ " : "") + kacis(kisaAd(s.rez.ad)); // ⏳ = opsiyon, ★ = VIP
         baslik = `${g.gun} ${saat}: ${s.rez.ad}${s.rez.telefon ? " " + telYazi(s.rez.telefon) : ""} (${s.rez.durum})`;
       } else if (s.tur === "abone") {
         sinif = "h h-abone"; yazi = aboneEtiket(s.abone); baslik = `${g.gun} ${saat}: ${aboneEtiket(s.abone)}${yonetici() && s.abone.ad ? " (" + s.abone.ad + ")" : ""}`;
@@ -805,8 +805,7 @@
       <form id="d-form" novalidate>
         <div class="alan"><label for="d-ad">Ad soyad / takım</label><input id="d-ad" autocomplete="off" required></div>
         <div class="alan"><label for="d-tel">Telefon</label><input id="d-tel" type="tel" inputmode="tel" placeholder="05XX XXX XX XX"></div>
-        <label style="font-weight:600;display:block;margin-bottom:5px">Durum</label>
-        ${durumSecici("Onaylı").replace('<button type="button" data-durum="İptal" aria-pressed="false">İptal</button>', "")}
+        ${durumSecici("Onaylı").replace('<button type="button" data-durum="İptal" aria-pressed="false">İptal</button>', "").replace('class="durum-sec"', 'class="durum-sec" hidden')}
         <div class="iki-alan">
           <div class="alan"><label for="d-kapora">Alınan kapora</label><input id="d-kapora" placeholder="ör. 1200"></div>
           <div class="alan"><label for="d-not">Not</label><input id="d-not"></div>
@@ -851,9 +850,8 @@
           <a href="/api/panel/dekont?k=${encodeURIComponent(r.kayitNo)}" target="_blank" rel="noopener"><b>Dekontu aç</b></a> <small class="soluk">${kacis(r.dekont.zaman)}</small>
           ${r.dekont.kontrol ? (r.dekont.kontrol.onay
             ? `<p style="color:#14532d;margin:6px 0 0">✓ Otomatik doğrulandı (${kacis(r.dekont.kontrol.tutar)} TL). Banka hesabından da kontrol edin.</p>`
-            : `<p style="color:#b42318;margin:6px 0 0;font-weight:600">Kontrol gerekiyor: ${kacis(r.dekont.kontrol.nedenler.join(" "))}</p>`) : ""}
+            : `<p style="color:#b42318;margin:6px 0 0;font-weight:600">Doğrulanamadı: ${kacis(r.dekont.kontrol.nedenler.join(" "))}</p>`) : ""}
           ${r.dekont.kontrol?.okunan ? `<p class="soluk" style="font-size:14px;margin:4px 0 0">Okunan: ${kacis([r.dekont.kontrol.okunan.ad, r.dekont.kontrol.okunan.iban, r.dekont.kontrol.okunan.tutar != null ? r.dekont.kontrol.okunan.tutar + " TL" : null, r.dekont.kontrol.okunan.tarih].map((x) => x ?? "?").join(" · "))}</p>` : ""}
-          ${r.durum === "Kapora bekleniyor" ? `<button type="button" class="dugme ikincil kucuk" id="d-dekont-yeniden" style="margin-top:8px">Dekontu yeniden kontrol et</button>` : ""}
         </div></div>` : ""}
       </div>
       ${r.telefon ? `<div class="eylemler">
@@ -1065,7 +1063,7 @@
     $("musteri-liste").innerHTML = l.slice(0, 300).map((m) => `
       <button type="button" class="satir musteri" data-tel="${m.telefon}">
         <span class="i">
-          <span class="ust-satir"><b>${m.aboneNo ? `Abone ${m.aboneNo}` : kacis(m.ad || "İsimsiz")}</b>${m.etiket ? `<span class="rozet r-etiket">${kacis(m.etiket)}</span>` : ""}${m.abone.length ? '<span class="rozet r-abone">Abone</span>' : ""}${m.bekleyen ? '<span class="rozet r-bekliyor">Kapora</span>' : ""}</span>
+          <span class="ust-satir"><b>${m.aboneNo ? `Abone ${m.aboneNo}` : kacis(m.ad || "İsimsiz")}</b>${m.etiket ? `<span class="rozet r-etiket">${kacis(m.etiket)}</span>` : ""}${m.abone.length ? '<span class="rozet r-abone">Abone</span>' : ""}${m.bekleyen ? '<span class="rozet r-bekliyor">⏳ Opsiyon</span>' : ""}</span>
           <small>${m.aboneNo ? "Bilgiler için dokunun" : telYazi(m.telefon)} · ${m.mac} maç${m.son ? " · son " + tarihYazi(m.son) : ""}${m.iptal ? ` · ${m.iptal} iptal` : ""}${m.gelecek ? ` · sıradaki ${tarihYazi(m.gelecek.tarih)} ${m.gelecek.saat}` : ""}</small>
         </span>
       </button>`).join("");

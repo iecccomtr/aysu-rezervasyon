@@ -23,7 +23,7 @@ import {
 export const GUNLER = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"];
 const DURUMLAR = [DURUM.bekliyor, DURUM.onayli, DURUM.iptal];
 const OTURUM_GUN = 30;
-const DEKONT_TURLERI = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+const DEKONT_TURLERI = ["image/jpeg", "image/png", "image/webp"]; // sadece ekran görüntüsü / fotoğraf
 const DEKONT_EN_FAZLA = 1_800_000; // Durable Object kaydı başına 2 MB sınırının altında
 
 /** Panel rolleri. yonetici: her şeye erişir; diğerleri sadece haftalık tabloyu görür. */
@@ -49,13 +49,14 @@ const kullaniciDisi = ({ hash, tuz, ...u }) => ({ ...u, rolAd: ROLLER[u.rol]?.ad
  * Online rezervasyonun opsiyonu düştü mü? (dekont yüklenmeden süre doldu)
  * Telefonla/panelden girilen "Kapora bekleniyor" kayıtları düşmez.
  */
+// Kapora gelmeden rezervasyon yok: online kayıt dekont doğrulanana kadar sadece "opsiyon"dur.
+// Süre içinde doğrulanmazsa (dekont hiç gelmese de, gelip tutmasa da) yer boşa çıkar.
 export const opsiyonDustu = (r, simdiMs = Date.now()) =>
-  r.kaynak === "Online" && r.durum === DURUM.bekliyor && !r.dekont && Number(r.opsiyonBitis) > 0 && Number(r.opsiyonBitis) <= simdiMs;
-/** Başka müşteriye opsiyonlu yer: { dk } (kalan dakika) ya da { dekont: true } (dekont kontrolde). Değilse null. */
+  r.kaynak === "Online" && r.durum === DURUM.bekliyor && Number(r.opsiyonBitis) > 0 && Number(r.opsiyonBitis) <= simdiMs;
+/** Başka müşteriye opsiyonlu yer: { dk } (kalan dakika). Değilse null. */
 const opsiyonBilgisi = (r, simdiMs = Date.now()) => {
-  if (!r || r.kaynak !== "Online" || r.durum !== DURUM.bekliyor) return null;
-  if (r.dekont) return { dekont: true };
-  return r.opsiyonBitis ? { dk: Math.max(1, Math.ceil((r.opsiyonBitis - simdiMs) / 60000)) } : null;
+  if (!r || r.kaynak !== "Online" || r.durum !== DURUM.bekliyor || !r.opsiyonBitis) return null;
+  return { dk: Math.max(1, Math.ceil((r.opsiyonBitis - simdiMs) / 60000)) };
 };
 const iptalMi = (durum) => String(durum || "").toLocaleLowerCase("tr").includes("iptal");
 const geceSaati = (saat) => Number(saat.slice(0, 2)) < 6;
@@ -221,17 +222,17 @@ export class RezervasyonDeposu extends DurableObject {
     if (sl.tur === "rez" || sl.tur === "abone") {
       const ops = opsiyonBilgisi(sl.rez);
       if (ops && !panel) {
-        return { hata: ops.dekont
-          ? "Bu saat şu an başka bir müşteriye ayrılmış, ödemesi kontrol ediliyor. Biraz sonra tekrar bakın ya da başka bir saat seçin."
-          : `Bu saat şu an başka bir müşteriye ${KURALLAR.opsiyonDakika} dakikalığına ayrılmış. Ödeme gelmezse yaklaşık ${ops.dk} dakika sonra boşa çıkar; o zaman tekrar deneyin.` };
+        return { hata: `Bu saat şu an başka bir müşteriye ${KURALLAR.opsiyonDakika} dakikalığına ayrılmış. Ödeme gelmezse yaklaşık ${ops.dk} dakika sonra boşa çıkar; o zaman tekrar deneyin.` };
       }
       return { hata: "Bu saat dolu. Lütfen başka bir saat seçin." };
     }
     if (!panel) {
       const gelecek = (await this.rezervasyonlar(simdi().tarih, gunEkle(simdi().tarih, 60)))
         .filter((r) => r.telefon === telefon && !iptalMi(r.durum) && !opsiyonDustu(r) && macZamani(r.tarih, r.saat) > Date.now());
-      if (gelecek.length >= KURALLAR.kisiBasiAktifRezervasyon) {
-        return { hata: `Bu numaraya ait ${gelecek.length} aktif rezervasyon var. Daha fazlası için işletmeyi arayın.` };
+      // Kapora ödenmiş rezervasyonlarda sınır yok; aynı numarayla aynı anda sadece BİR ödemesi bekleyen opsiyon olabilir
+      const bekleyen = gelecek.find((r) => r.durum === DURUM.bekliyor);
+      if (bekleyen) {
+        return { hata: `Bu numarayla ödemesi beklenen bir rezervasyonunuz var (${bekleyen.gun} ${bekleyen.saat}). Önce onun dekontunu yükleyin ya da sayfanın altındaki "Rezervasyonlarım"dan bırakın.` };
       }
     }
     const kayit = {
@@ -283,7 +284,7 @@ export class RezervasyonDeposu extends DurableObject {
         .sort((a, b) => (a.tarih + a.saat).localeCompare(b.tarih + b.saat))
         .map((r) => ({
           kayitNo: r.kayitNo, tarih: r.tarih, isletmeGunu: r.isletmeGunu || r.tarih, gun: r.gun, saat: r.saat, durum: r.durum,
-          dekont: Boolean(r.dekont), opsiyonBitis: r.durum === DURUM.bekliyor && !r.dekont ? r.opsiyonBitis || null : null,
+          dekont: Boolean(r.dekont), opsiyonBitis: r.durum === DURUM.bekliyor ? r.opsiyonBitis || null : null,
           ucret: r.ucret || null,
         }));
       return { rezervasyonlar: liste };
@@ -306,9 +307,9 @@ export class RezervasyonDeposu extends DurableObject {
         if (sl.tur === "rez" || sl.tur === "abone") {
           return { hata: `${KURALLAR.opsiyonDakika} dakikalık opsiyon süresi dolduğu için bu saat başka birine verildi. Ödeme yaptıysanız lütfen hemen arayın: 0 555 510 26 26.` };
         }
-        b.kayit = { ...b.kayit, durum: DURUM.bekliyor, opsiyonDustu: false, iptalEden: undefined };
+        b.kayit = { ...b.kayit, durum: DURUM.bekliyor, opsiyonDustu: false, iptalEden: undefined, opsiyonBitis: Date.now() + 5 * 60_000 };
       }
-      if (!DEKONT_TURLERI.includes(tur)) return { hata: "Dekont fotoğraf (JPG/PNG) ya da PDF olmalı." };
+      if (!DEKONT_TURLERI.includes(tur)) return { hata: "Dekontun ekran görüntüsünü (fotoğraf) yükleyin. PDF kabul edilmiyor." };
       if (!(veri instanceof Uint8Array) || veri.byteLength < 100) return { hata: "Dosya okunamadı." };
       if (veri.byteLength > DEKONT_EN_FAZLA) return { hata: "Dosya çok büyük (en fazla 1,8 MB)." };
       const dekont = { zaman: simdiYazi(), tur, ad: kirp(ad, 80) || "dekont", boyut: veri.byteLength };
@@ -340,6 +341,7 @@ export class RezervasyonDeposu extends DurableObject {
       const kayit = { ...b.kayit, dekont: { ...(b.kayit.dekont || {}), kontrol } };
       if (onay && kayit.durum === DURUM.bekliyor) {
         kayit.durum = DURUM.onayli;
+        kayit.opsiyonBitis = null;
         kayit.kapora = kayit.kapora || String(deger.tutar);
         kayit.onaylayan = "Dekont (otomatik)";
       }
@@ -386,7 +388,7 @@ export class RezervasyonDeposu extends DurableObject {
         return { hata: `Maça ${KURALLAR.iptalEnGecSaat} saatten az kaldığı için çevrimiçi iptal yapılamıyor. Lütfen işletmeyi arayın.` };
       }
       await this.st.put(b.anahtar, { ...b.kayit, durum: DURUM.iptal, iptalEden: "Müşteri" });
-      return { basarili: true, kayitNo: b.kayit.kayitNo, tarih: b.kayit.tarih, saat: b.kayit.saat };
+      return { basarili: true, kayitNo: b.kayit.kayitNo, tarih: b.kayit.tarih, saat: b.kayit.saat, onayliydi: b.kayit.durum === DURUM.onayli };
     });
   }
 
@@ -691,10 +693,7 @@ export class RezervasyonDeposu extends DurableObject {
           }),
         });
       }
-      const bekleyenler = (await this.rezervasyonlar(gunEkle(n.tarih, -1), gunEkle(n.tarih, 30)))
-        .filter((r) => r.durum === DURUM.bekliyor && !opsiyonDustu(r) && macZamani(r.tarih, r.saat) > Date.now() - 3600_000)
-        .sort((a, b) => (a.tarih + a.saat).localeCompare(b.tarih + b.saat));
-      return { baslangic: bas, gunler, bekleyenler, bugun: isletmeGunu(n.tarih, n.saat) };
+      return { baslangic: bas, gunler, bekleyenler: [], bugun: isletmeGunu(n.tarih, n.saat) };
     });
   }
 

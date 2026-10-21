@@ -181,3 +181,65 @@ test("Panel girişi: kurulum kodu, şifre, oturum", async () => {
   await d.panelKur({ kurulumKodu: "kod123", sifre: "yeni-sifre-1" });
   assert.equal(await d.oturumGecerli(k.token), false);
 });
+
+test("Çok saatli abone: tüm saatler dolu; toplu 'gelmiyor' saat / gün / hafta", async () => {
+  const d = demoDepo();
+  const sl = [];
+  for (const gun of [5, 6]) for (const saat of ["08:00", "09:00", "10:00", "11:00"]) sl.push({ gun, saat });
+  const r = await d.aboneKaydet({ ad: "Futbol Koleji", telefon: "05537048026", slotlar: sl, baslangic: "2026-10-19" });
+  assert.ok(r.basarili, JSON.stringify(r));
+  assert.equal(r.abone.slotlar.length, 8);
+  const cmt = "2026-10-24", paz = "2026-10-25";
+  assert.equal(await tur(d, cmt, "09:00"), "abone");
+  assert.equal(await tur(d, paz, "11:00"), "abone");
+  assert.equal(await tur(d, cmt, "12:00"), "bos");
+
+  // Sadece bir saat
+  assert.equal((await d.aboneAtla({ id: r.abone.id, gun: cmt, saat: "09:00", gelmiyor: true })).sayi, 1);
+  assert.equal(await tur(d, cmt, "09:00"), "abone-gelmiyor");
+  assert.equal(await tur(d, cmt, "10:00"), "abone");
+  // Tüm gün
+  assert.equal((await d.aboneAtla({ id: r.abone.id, gun: cmt, gelmiyor: true, kapsam: "gun" })).sayi, 4);
+  assert.equal(await tur(d, cmt, "11:00"), "abone-gelmiyor");
+  assert.equal(await tur(d, paz, "08:00"), "abone");
+  // Tüm hafta
+  assert.equal((await d.aboneAtla({ id: r.abone.id, gun: cmt, gelmiyor: true, kapsam: "hafta" })).sayi, 8);
+  assert.equal(await tur(d, paz, "08:00"), "abone-gelmiyor");
+  assert.equal(await tur(d, "2026-10-31", "08:00"), "abone", "gelecek hafta dolu");
+  // Boşalan saate rezervasyon, sonra haftayı geri al: dolu saat atlanır
+  assert.ok((await d.panelRezEkle({ gunTarihi: paz, saat: "10:00", ad: "Misafir" })).basarili);
+  const geri = await d.aboneAtla({ id: r.abone.id, gun: paz, gelmiyor: false, kapsam: "hafta" });
+  assert.equal(geri.sayi, 7);
+  assert.equal(geri.atlanan, 1);
+  assert.equal(await tur(d, cmt, "08:00"), "abone");
+  assert.equal(await tur(d, paz, "10:00"), "rez");
+
+  // Çakışma: başka abone aynı saate eklenemez
+  assert.match((await d.aboneKaydet({ ad: "Diğer", slotlar: [{ gun: 6, saat: "10:00" }] })).hata, /zaten abone var: Futbol Koleji/);
+  // CRM'de tüm saatler
+  const m = (await d.musteriler()).find((x) => x.telefon === "05537048026");
+  assert.equal(m.abone.length, 8);
+});
+
+test("İçe aktarma: aboneler, gelmiyor işaretleri ve rezervasyonlar; ikinci kez çalıştırınca tekrar etmez", async () => {
+  const d = demoDepo();
+  const veri = {
+    aboneler: [
+      { ad: "Cihan Acar", telefon: "0505 804 4791", slotlar: [{ gun: 0, saat: "22:00" }], baslangic: "2026-10-19" },
+      { ad: "Golden Lig", telefon: "0545 351 9261", slotlar: [{ gun: 4, saat: "20:00" }, { gun: 4, saat: "21:00" }], baslangic: "2026-10-19" },
+    ],
+    gelmiyor: [{ ad: "Cihan Acar", gun: "2026-10-19", saat: "22:00" }],
+    rezervasyonlar: [
+      { gunTarihi: "2026-10-19", saat: "22:00", ad: "Eyüp", kapora: "1200", not: "Kalan 2500", durum: "Onaylı" },
+      { gunTarihi: "2026-10-23", saat: "23:00", ad: "Emir", kapora: "1200", not: "Kalan 2500", durum: "Onaylı" },
+    ],
+  };
+  const r = await d.iceAktar(veri);
+  assert.deepEqual([r.abone, r.gelmiyor, r.rez], [2, 1, 2], JSON.stringify(r));
+  assert.equal(await tur(d, "2026-10-19", "22:00"), "rez");
+  assert.equal(await tur(d, "2026-10-23", "21:00"), "abone");
+  const ikinci = await d.iceAktar(veri);
+  assert.equal(ikinci.abone, 0);
+  assert.equal(ikinci.rez, 0);
+  assert.equal((await d.aboneListe()).length, 2);
+});

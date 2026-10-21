@@ -29,6 +29,10 @@ const geceSaati = (saat) => Number(saat.slice(0, 2)) < 6;
 const takvimTarihi = (gun, saat) => (geceSaati(saat) ? gunEkle(gun, 1) : gun);
 /** 0 = pazartesi */
 const gunNo = (tarih) => (new Date(tarih + "T00:00:00Z").getUTCDay() + 6) % 7;
+/** Abonenin haftalık saatleri: [{gun: 0-6 (0=pazartesi, işletme günü), saat: "HH:MM"}] (eski kayıtlarla uyumlu) */
+const slotlarOf = (a) => (Array.isArray(a.slotlar) ? a.slotlar : (a.gun != null && a.saat ? [{ gun: a.gun, saat: a.saat }] : []));
+const SAAT_SIRA = (saat) => (Number(saat.slice(0, 2)) < 6 ? 24 : 0) + Number(saat.slice(0, 2));
+const slotSirala = (l) => [...l].sort((x, y) => x.gun - y.gun || SAAT_SIRA(x.saat) - SAAT_SIRA(y.saat));
 const simdiYazi = () => new Date(Date.now() + 3 * 3600_000).toISOString().slice(0, 16).replace("T", " ");
 const kirp = (s, n) => String(s ?? "").trim().slice(0, n);
 
@@ -103,8 +107,9 @@ export class RezervasyonDeposu extends DurableObject {
     const tarih = takvimTarihi(gun, saat);
     const rez = durum.rezMap.get(`${tarih}|${saat}`);
     if (rez) return { tur: "rez", rez };
-    const a = durum.abone.find((x) => x.gun === gunNo(gun) && x.saat === saat
-      && x.baslangic <= gun && (!x.bitis || gun <= x.bitis));
+    const gn = gunNo(gun);
+    const a = durum.abone.find((x) => x.baslangic <= gun && (!x.bitis || gun <= x.bitis)
+      && slotlarOf(x).some((sl) => sl.gun === gn && sl.saat === saat));
     if (a) {
       const gelmiyor = durum.atla.has(`x:${gun}:${saat}:${a.id}`);
       return { tur: gelmiyor ? "abone-gelmiyor" : "abone", abone: a };
@@ -297,7 +302,7 @@ export class RezervasyonDeposu extends DurableObject {
             return {
               saat, tarih, gecmis: macZamani(tarih, saat) < Date.now() - 3600_000, tur: s.tur,
               ...(s.rez ? { rez: s.rez } : {}),
-              ...(s.abone ? { abone: { id: s.abone.id, ad: s.abone.ad, telefon: s.abone.telefon, not: s.abone.not } } : {}),
+              ...(s.abone ? { abone: { id: s.abone.id, ad: s.abone.ad, telefon: s.abone.telefon, not: s.abone.not, slotlar: slotlarOf(s.abone) } } : {}),
             };
           }),
         });
@@ -348,35 +353,45 @@ export class RezervasyonDeposu extends DurableObject {
   // ================= Panel: aboneler =================
 
   async aboneListe() {
-    const liste = await this.aboneler();
-    return liste.sort((a, b) => a.gun - b.gun || a.saat.localeCompare(b.saat) || a.ad.localeCompare(b.ad, "tr"));
+    const liste = (await this.aboneler()).map((a) => ({ ...a, slotlar: slotSirala(slotlarOf(a)) }));
+    const ilk = (a) => a.slotlar[0] || { gun: 9, saat: "00:00" };
+    return liste.sort((a, b) => ilk(a).gun - ilk(b).gun || SAAT_SIRA(ilk(a).saat) - SAAT_SIRA(ilk(b).saat) || a.ad.localeCompare(b.ad, "tr"));
   }
 
-  async aboneKaydet({ id, ad, telefon, gun, saat: s, baslangic, not = "", ucret = "" }) {
+  /** slotlar: [{gun, saat}] — ya da eski biçimde tek gun + saat */
+  async aboneKaydet({ id, ad, telefon, slotlar, gun, saat, baslangic, not = "", ucret = "" }) {
     return this.kilitli(async () => {
-      const saat = saatNormalize(s);
-      const g = Number(gun);
+      let liste = Array.isArray(slotlar) ? slotlar : [{ gun, saat }];
+      liste = liste.map((x) => ({ gun: Number(x.gun), saat: saatNormalize(x.saat) }));
       if (!kirp(ad, 60)) return { hata: "Abone adı gerekli." };
-      if (!(g >= 0 && g <= 6)) return { hata: "Gün seçin." };
-      if (!saat || !gecerliSaat(saat)) return { hata: "Saat seçin." };
+      if (!liste.length) return { hata: "En az bir gün ve saat seçin." };
+      for (const x of liste) {
+        if (!(x.gun >= 0 && x.gun <= 6)) return { hata: "Geçersiz gün." };
+        if (!x.saat || !gecerliSaat(x.saat)) return { hata: "Geçersiz saat." };
+      }
+      // tekrarları ayıkla
+      liste = slotSirala([...new Map(liste.map((x) => [`${x.gun}|${x.saat}`, x])).values()]);
       const tel = telefon ? telefonNormalize(telefon) : "";
       if (telefon && !tel) return { hata: "Geçersiz telefon." };
       const n = simdi();
-      const bas = tarihNormalize(baslangic) || isletmeGunu(n.tarih, n.saat);
-      const liste = await this.aboneler();
-      const cakisan = liste.find((a) => a.id !== id && a.gun === g && a.saat === saat && !a.bitis);
-      if (cakisan) return { hata: `Bu gün ve saatte zaten abone var: ${cakisan.ad}.` };
+      const bas = tarihNormalize(baslangic) || haftaBasi(isletmeGunu(n.tarih, n.saat));
+      const digerleri = (await this.aboneler()).filter((a) => a.id !== id && !a.bitis);
+      for (const x of liste) {
+        const c = digerleri.find((a) => slotlarOf(a).some((sl) => sl.gun === x.gun && sl.saat === x.saat));
+        if (c) return { hata: `${GUNLER[x.gun]} ${x.saat} saatinde zaten abone var: ${c.ad}.` };
+      }
       const eski = id ? await this.st.get(`a:${id}`) : null;
       const abone = {
         id: eski?.id || rastgele(8, "abcdefghjkmnpqrstuvwxyz23456789"),
-        ad: kirp(ad, 60), telefon: tel, gun: g, saat, baslangic: bas, bitis: null,
+        ad: kirp(ad, 60), telefon: tel, slotlar: liste, baslangic: bas, bitis: null,
         not: kirp(not, 200), ucret: kirp(ucret, 40), olusturma: eski?.olusturma || simdiYazi(),
       };
       await this.st.put(`a:${abone.id}`, abone);
-      // Uyarı: bu saatte ileri tarihli aktif rezervasyonlar
+      // Uyarı: abonenin saatlerine denk gelen ileri tarihli aktif rezervasyonlar
       const cakisanRez = (await this.rezervasyonlar(n.tarih, gunEkle(n.tarih, 60)))
-        .filter((r) => !iptalMi(r.durum) && r.saat === saat && gunNo(r.isletmeGunu || r.tarih) === g && (r.isletmeGunu || r.tarih) >= bas);
-      return { basarili: true, abone, uyari: cakisanRez.length ? `${cakisanRez.length} ileri tarihli rezervasyon bu abonenin saatine denk geliyor, kontrol edin.` : null };
+        .filter((r) => !iptalMi(r.durum) && (r.isletmeGunu || r.tarih) >= bas
+          && liste.some((x) => x.saat === r.saat && x.gun === gunNo(r.isletmeGunu || r.tarih)));
+      return { basarili: true, abone, uyari: cakisanRez.length ? `${cakisanRez.length} ileri tarihli rezervasyon bu abonenin saatlerine denk geliyor, kontrol edin.` : null };
     });
   }
 
@@ -392,26 +407,68 @@ export class RezervasyonDeposu extends DurableObject {
     });
   }
 
-  /** Abone o hafta gelmiyor (gelmiyor=true) / yine geliyor (false). `gun` işletme günü. */
-  async aboneAtla({ id, gun, gelmiyor }) {
+  /**
+   * Abone gelmiyor (gelmiyor=true) / yine geliyor (false).
+   * kapsam: "saat" (sadece `saat`), "gun" (o işletme gününün tüm saatleri), "hafta" (o haftanın tüm saatleri).
+   */
+  async aboneAtla({ id, gun, saat, gelmiyor, kapsam = "saat" }) {
     return this.kilitli(async () => {
       const a = await this.st.get(`a:${id}`);
       const g = tarihNormalize(gun);
       if (!a || !g) return { hata: "Abone veya tarih bulunamadı." };
-      if (gunNo(g) !== a.gun) return { hata: "Bu tarih abonenin gününe denk gelmiyor." };
-      const anahtar = `x:${g}:${a.saat}:${a.id}`;
-      if (gelmiyor) {
-        await this.st.put(anahtar, { olusturma: simdiYazi() });
-      } else {
-        // Geri alırken o saate bu arada rezervasyon alınmış mı?
-        const d = await this.durumYukle(g, g);
-        if (d.rezMap.get(`${takvimTarihi(g, a.saat)}|${a.saat}`)) {
-          return { hata: "Bu saate bu hafta başka rezervasyon alınmış. Önce onu iptal edin." };
+      const sl = slotlarOf(a);
+      let hedef = [];
+      if (kapsam === "hafta") {
+        const bas = haftaBasi(g);
+        for (let i = 0; i < 7; i++) {
+          const t = gunEkle(bas, i);
+          for (const x of sl) if (x.gun === gunNo(t)) hedef.push({ t, saat: x.saat });
         }
-        await this.st.delete(anahtar);
+      } else if (kapsam === "gun") {
+        hedef = sl.filter((x) => x.gun === gunNo(g)).map((x) => ({ t: g, saat: x.saat }));
+      } else {
+        const s1 = saatNormalize(saat) || (sl.length === 1 ? sl[0].saat : null);
+        if (s1 && sl.some((x) => x.gun === gunNo(g) && x.saat === s1)) hedef = [{ t: g, saat: s1 }];
       }
-      return { basarili: true };
+      if (!hedef.length) return { hata: "Bu tarih abonenin günlerine denk gelmiyor." };
+      if (gelmiyor) {
+        const kayit = {};
+        for (const h of hedef) kayit[`x:${h.t}:${h.saat}:${a.id}`] = { olusturma: simdiYazi() };
+        await this.st.put(kayit);
+        return { basarili: true, sayi: hedef.length };
+      }
+      // Geri alırken bu arada rezervasyon alınmış saatleri atla
+      const ilk = hedef.reduce((m, h) => (h.t < m ? h.t : m), hedef[0].t);
+      const son = hedef.reduce((m, h) => (h.t > m ? h.t : m), hedef[0].t);
+      const d = await this.durumYukle(ilk, son);
+      const dolu = hedef.filter((h) => d.rezMap.get(`${takvimTarihi(h.t, h.saat)}|${h.saat}`));
+      const sil = hedef.filter((h) => !dolu.includes(h)).map((h) => `x:${h.t}:${h.saat}:${a.id}`);
+      if (sil.length) await this.st.delete(sil);
+      if (!sil.length && dolu.length) return { hata: "Bu saate bu hafta başka rezervasyon alınmış. Önce onu iptal edin." };
+      return { basarili: true, sayi: sil.length, atlanan: dolu.length };
     });
+  }
+
+  /** Tablodan toplu aktarım (bir kez). Aynı isimli abone ve dolu saatler atlanır. */
+  async iceAktar({ aboneler = [], rezervasyonlar = [], gelmiyor = [] }) {
+    const sonuc = { abone: 0, rez: 0, gelmiyor: 0, atlanan: [] };
+    const idAd = {};
+    const mevcut = await this.aboneler();
+    for (const a of aboneler) {
+      const var_ = mevcut.find((m) => m.ad.toLocaleLowerCase("tr") === String(a.ad).toLocaleLowerCase("tr"));
+      if (var_) { idAd[a.ad] = var_.id; sonuc.atlanan.push(`abone: ${a.ad} (zaten var)`); continue; }
+      const r = await this.aboneKaydet(a);
+      if (r.basarili) { sonuc.abone++; idAd[a.ad] = r.abone.id; } else sonuc.atlanan.push(`abone: ${a.ad} (${r.hata})`);
+    }
+    for (const g of gelmiyor) {
+      const r = await this.aboneAtla({ id: idAd[g.ad], gun: g.gun, saat: g.saat, gelmiyor: true });
+      if (r.basarili) sonuc.gelmiyor++; else sonuc.atlanan.push(`gelmiyor: ${g.ad} ${g.gun} (${r.hata})`);
+    }
+    for (const z of rezervasyonlar) {
+      const r = await this.panelRezEkle(z);
+      if (r.basarili) sonuc.rez++; else sonuc.atlanan.push(`rez: ${z.ad} ${z.gunTarihi} ${z.saat} (${r.hata})`);
+    }
+    return sonuc;
   }
 
   // ================= Fotoğraflar (eski siteden bir kez kopyalanır) =================
@@ -465,7 +522,7 @@ export class RezervasyonDeposu extends DurableObject {
       }
       for (const a of aboneler) {
         if (!a.telefon) continue;
-        kisi(a.telefon, a.ad).abone.push(`${GUNLER[a.gun]} ${a.saat}`);
+        for (const x of slotSirala(slotlarOf(a))) kisi(a.telefon, a.ad).abone.push(`${GUNLER[x.gun]} ${x.saat}`);
       }
       for (const [anahtar, v] of notlar) {
         const k = kisi(anahtar.slice(2), v.ad || "");
@@ -484,7 +541,7 @@ export class RezervasyonDeposu extends DurableObject {
       .filter((r) => r.telefon === telefon)
       .sort((a, b) => (b.tarih + b.saat).localeCompare(a.tarih + a.saat));
     const m = (await this.st.get(`m:${telefon}`)) || {};
-    const abone = (await this.aboneler()).filter((a) => a.telefon === telefon);
+    const abone = (await this.aboneler()).filter((a) => a.telefon === telefon).map((a) => ({ ...a, slotlar: slotSirala(slotlarOf(a)) }));
     return { telefon, ad: tum[0]?.ad || abone[0]?.ad || m.ad || "", not: m.not || "", etiket: m.etiket || "", rezervasyonlar: tum.slice(0, 100), abone };
   }
 

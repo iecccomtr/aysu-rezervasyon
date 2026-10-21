@@ -145,6 +145,17 @@ async function panel(request, env, ctx, yol) {
     return json({ basarili: true }, 200, { "set-cookie": `${OTURUM_CEREZ}=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0` });
   }
 
+  // Tablodan toplu aktarım: oturum ya da kurulum kodu (x-kurulum-kodu başlığı) ile
+  if (yol === "ice-aktar" && post) {
+    const kod = request.headers.get("x-kurulum-kodu");
+    const yetkili = (kod && env.PANEL_KURULUM_KODU && kod === env.PANEL_KURULUM_KODU) || (await d.oturumGecerli(token));
+    if (!yetkili) return json({ hata: "Yetkisiz." }, 401);
+    const g = (await govdeOku(request)) || {};
+    const r = await d.iceAktar(g);
+    onbellegiTemizle(request, ctx);
+    return json(r);
+  }
+
   // --- Buradan sonrası giriş ister ---
   if (!(await d.oturumGecerli(token))) return json({ hata: "Oturum kapalı. Lütfen giriş yapın.", giris: true }, 401);
 

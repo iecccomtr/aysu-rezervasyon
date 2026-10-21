@@ -97,12 +97,15 @@ test("Müşteri sınırları: kişi başı 4 aktif (ayda haftada bir), geçersiz
   assert.ok((await d.olustur({ gunTarihi: "2026-10-19", saat: "09:00", ...ALI })).hata, "geçmiş saat");
 });
 
-test("Müşteri iptali: telefon eşleşmeli, son 3 saatte iptal yok", async () => {
+test("Müşteri iptali: telefon eşleşmeli, onaylı maçta son 3 saatte iptal yok, opsiyon her zaman bırakılır", async () => {
   const d = demoDepo();
   const r1 = await d.olustur({ gunTarihi: "2026-10-21", saat: "21:00", ...ALI });
   const r2 = await d.olustur({ gunTarihi: "2026-10-19", saat: "12:00", ...ALI });
   assert.ok((await d.iptal({ kayitNo: r1.kayitNo, telefon: "05329999999" })).hata);
-  assert.match((await d.iptal({ kayitNo: r2.kayitNo, telefon: ALI.telefon })).hata, /3 saatten az/);
+  await d.panelRezGuncelle({ kayitNo: r2.kayitNo, durum: "Onaylı", kapora: "1200" });
+  assert.match((await d.iptal({ kayitNo: r2.kayitNo, telefon: ALI.telefon })).hata, /3 saatten az/, "onaylı maçta 3 saat kuralı");
+  const r3 = await d.olustur({ gunTarihi: "2026-10-19", saat: "11:00", ...ALI });
+  assert.ok((await d.iptal({ kayitNo: r3.kayitNo, telefon: ALI.telefon })).basarili, "onaylanmamış opsiyon her zaman bırakılabilir");
   assert.ok((await d.iptal({ kayitNo: r1.kayitNo.toLowerCase(), telefon: ALI.telefon })).basarili);
   assert.equal(await bos(d, "2026-10-21", "21:00"), true);
 });

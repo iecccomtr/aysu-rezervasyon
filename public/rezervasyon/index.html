@@ -605,6 +605,7 @@
       const v = await r.json().catch(() => ({}));
       if (!r.ok || !v.basarili) { sonucEl.classList.add("kotu"); sonucEl.textContent = v.hata || "Dekont yüklenemedi. WhatsApp'tan gönderebilirsiniz."; return; }
       clearInterval(sayacZaman); $("t-sayac").textContent = ""; // dekont geldi: süre artık işlemez
+      if (v.onay && sonRez && sonRez.kayitNo === kayitNo) sonRez.onayli = true;
       if (v.onay) { sonucEl.classList.add("iyi"); sonucEl.textContent = "✓ Dekontunuz doğrulandı, rezervasyonunuz kesinleşti. İyi maçlar!"; }
       else { sonucEl.classList.add("bekle"); sonucEl.textContent = "Dekontunuz alındı. Kısa süre içinde kontrol edilip rezervasyonunuz kesinleştirilecek."; }
     } catch (e) {
@@ -649,6 +650,7 @@
 
   function basariGoster(v, g) {
     sayacBaslat(v.opsiyonBitis);
+    if (sonRez) sonRez.yazi = `${g.gun} ${tarihYazi(g.tarih)}, ${v.saat}`;
     if (sonRez) { $("k-telefon").value = sonRez.telefon; $("i-telefon").value = sonRez.telefon; }
     const zaman = `${g.gun} ${tarihYazi(g.tarih)}${gece(v.saat) ? " gecesi" : ""}, ${v.saat}`;
     $("t-zaman").textContent = zaman;
@@ -681,6 +683,16 @@
   }
 
   $("yeni").addEventListener("click", async () => {
+    // Önceki rezervasyon henüz onaylanmadıysa: bırakılsın mı?
+    if (sonRez && !sonRez.onayli) {
+      const birak = confirm(`Önceki rezervasyonunuz (${sonRez.yazi}) henüz kesinleşmedi.\n\nTamam: o saati bırak, yeni saat seç\nİptal: o saati koru, ek bir saat seç`);
+      if (birak) {
+        const r = await fetch("/api/iptal", { method: "POST", headers: { "content-type": "application/json" },
+          body: JSON.stringify({ kayitNo: sonRez.kayitNo, telefon: sonRez.telefon }) }).catch(() => null);
+        if (!r || !r.ok) alert("Önceki saat bırakılamadı. Lütfen arayın: 0 555 510 26 26");
+      }
+    }
+    sonRez = null; clearInterval(sayacZaman);
     $("tamam").hidden = true; $("secim").hidden = false;
     document.querySelector(".wp-yuzen").hidden = false;
     secilenSaat = null;

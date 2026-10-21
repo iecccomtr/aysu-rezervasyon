@@ -364,7 +364,9 @@ export class RezervasyonDeposu extends DurableObject {
         return { hata: "Bu numaraya ait böyle bir aktif rezervasyon bulunamadı." };
       }
       const kalanSaat = (macZamani(b.kayit.tarih, b.kayit.saat) - Date.now()) / 3600_000;
-      if (kalanSaat < KURALLAR.iptalEnGecSaat) {
+      // Onaylanmamış online opsiyon her zaman bırakılabilir; onaylı rezervasyonda 3 saat kuralı
+      const opsiyon = b.kayit.kaynak === "Online" && b.kayit.durum === DURUM.bekliyor;
+      if (!opsiyon && kalanSaat < KURALLAR.iptalEnGecSaat) {
         return { hata: `Maça ${KURALLAR.iptalEnGecSaat} saatten az kaldığı için çevrimiçi iptal yapılamıyor. Lütfen işletmeyi arayın.` };
       }
       await this.st.put(b.anahtar, { ...b.kayit, durum: DURUM.iptal, iptalEden: "Müşteri" });

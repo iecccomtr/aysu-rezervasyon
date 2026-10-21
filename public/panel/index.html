@@ -847,12 +847,14 @@
         ${r.ekstra && r.ekstra.length ? `<div><span>VIP</span><b style="color:#b45309">${r.ekstra.map((x) => ({ spiker: "VIP spiker", hakem: "VIP hakem" })[x] || x).join(" + ")}</b></div>` : ""}
         ${r.ucret ? `<div><span>Toplam ücret</span>${Number(r.ucret).toLocaleString("tr-TR")} TL</div>` : ""}
         <div><span>Kaynak</span>${kacis(r.kaynak || "")} · ${kacis(r.olusturma || "")}</div>
-        ${r.dekont ? `<div><span>Dekont</span><a href="/api/panel/dekont?k=${encodeURIComponent(r.kayitNo)}" target="_blank" rel="noopener"><b>Dekontu aç</b></a> · ${kacis(r.dekont.zaman)}
+        ${r.dekont ? `<div><span>Dekont</span><div style="display:block;flex:1;min-width:0">
+          <a href="/api/panel/dekont?k=${encodeURIComponent(r.kayitNo)}" target="_blank" rel="noopener"><b>Dekontu aç</b></a> <small class="soluk">${kacis(r.dekont.zaman)}</small>
           ${r.dekont.kontrol ? (r.dekont.kontrol.onay
-            ? `<br><span style="color:#14532d">✓ Otomatik doğrulandı (${kacis(r.dekont.kontrol.tutar)} TL). Banka hesabından da kontrol edin.</span>`
-            : `<br><span style="color:#b42318">Kontrol gerekiyor: ${kacis(r.dekont.kontrol.nedenler.join(" "))}</span>`) : ""}
-          ${r.dekont.kontrol?.okunan ? `<br><small class="soluk">Okunan: ${kacis([r.dekont.kontrol.okunan.ad, r.dekont.kontrol.okunan.iban, r.dekont.kontrol.okunan.tutar != null ? r.dekont.kontrol.okunan.tutar + " TL" : null, r.dekont.kontrol.okunan.tarih].map((x) => x ?? "?").join(" · "))}</small>` : ""}
-          ${r.durum === "Kapora bekleniyor" ? `<br><button type="button" class="dugme ikincil kucuk" id="d-dekont-yeniden" style="margin-top:6px">Dekontu yeniden kontrol et</button>` : ""}</div>` : ""}
+            ? `<p style="color:#14532d;margin:6px 0 0">✓ Otomatik doğrulandı (${kacis(r.dekont.kontrol.tutar)} TL). Banka hesabından da kontrol edin.</p>`
+            : `<p style="color:#b42318;margin:6px 0 0;font-weight:600">Kontrol gerekiyor: ${kacis(r.dekont.kontrol.nedenler.join(" "))}</p>`) : ""}
+          ${r.dekont.kontrol?.okunan ? `<p class="soluk" style="font-size:14px;margin:4px 0 0">Okunan: ${kacis([r.dekont.kontrol.okunan.ad, r.dekont.kontrol.okunan.iban, r.dekont.kontrol.okunan.tutar != null ? r.dekont.kontrol.okunan.tutar + " TL" : null, r.dekont.kontrol.okunan.tarih].map((x) => x ?? "?").join(" · "))}</p>` : ""}
+          ${r.durum === "Kapora bekleniyor" ? `<button type="button" class="dugme ikincil kucuk" id="d-dekont-yeniden" style="margin-top:8px">Dekontu yeniden kontrol et</button>` : ""}
+        </div></div>` : ""}
       </div>
       ${r.telefon ? `<div class="eylemler">
         <a class="dugme ikincil kucuk" href="tel:${r.telefon}">Ara</a>

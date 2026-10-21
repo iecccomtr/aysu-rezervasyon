@@ -9,14 +9,22 @@
 // Yine de banka hesabını gün sonunda kontrol etmek önerilir.
 
 const METIN_MODELI = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
-const GORSEL_MODELLER = ["@cf/meta/llama-4-scout-17b-16e-instruct", "@cf/mistralai/mistral-small-3.1-24b-instruct"];
+// Sırayla denenir; biri hata verirse sonraki. (Modellerin görsel giriş biçimleri farklı.)
+const GORSEL_DENEMELER = [
+  { model: "@cf/meta/llama-4-scout-17b-16e-instruct", bicim: "openai" },
+  { model: "@cf/mistralai/mistral-small-3.1-24b-instruct", bicim: "openai" },
+  { model: "@cf/google/gemma-3-12b-it", bicim: "openai" },
+  { model: "@cf/meta/llama-3.2-11b-vision-instruct", bicim: "bayt", onay: true },
+];
 
 const TALIMAT = `Bu bir Türk bankası havale/EFT/FAST dekontu. SADECE şu JSON'u döndür, başka hiçbir şey yazma:
-{"alici_iban": "...", "alici_ad": "...", "tutar": 0, "tarih": "YYYY-AA-GG", "aciklama": "...", "gonderen": "..."}
+{"alici_iban": "...", "alici_ad": "...", "tutar": 0, "tarih": "YYYY-AA-GG", "aciklama": "...", "gonderen": "...", "tum_metin": "..."}
 - alici_iban: paranın GÖNDERİLDİĞİ (alıcı) IBAN, boşluksuz. Gönderen IBAN'ı değil.
 - alici_ad: alıcı adı soyadı / unvanı.
 - tutar: gönderilen tutar, TL, sayı olarak (ör. 1.200,00 TL → 1200).
-- tarih: işlem tarihi. Bulamadığın alan için null yaz.`;
+- tarih: işlem tarihi.
+- tum_metin: dekonttaki bütün yazıları olduğu gibi tek satırda yaz.
+Bulamadığın alan için null yaz.`;
 
 const b64 = (veri) => {
   let s = "";
@@ -48,26 +56,31 @@ export async function dekontOku(env, { tur, veri }) {
       return { ...j, _metin: metin };
     }
     const resim = `data:${tur};base64,${b64(veri)}`;
-    let sonHata;
-    for (const model of GORSEL_MODELLER) {
+    const hatalar = [];
+    for (const d of GORSEL_DENEMELER) {
       try {
-        const y = await env.AI.run(model, {
-          messages: [{ role: "user", content: [{ type: "text", text: TALIMAT }, { type: "image_url", image_url: { url: resim } }] }],
-          max_tokens: 400,
-        });
+        let girdi;
+        if (d.bicim === "openai") {
+          girdi = { messages: [{ role: "user", content: [{ type: "text", text: TALIMAT }, { type: "image_url", image_url: { url: resim } }] }], max_tokens: 900 };
+        } else {
+          if (d.onay) await env.AI.run(d.model, { prompt: "agree" }).catch(() => {}); // Meta lisans onayı (ilk kullanım)
+          girdi = { messages: [{ role: "user", content: TALIMAT }], image: Array.from(veri), max_tokens: 900 };
+        }
+        const y = await env.AI.run(d.model, girdi);
         const j = jsonAl(y);
-        if (j) return j;
-        sonHata = "Modelden JSON alınamadı";
+        if (j) return { ...j, _model: d.model, _metin: j.tum_metin || "" };
+        hatalar.push(`${d.model.split("/").pop()}: JSON yok (${String(y?.response ?? "").slice(0, 80)})`);
       } catch (e) {
-        sonHata = String(e?.message || e);
+        hatalar.push(`${d.model.split("/").pop()}: ${String(e?.message || e).slice(0, 120)}`);
       }
     }
-    return { hata: "Dekont okunamadı: " + sonHata };
+    return { hata: "Dekont okunamadı — " + hatalar.join(" | ") };
   } catch (e) {
     return { hata: "Dekont okunamadı: " + String(e?.message || e) };
   }
 }
 
+const oncekiGun = (t) => { const d = new Date(t + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() - 1); return d.toISOString().slice(0, 10); };
 const harfler = (s) => String(s || "").toLocaleUpperCase("tr")
   .replace(/İ/g, "I").replace(/Ş/g, "S").replace(/Ğ/g, "G").replace(/Ü/g, "U").replace(/Ö/g, "O").replace(/Ç/g, "C").replace(/I/g, "I")
   .replace(/[^A-Z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
@@ -104,18 +117,20 @@ export function dekontDegerlendir(okunan, { iban, alici, kapora, rezTarihi, bugu
   // IBAN: modelin okuduğu ya da PDF metninde geçen
   const beklenen = ibanTemiz(iban);
   const okunanIban = ibanTemiz(okunan.alici_iban);
-  const metindeVar = okunan._metin && ibanTemiz(okunan._metin).includes(beklenen);
+  const metin = ibanTemiz(okunan._metin || okunan.tum_metin || "");
+  const metindeVar = metin.includes(beklenen) || metin.includes(beklenen.slice(4)); // "TR70" bazen ayrı yazılır
   if (!(okunanIban === beklenen || metindeVar)) nedenler.push(`IBAN eşleşmiyor (${okunan.alici_iban || "okunamadı"}).`);
   // Alıcı adı: tüm kelimeler geçmeli (ör. AHMET + AYSU)
   const ad = harfler(okunan.alici_ad);
   const kelimeler = harfler(alici).split(" ").filter((k) => k.length > 1);
-  if (!kelimeler.every((k) => ad.includes(k))) nedenler.push(`Hesap adı eşleşmiyor (${okunan.alici_ad || "okunamadı"}).`);
+  const tumMetin = harfler(okunan._metin || okunan.tum_metin || "");
+  if (!kelimeler.every((k) => ad.includes(k) || tumMetin.includes(k))) nedenler.push(`Hesap adı eşleşmiyor (${okunan.alici_ad || "okunamadı"}).`);
   const tutar = tutarSayi(okunan.tutar);
   if (tutar == null) nedenler.push("Tutar okunamadı.");
   else if (tutar < kapora) nedenler.push(`Tutar kaporadan az: ${tutar} TL (kapora ${kapora} TL).`);
   const tarih = tarihNorm(okunan.tarih);
   if (!tarih) nedenler.push("Dekont tarihi okunamadı.");
-  else if (rezTarihi && tarih < rezTarihi) nedenler.push(`Dekont tarihi (${tarih}) rezervasyondan önce.`);
+  else if (rezTarihi && tarih < oncekiGun(rezTarihi)) nedenler.push(`Dekont tarihi (${tarih}) rezervasyondan önce.`);
   else if (bugun && tarih > bugun) nedenler.push(`Dekont tarihi (${tarih}) ileri bir tarih.`);
   return { onay: nedenler.length === 0, nedenler, tutar, okunan };
 }

@@ -850,7 +850,9 @@
         ${r.dekont ? `<div><span>Dekont</span><a href="/api/panel/dekont?k=${encodeURIComponent(r.kayitNo)}" target="_blank" rel="noopener"><b>Dekontu aç</b></a> · ${kacis(r.dekont.zaman)}
           ${r.dekont.kontrol ? (r.dekont.kontrol.onay
             ? `<br><span style="color:#14532d">✓ Otomatik doğrulandı (${kacis(r.dekont.kontrol.tutar)} TL). Banka hesabından da kontrol edin.</span>`
-            : `<br><span style="color:#b42318">Kontrol gerekiyor: ${kacis(r.dekont.kontrol.nedenler.join(" "))}</span>`) : ""}</div>` : ""}
+            : `<br><span style="color:#b42318">Kontrol gerekiyor: ${kacis(r.dekont.kontrol.nedenler.join(" "))}</span>`) : ""}
+          ${r.dekont.kontrol?.okunan ? `<br><small class="soluk">Okunan: ${kacis([r.dekont.kontrol.okunan.ad, r.dekont.kontrol.okunan.iban, r.dekont.kontrol.okunan.tutar != null ? r.dekont.kontrol.okunan.tutar + " TL" : null, r.dekont.kontrol.okunan.tarih].map((x) => x ?? "?").join(" · "))}</small>` : ""}
+          ${r.durum === "Kapora bekleniyor" ? `<br><button type="button" class="dugme ikincil kucuk" id="d-dekont-yeniden" style="margin-top:6px">Dekontu yeniden kontrol et</button>` : ""}</div>` : ""}
       </div>
       ${r.telefon ? `<div class="eylemler">
         <a class="dugme ikincil kucuk" href="tel:${r.telefon}">Ara</a>
@@ -867,6 +869,14 @@
     const durumAl = durumSeciciBagla(ic);
     const m = $("d-musteri");
     if (m) m.addEventListener("click", () => musteriDetay(r.telefon));
+    const yeniden = $("d-dekont-yeniden");
+    if (yeniden) yeniden.addEventListener("click", async () => {
+      yeniden.disabled = true; yeniden.textContent = "Kontrol ediliyor…";
+      const k = await api("dekont-kontrol", { kayitNo: r.kayitNo }).catch(() => ({ hata: "Bağlantı kurulamadı." }));
+      if (k.hata) { yeniden.disabled = false; yeniden.textContent = "Dekontu yeniden kontrol et"; return dlgUyari(k.hata); }
+      bildir(k.onay ? "Dekont doğrulandı, rezervasyon onaylandı" : "Hâlâ kontrol gerekiyor");
+      haftaYukle(); rezDetay(k.rez);
+    });
     $("d-form").addEventListener("submit", async (e) => {
       e.preventDefault();
       const durum = durumAl();

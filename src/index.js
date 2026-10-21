@@ -268,6 +268,15 @@ async function panel(request, env, ctx, yol) {
     case "POST musteri-not": return degisti(await d.musteriNot(g));
     case "POST musteri-sil": { const r = await d.musteriSil(g.telefon, ben); return json(r, r.hata ? 400 : 200); }
     case "GET kullanicilar": return json(await d.kullanicilar());
+    case "POST dekont-kontrol": {
+      // Panelden "Dekontu yeniden kontrol et"
+      const f = await d.dekontGetir(g.kayitNo);
+      const b = f && (await d.kayitBul(g.kayitNo));
+      if (!f || !b) return json({ hata: "Dekont bulunamadı." }, 400);
+      const { k } = await dekontKontrolEt(env, d, b.kayit, f.veri instanceof Uint8Array ? f.veri : new Uint8Array(f.veri));
+      if (k.onay) onbellegiTemizle(request, ctx);
+      return json(k, k.hata ? 400 : 200);
+    }
     case "GET dekont": {
       const f = await d.dekontGetir(url.searchParams.get("k"));
       if (!f) return json({ hata: "Dekont bulunamadı." }, 404);
@@ -291,6 +300,17 @@ async function panel(request, env, ctx, yol) {
     }
     default: return json({ hata: "Bulunamadı" }, 404);
   }
+}
+
+/** Dekontu okur, kurallara göre değerlendirir ve sonucu rezervasyona yazar. */
+async function dekontKontrolEt(env, d, rez, veri) {
+  const okunan = await dekontOku(env, { tur: rez.dekont.tur, veri });
+  const deger = dekontDegerlendir(okunan, {
+    iban: IBAN.no, alici: IBAN.alici, kapora: FIYATLAR.kapora,
+    rezTarihi: String(rez.olusturma || "").slice(0, 10) || null, bugun: simdi().tarih,
+  });
+  const k = await d.dekontSonuc(rez.kayitNo, await ozet(veri), deger);
+  return { okunan, k };
 }
 
 /** Yeni kayıt: Admin ve Müdür(ler)e tek tıkla onay bağlantısı. */
@@ -414,13 +434,7 @@ export default {
         const r = await d.dekontYukle({ kayitNo: g.kayitNo, telefon: g.telefon, tur: g.tur, ad: g.ad, veri });
         if (!r.basarili) return json(r, 400);
         // Otomatik kontrol: doğru IBAN + alıcı + tutar + tarih → rezervasyon kesinleşir
-        const n = simdi();
-        const okunan = await dekontOku(env, { tur: r.dekont.tur, veri });
-        const deger = dekontDegerlendir(okunan, {
-          iban: IBAN.no, alici: IBAN.alici, kapora: FIYATLAR.kapora,
-          rezTarihi: String(r.olusturma || "").slice(0, 10) || null, bugun: n.tarih,
-        });
-        const k = await d.dekontSonuc(r.kayitNo, await ozet(veri), deger);
+        const { okunan, k } = await dekontKontrolEt(env, d, r, veri);
         if (k.onay) onbellegiTemizle(request, ctx);
         const uzanti = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "application/pdf": "pdf" }[r.dekont.tur];
         ctx.waitUntil(bildir(env, {

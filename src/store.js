@@ -316,7 +316,11 @@ export class RezervasyonDeposu extends DurableObject {
       if (onceki && onceki.kayitNo !== b.kayit.kayitNo) nedenler.unshift(`Bu dekont daha önce ${onceki.kayitNo} için yüklenmiş.`);
       else await this.st.put(`dh:${dosyaOzeti}`, { kayitNo: b.kayit.kayitNo, tarih: simdi().tarih });
       const onay = nedenler.length === 0;
-      const kontrol = { onay, nedenler, tutar: deger.tutar, zaman: simdiYazi() };
+      const o = deger.okunan || {};
+      const kontrol = {
+        onay, nedenler, tutar: deger.tutar, zaman: simdiYazi(),
+        okunan: { iban: o.alici_iban || null, ad: o.alici_ad || null, tutar: o.tutar ?? null, tarih: o.tarih || null, model: o._model || null },
+      };
       const kayit = { ...b.kayit, dekont: { ...(b.kayit.dekont || {}), kontrol } };
       if (onay && kayit.durum === DURUM.bekliyor) {
         kayit.durum = DURUM.onayli;

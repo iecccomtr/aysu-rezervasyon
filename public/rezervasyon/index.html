@@ -305,7 +305,7 @@
         <a class="dugme wp" id="t-wp" target="_blank" rel="noopener">Dekontu WhatsApp'tan gönder</a>
         <button class="dugme ikincil" id="yeni" type="button">Başka bir saat ayırt</button>
       </div>
-      <p class="alt-bilgi">Bu ekranın görüntüsünü alın. Sonradan dekont yüklemek ya da iptal etmek için kayıt numaranız gerekecek: <a href="/rezervasyon/#rezervasyonum">aysuhalisaha.com/rezervasyon/#rezervasyonum</a></p>
+      <p class="alt-bilgi">Bu ekranın görüntüsünü alın. Sonradan dekont yüklemek ya da iptal etmek için: <a href="/rezervasyon/#rezervasyonum">aysuhalisaha.com/rezervasyon/#rezervasyonum</a></p>
     </section>
 
     <!-- ===== Rezervasyonum: dekont / iptal (sadece rezervasyon yapınca, kayıtlı rezervasyon varsa ya da #rezervasyonum ile görünür) ===== -->
@@ -643,20 +643,12 @@
     $("rezervasyonum").hidden = false;
     if (ac) { $(ac).open = true; $(ac).scrollIntoView({ block: "start" }); }
   }
-  try {
-    const son = JSON.parse(localStorage.getItem("aysu-son-rez") || "null");
-    // Kayıtlı, maçı henüz geçmemiş bir rezervasyon varsa bölümleri göster ve doldur
-    if (son && son.kayitNo && Date.parse(son.tarih + "T" + son.saat + ":00+03:00") > Date.now()) {
-      rezervasyonumGoster();
-      $("k-kayit").value = son.kayitNo; $("i-kayit").value = son.kayitNo;
-    }
-  } catch {}
+  try { localStorage.removeItem("aysu-son-rez"); } catch {}
+  // Sadece müşteriye gönderilen bağlantıyla (…/rezervasyon/#rezervasyonum) açılır
   if (location.hash === "#rezervasyonum") rezervasyonumGoster("dekont-alan");
 
   function basariGoster(v, g) {
     sayacBaslat(v.opsiyonBitis);
-    rezervasyonumGoster();
-    try { localStorage.setItem("aysu-son-rez", JSON.stringify({ kayitNo: v.kayitNo, tarih: v.tarih, saat: v.saat })); } catch {}
     if (sonRez) { $("k-telefon").value = sonRez.telefon; $("i-telefon").value = sonRez.telefon; }
     const zaman = `${g.gun} ${tarihYazi(g.tarih)}${gece(v.saat) ? " gecesi" : ""}, ${v.saat}`;
     $("t-zaman").textContent = zaman;

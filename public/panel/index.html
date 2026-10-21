@@ -1117,6 +1117,14 @@
     });
   }
 
+  // Başka bir haftaya geçildiyse ve 2 dakika dokunulmadıysa bugünün haftasına dön
+  let sonHareket = Date.now();
+  ["pointerdown", "keydown", "wheel", "touchstart"].forEach((t) => document.addEventListener(t, () => { sonHareket = Date.now(); }, { passive: true }));
+  const baskaHaftada = () => hafta && hafta.bugun && !hafta.gunler.some((g) => g.tarih === hafta.bugun);
+  setInterval(() => {
+    if ($("uygulama").hidden || sekme !== "takvim" || dlg.open || !baskaHaftada()) return;
+    if (Date.now() - sonHareket >= 120_000) { haftaBas = null; seciliGun = null; haftaYukle(); bildir("Bu haftaya dönüldü"); }
+  }, 10_000);
   setInterval(() => { if (!$("uygulama").hidden && sekme === "takvim" && !dlg.open && document.visibilityState === "visible") haftaYukle(); }, 60_000);
 
   basla();

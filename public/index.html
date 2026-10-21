@@ -119,7 +119,17 @@
   }
   .tabela-ust { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; margin-bottom: 14px; }
   .tabela h2 { font-size: 28px; color: var(--tebesir); }
-  .sekmeler { display: flex; gap: 6px; margin-left: auto; }
+  .sekmeler { display: flex; gap: 6px; margin-left: auto; overflow-x: auto; scrollbar-width: none; max-width: 100%; padding-bottom: 2px; }
+  .sekmeler::-webkit-scrollbar { display: none; }
+  .sekmeler button { flex: none; }
+  /* Haftalık görünüm: üstte günler, altta seçilen günün saatleri */
+  .hafta-gunsec { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 10px; }
+  .hafta-gunsec button { font: 600 13px/1.15 "Barlow", sans-serif; color: #b8d3e8; background: transparent; border: 1px solid #24527a; border-radius: 8px; padding: 6px 2px; cursor: pointer; }
+  .hafta-gunsec button b { display: block; font: 700 19px/1 "Barlow Condensed", sans-serif; color: var(--tebesir); }
+  .hafta-gunsec button small { display: block; font-size: 11px; color: var(--isik); font-weight: 600; }
+  .hafta-gunsec button.dolu small { color: #4a6a82; }
+  .hafta-gunsec button[aria-pressed="true"] { background: #0a3352; border-color: var(--isik); }
+  @media (max-width: 560px) { .sekmeler { margin-left: 0; width: 100%; } }
   .sekmeler button {
     font: 600 15px/1 "Barlow", sans-serif; color: #b8d3e8; background: transparent;
     border: 1px solid #2a6c99; border-radius: 999px; padding: 8px 14px; cursor: pointer;
@@ -242,8 +252,7 @@
           <div class="tabela-ust">
             <h2>Boş saatler</h2>
             <div class="sekmeler" role="tablist" aria-label="Gün seçimi">
-              <button type="button" role="tab" aria-selected="true" data-gun="bugun">Bugün</button>
-              <button type="button" role="tab" aria-selected="false" data-gun="yarin">Yarın</button>
+              <button type="button" role="tab" aria-selected="true">Bugün</button>
             </div>
           </div>
           <div class="saatler" id="saatler" role="tabpanel" aria-live="polite">
@@ -392,36 +401,55 @@
     gozlenen.forEach((el) => el && io.observe(el));
   }
 
-  // Boş saatler tabelası
+  // Boş saatler tabelası: Bu gece / Bugün, ardından 1.–4. hafta
   const kutu = document.getElementById("saatler");
-  const sekmeler = document.querySelectorAll(".sekmeler button");
-  let veri = null, secili = "bugun";
-  const etiket = { bugun: "Bugün", yarin: "Yarın" };
+  const sekmeKutu = document.querySelector(".sekmeler");
+  const KISA = { Pazartesi: "Pzt", Salı: "Sal", Çarşamba: "Çar", Perşembe: "Per", Cuma: "Cum", Cumartesi: "Cmt", Pazar: "Paz" };
+  const AYLAR = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"];
+  const tarihKisa = (t) => `${Number(t.slice(8))} ${AYLAR[Number(t.slice(5, 7)) - 1]}`;
+  const link = (g, s, ad) => `<a href="/rezervasyon/?tarih=${g.tarih}&saat=${encodeURIComponent(s.saat)}" aria-label="${ad} ${s.saat} boş, rezervasyon yap">${s.saat}</a>`;
+  let sekmeler = [], secili = 0;
 
-  function ciz() {
-    const gun = veri && veri[secili];
-    if (!gun) { kutu.innerHTML = '<p class="tabela-not">Boş saatler şu an gösterilemiyor. Rezervasyon sayfasından bakabilir ya da arayabilirsiniz.</p>'; return; }
-    if (!gun.saatler.length) { kutu.innerHTML = '<p class="tabela-not">Bu gün için kalan saat yok. Yarına bakın.</p>'; return; }
-    const ad = etiket[secili];
-    kutu.innerHTML = gun.saatler.map((s) => s.bos
-      ? `<a href="/rezervasyon/?tarih=${gun.tarih}&saat=${encodeURIComponent(s.saat)}" aria-label="${ad} ${s.saat} boş, rezervasyon yap">${s.saat}</a>`
-      : `<span aria-label="${s.saat} dolu">${s.saat}</span>`).join("");
+  function sekmeleriKur(gunler) {
+    const trBugun = new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10);
+    sekmeler = [];
+    let i = 0;
+    if (gunler[0] && gunler[0].tarih < trBugun) sekmeler.push({ ad: "Bu gece", gunler: [gunler[i++]], tek: true });
+    if (gunler[i] && gunler[i].tarih === trBugun) sekmeler.push({ ad: "Bugün", gunler: [gunler[i++]], tek: true });
+    for (let h = 1; i < gunler.length; h++, i += 7) sekmeler.push({ ad: `${h}. hafta`, gunler: gunler.slice(i, i + 7) });
+    sekmeKutu.innerHTML = sekmeler.map((x, n) => `<button type="button" role="tab" aria-selected="${n === secili}" data-n="${n}">${x.ad}</button>`).join("");
+    sekmeKutu.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
+      secili = Number(b.dataset.n);
+      sekmeKutu.querySelectorAll("button").forEach((x) => x.setAttribute("aria-selected", String(x === b)));
+      ciz();
+    }));
   }
 
-  sekmeler.forEach((b) => b.addEventListener("click", () => {
-    secili = b.dataset.gun;
-    sekmeler.forEach((x) => x.setAttribute("aria-selected", String(x === b)));
-    ciz();
-  }));
-
-  fetch("/api/bos-saatler").then((r) => r.ok ? r.json() : null).then((v) => {
-    veri = v;
-    // Gece yarısından sonra ilk gün hâlâ dünün gecesiyse sekme adlarını düzelt.
-    const trBugun = new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10);
-    if (v && v.bugun && v.bugun.tarih < trBugun) {
-      etiket.bugun = "Bu gece"; etiket.yarin = "Bugün";
-      sekmeler.forEach((b) => { b.textContent = etiket[b.dataset.gun]; });
+  function ciz() {
+    const sek = sekmeler[secili];
+    if (!sek) { kutu.className = "saatler"; kutu.innerHTML = '<p class="tabela-not">Boş saatler şu an gösterilemiyor. Rezervasyon sayfasından bakabilir ya da arayabilirsiniz.</p>'; return; }
+    if (sek.tek) {
+      const g = sek.gunler[0];
+      kutu.className = "saatler";
+      kutu.innerHTML = g.saatler.length ? g.saatler.map((s) => s.bos ? link(g, s, sek.ad) : `<span aria-label="${s.saat} dolu">${s.saat}</span>`).join("")
+        : '<p class="tabela-not">Bu gün için kalan saat yok. Sonraki sekmeye bakın.</p>';
+      return;
     }
+    // Hafta: gün seçici + seçilen günün saatleri (ilk boş saati olan gün seçili gelir)
+    if (sek.gunSec == null) sek.gunSec = Math.max(0, sek.gunler.findIndex((g) => g.saatler.some((x) => x.bos)));
+    const g = sek.gunler[sek.gunSec];
+    const ad = `${g.gun} ${tarihKisa(g.tarih)}`;
+    kutu.className = "";
+    kutu.innerHTML = `<div class="hafta-gunsec" role="group" aria-label="${sek.ad} günleri">${sek.gunler.map((x, n) => {
+      const bos = x.saatler.filter((y) => y.bos).length;
+      return `<button type="button" data-g="${n}" class="${bos ? "" : "dolu"}" aria-pressed="${n === sek.gunSec}" aria-label="${x.gun} ${tarihKisa(x.tarih)}, ${bos ? bos + " boş saat" : "dolu"}">${KISA[x.gun] || x.gun}<b>${Number(x.tarih.slice(8))}</b><small>${bos ? bos + " boş" : "dolu"}</small></button>`;
+    }).join("")}</div>
+      <div class="saatler">${g.saatler.map((s) => s.bos ? link(g, s, ad) : `<span aria-label="${s.saat} dolu">${s.saat}</span>`).join("")}</div>`;
+    kutu.querySelectorAll("[data-g]").forEach((b) => b.addEventListener("click", () => { sek.gunSec = Number(b.dataset.g); ciz(); }));
+  }
+
+  fetch("/api/musaitlik").then((r) => r.ok ? r.json() : null).then((v) => {
+    if (v && Array.isArray(v.gunler)) sekmeleriKur(v.gunler);
     ciz();
   }).catch(() => ciz());
 })();

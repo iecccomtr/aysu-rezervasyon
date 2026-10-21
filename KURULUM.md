@@ -33,38 +33,41 @@ Müşteri kayıt numarası ve telefonuyla sayfadan kendisi iptal edebilir (maçt
 
 Site Cloudflare'de yayında: **https://aysu-rezervasyon.aysuahmt.workers.dev**. GitHub'a gönderilen her değişiklik otomatik olarak yayına alınır. Şu an **demo modunda**: tabloya bağlı değil ve her saati boş gösteriyor.
 
-Gizli değerler Cloudflare'de **Workers & Pages → aysu-rezervasyon → Settings → Variables and Secrets → Add** yolundan **Secret** olarak girilir. Bu değerleri kimseyle paylaşmayın, bir yere yazmayın.
+Gizli değerler Cloudflare'de **Workers & Pages → aysu-rezervasyon → Settings → Variables and Secrets → Add** yolundan **Secret** olarak girilir. Bu değerleri herkese açık bir yere yazmayın.
 
-### 1. Google servis hesabı (tabloya erişim)
-1. https://console.cloud.google.com adresinde yeni proje açın (ad: `aysu-rezervasyon`).
-2. **APIs & Services → Library** bölümünde **Google Sheets API**'yi bulup **Enable** deyin.
-3. **APIs & Services → Credentials → Create credentials → Service account** yolunu izleyin. İsim verin, rol atamayın.
-4. Oluşan hesaba girin, **Keys → Add key → Create new key → JSON** seçin. Bir dosya iner. İçindeki iki değer lazım:
-   - `client_email` (ör. `aysu-bot@aysu-rezervasyon.iam.gserviceaccount.com`)
-   - `private_key` (`-----BEGIN PRIVATE KEY-----` ile başlayan uzun metin)
-5. **Tablonun sahibi**, "REZERVASYON VE GÖREVLER" tablosunu **Paylaş** düğmesinden `client_email` adresiyle **Düzenleyen** olarak paylaşsın.
-6. Cloudflare'e şu üç secret'ı girin:
+### 1. Tablo köprüsü (Google Apps Script): tablo bağlantısı ve e-posta tek adımda
+Bu adımı **tablonun sahibi** olan Google hesabıyla yapın.
+
+1. "REZERVASYON VE GÖREVLER" tablosunu açın, **Uzantılar → Apps Script**'e girin.
+2. Açılan editördeki kodun hepsini silin, size verilen **Kod.gs** dosyasının içeriğini yapıştırın ve **Kaydet**'e (💾) basın. Dosyada anahtar hazır yazılı gelir. Depodaki `apps-script/Kod.gs` ise anahtarsız şablondur.
+3. Üstteki fonksiyon listesinden **kurulumTesti**'ni seçip **Çalıştır**'a basın. Google izin isteyecek: **İzinleri incele →** hesabınızı seçin → **Gelişmiş → (güvenli değil) sayfasına git → İzin ver**. Bu uyarı, kodu Google'a değil sizin yazdığınız için çıkar. Bir dakika içinde aysuhalisaha@gmail.com'a test e-postası gelir.
+4. Sağ üstte **Dağıt → Yeni dağıtım** yolunu izleyin. Dişli simgesinden **Web uygulaması**'nı seçin:
+   - **Şu kullanıcı olarak yürüt:** Ben
+   - **Erişimi olan:** Herkes
+   - **Dağıt**'a basın ve verilen **Web uygulaması URL'sini** kopyalayın (`https://script.google.com/macros/s/.../exec`).
+5. Cloudflare'de **Workers & Pages → aysu-rezervasyon → Settings → Variables and Secrets → Add** yolundan **iki Secret** ekleyin:
 
    | Ad | Değer |
    |---|---|
-   | `SHEET_ID` | `16Y80fH6RpQyTD_Qqg7FFsaZEwXz6QAO6ZDXx1G_jjP8` |
-   | `GOOGLE_SERVICE_ACCOUNT_EMAIL` | `client_email` |
-   | `GOOGLE_PRIVATE_KEY` | `private_key`'in tamamı (BEGIN/END satırları dahil) |
+   | `SCRIPT_URL` | 4. adımdaki web uygulaması URL'si |
+   | `SCRIPT_ANAHTAR` | Kod.gs'nin başındaki `ANAHTAR` değeri (tırnaklar hariç) |
 
-7. Kontrol için `.../api/saglik` adresini açın. `"depo":"google-sheets"` görünüyorsa bağlantı tamamdır. Site ilk okumada **"Online Rezervasyonlar"** sekmesini kendisi oluşturur.
+6. `https://aysu-rezervasyon.aysuahmt.workers.dev/api/saglik` adresini açın. `"depo":"google-sheets (apps script)"` görünüyorsa kurulum bitti. Tabloda **"Online Rezervasyonlar"** sekmesi ilk rezervasyonda kendiliğinden açılır.
 
-### 2. E-posta bildirimi (Resend, ücretsiz)
-1. https://resend.com adresinde **aysuhalisaha@gmail.com** ile hesap açın.
-2. **API Keys → Create API Key** ile anahtar oluşturun (`re_...` ile başlar).
-3. Cloudflare'e `RESEND_API_KEY` secret'ını girin.
+> Kod.gs'yi sonradan değiştirirseniz **Dağıt → Dağıtımları yönet → düzenle (kalem) → Sürüm: Yeni sürüm → Dağıt** yapın. Yeni dağıtım açarsanız URL değişir ve Cloudflare'deki `SCRIPT_URL`'yi güncellemeniz gerekir.
 
-Bildirimler aysuhalisaha@gmail.com'a gelir. Başka bir adrese gitsin isterseniz `BILDIRIM_EPOSTA` ekleyin. Not: Kendi alan adınızı Resend'de doğrulamadan önce Resend sadece hesabı açtığınız e-postaya gönderim yapar, o yüzden hesabı bu adresle açın.
+Bildirim e-postaları tablonun sahibinin Gmail'inden aysuhalisaha@gmail.com'a gider. Başka bir adrese gitsin isterseniz Cloudflare'e `BILDIRIM_EPOSTA` ekleyin.
 
-### 3. Santral SMS linki
+<details><summary>Alternatif: Google servis hesabı ve Resend (ileri seviye)</summary>
+
+Apps Script yerine Google Cloud servis hesabı da kullanılabilir: `SHEET_ID`, `GOOGLE_SERVICE_ACCOUNT_EMAIL` ve `GOOGLE_PRIVATE_KEY` secret'larını girin ve tabloyu servis hesabıyla "Düzenleyen" olarak paylaşın. Bu durumda e-posta için resend.com'dan alınan `RESEND_API_KEY` gerekir. İki kurulum birlikte yapılırsa Apps Script köprüsü önceliklidir.
+</details>
+
+### 2. Santral SMS linki
 SMS'teki WhatsApp linkini değiştirin. Örnek metin:
 > Aysu Halı Saha'yı aradığınız için teşekkürler. Online rezervasyon: https://aysuhalisaha.com/rezervasyon
 
-### 4. Alan adını yeni siteye geçirme
+### 3. Alan adını yeni siteye geçirme
 Önce her şeyi `workers.dev` adresinde deneyin. Hazır olunca:
 1. Fotoğrafları `public/galeri/` klasörüne koyun (bkz. `BENIOKU.txt`). Şu an fotoğraflar eski siteden çekiliyor.
 2. Cloudflare'de **Add a domain** ile `aysuhalisaha.com`'u ekleyin. Verilen iki nameserver'ı alan adını aldığınız firmanın panelinde güncelleyin.
@@ -86,9 +89,9 @@ SMS'teki WhatsApp linkini değiştirin. Örnek metin:
 GitHub'da dosyayı düzenleyip kaydedin. Cloudflare birkaç dakikada yayına alır.
 
 ## Maliyet
-Cloudflare, Google E-Tablolar ve Resend'in ücretsiz planları bu iş için yeterli. **Aylık ücret yok.**
+Cloudflare, Google E-Tablolar ve Apps Script ücretsizdir. **Aylık ücret yok.** (Gmail'den günde 100 e-postaya kadar gönderilebilir.)
 
 ## Geliştirici notları
-- `npm test`: 20 test (doluluk kuralları, siyah ABONE, gece maçları, çift rezervasyon, iptal, Google bağlantısı, API uçları, e-posta).
+- `npm test`: 24 test (doluluk kuralları, siyah ABONE, gece maçları, çift rezervasyon, iptal, Google bağlantısı, API uçları, e-posta).
 - `node --import ./test/register.mjs test/yerel-sunucu.mjs`: yerel deneme sunucusunu demo depoyla `http://localhost:8787` adresinde açar.
 - Kötüye kullanım koruması: IP başına dakikada 20 istek, görünmez bot tuzağı alanı ve başka sitelerden gelen isteklerin reddi.

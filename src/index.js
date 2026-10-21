@@ -85,7 +85,9 @@ export default {
     const yol = url.pathname;
 
     if (yol === "/api/saglik") {
-      return json({ tamam: true, depo: env.SHEET_ID ? "google-sheets" : "demo" });
+      const depoTuru = env.SCRIPT_URL && env.SCRIPT_ANAHTAR ? "google-sheets (apps script)"
+        : env.SHEET_ID ? "google-sheets" : "demo";
+      return json({ tamam: true, depo: depoTuru });
     }
 
     // Rezervasyon sayfası: önümüzdeki günlerin tüm saatleri (boş/dolu). Kişisel veri içermez.
@@ -180,7 +182,7 @@ export default {
     }
 
     // Sadece demo/yerel test: haftalık tabloyu taklit etmek için.
-    if (yol === "/api/demo/haftalik" && request.method === "POST" && env.DEMO === "1" && !env.SHEET_ID) {
+    if (yol === "/api/demo/haftalik" && request.method === "POST" && env.DEMO === "1" && !env.SHEET_ID && !env.SCRIPT_URL) {
       return json(await depo(env).demoHaftalikAyarla(await request.json()));
     }
 

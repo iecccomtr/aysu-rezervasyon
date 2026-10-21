@@ -18,9 +18,14 @@
     { "name": "SINIR", "namespace_id": "1001", "simple": { "limit": 20, "period": 60 } }
   ],
 
-  "observability": { "enabled": true }
+  "observability": { "enabled": true },
 
-  // Gizli değerler (wrangler secret put ile girilir, buraya YAZILMAZ):
+  // Panelden girilen değişkenler yeni yüklemelerde silinmesin
+  "keep_vars": true
+
+  // Gizli değerler (Cloudflare paneli → Settings → Variables and Secrets → Secret; buraya YAZILMAZ):
+  //   SCRIPT_URL, SCRIPT_ANAHTAR             (Apps Script tablo köprüsü — önerilen kurulum)
+  // veya servis hesabıyla:
   //   SHEET_ID
   //   GOOGLE_SERVICE_ACCOUNT_EMAIL
   //   GOOGLE_PRIVATE_KEY

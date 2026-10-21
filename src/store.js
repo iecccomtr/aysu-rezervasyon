@@ -11,7 +11,8 @@
 //   2) Online Rezervasyonlar sekmesi: sitenin yazdığı tarihli kayıtlar.
 //
 // Depo türü:
-//   - Google E-Tablo: GOOGLE_SERVICE_ACCOUNT_EMAIL, GOOGLE_PRIVATE_KEY, SHEET_ID tanımlıysa
+//   - Google E-Tablo, Apps Script köprüsüyle: SCRIPT_URL + SCRIPT_ANAHTAR tanımlıysa (önerilen)
+//   - Google E-Tablo, servis hesabıyla: GOOGLE_SERVICE_ACCOUNT_EMAIL, GOOGLE_PRIVATE_KEY, SHEET_ID tanımlıysa
 //   - Demo: yoksa her şey Durable Object hafızasında tutulur (deneme için)
 
 import { DurableObject } from "cloudflare:workers";
@@ -21,7 +22,8 @@ import {
   telefonNormalize, gecerliSaat, fiyat, isletmeGunu, haftaBasi,
 } from "./time.js";
 import { haftalikTabloyuCoz, aboneMi, gunNo } from "./haftalik.js";
-import * as sheets from "./sheets.js";
+import * as sheetsApi from "./sheets.js";
+import * as kopru from "./kopru.js";
 
 const iptalMi = (durum) => String(durum || "").toLocaleLowerCase("tr").includes("iptal");
 
@@ -50,8 +52,16 @@ export class RezervasyonDeposu extends DurableObject {
     this.kuyruk = Promise.resolve();
   }
 
+  /** Tablo bağlantısı: önce Apps Script köprüsü, yoksa Google servis hesabı, o da yoksa demo. */
+  get tablo() {
+    const e = this.env;
+    if (kopru.kopruAktif(e)) return kopru;
+    if (e.SHEET_ID && e.GOOGLE_SERVICE_ACCOUNT_EMAIL && e.GOOGLE_PRIVATE_KEY) return sheetsApi;
+    return null;
+  }
+
   get sheetsAktif() {
-    return Boolean(this.env.SHEET_ID && this.env.GOOGLE_SERVICE_ACCOUNT_EMAIL && this.env.GOOGLE_PRIVATE_KEY);
+    return Boolean(this.tablo);
   }
 
   /** İşlemleri sıraya sokar: bir işlem bitmeden diğeri başlamaz. */
@@ -65,7 +75,7 @@ export class RezervasyonDeposu extends DurableObject {
 
   async durumuOku() {
     if (this.sheetsAktif) {
-      const { haftalik, online } = await sheets.oku(this.env);
+      const { haftalik, online } = await this.tablo.oku(this.env);
       return {
         haftalik: haftalikTabloyuCoz(haftalik),
         kayitlar: online.map(satirdanKayit).filter((k) => k.tarih && k.saat),
@@ -77,14 +87,14 @@ export class RezervasyonDeposu extends DurableObject {
   }
 
   async ekle(kayit) {
-    if (this.sheetsAktif) return sheets.satirEkle(this.env, kayittanSatir(kayit));
+    if (this.sheetsAktif) return this.tablo.satirEkle(this.env, kayittanSatir(kayit));
     const liste = (await this.ctx.storage.get("demo_kayitlar")) || [];
     liste.push(kayit);
     await this.ctx.storage.put("demo_kayitlar", liste);
   }
 
   async iptalEt(kayit) {
-    if (this.sheetsAktif) return sheets.hucreGuncelle(this.env, kayit.satirNo, "F", DURUM.iptal);
+    if (this.sheetsAktif) return this.tablo.hucreGuncelle(this.env, kayit.satirNo, "F", DURUM.iptal);
     const liste = (await this.ctx.storage.get("demo_kayitlar")) || [];
     const k = liste.find((x) => x.kayitNo === kayit.kayitNo);
     if (k) k.durum = DURUM.iptal;

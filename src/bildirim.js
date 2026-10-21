@@ -1,6 +1,7 @@
 // İşletmeye bildirim: yeni rezervasyon ve iptallerde e-posta (ve isteğe bağlı Telegram).
 //
-// E-posta için Resend (resend.com, ücretsiz plan) kullanılır:
+// E-posta, Apps Script köprüsü kuruluysa (SCRIPT_URL) tablonun sahibinin Gmail'inden gönderilir.
+// Köprü yoksa Resend (resend.com, ücretsiz plan) kullanılır:
 //   RESEND_API_KEY   → Resend'den alınan anahtar (secret)
 //   BILDIRIM_EPOSTA  → bildirimlerin gideceği adres (yoksa aysuhalisaha@gmail.com)
 //   GONDEREN_EPOSTA  → kendi alan adınız Resend'de doğrulanınca ör. "Aysu Halı Saha <rezervasyon@aysuhalisaha.com>"
@@ -9,13 +10,15 @@
 //
 // Telegram (isteğe bağlı): TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 
+import * as kopru from "./kopru.js";
+
 const VARSAYILAN_ALICI = "aysuhalisaha@gmail.com";
 const VARSAYILAN_GONDEREN = "Aysu Halı Saha <onboarding@resend.dev>";
 
 const kacis = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 async function epostaGonder(env, { konu, satirlar }) {
-  if (!env.RESEND_API_KEY) return;
+  if (!env.RESEND_API_KEY && !kopru.kopruAktif(env)) return;
   const html = `<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.5;color:#13261b">
     <h2 style="margin:0 0 12px;color:#14532d">${kacis(konu)}</h2>
     <table style="border-collapse:collapse">${satirlar.map(([k, v]) =>
@@ -24,6 +27,10 @@ async function epostaGonder(env, { konu, satirlar }) {
     <p style="margin-top:16px;color:#55645a;font-size:13px">Kayıt, Google E-Tablo'daki "Online Rezervasyonlar" sekmesine yazıldı.</p>
   </div>`;
   const metin = `${konu}\n\n${satirlar.map(([k, v]) => `${k}: ${v}`).join("\n")}`;
+  if (kopru.kopruAktif(env)) {
+    await kopru.eposta(env, { konu, metin, html, alici: env.BILDIRIM_EPOSTA || VARSAYILAN_ALICI });
+    return;
+  }
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { authorization: `Bearer ${env.RESEND_API_KEY}`, "content-type": "application/json" },

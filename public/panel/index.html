@@ -1086,6 +1086,7 @@
       <div class="eylemler">
         <a class="dugme ikincil kucuk" href="tel:${m.telefon}">Ara</a>
         <a class="dugme ikincil kucuk" target="_blank" rel="noopener" href="${wa(m.telefon)}">WhatsApp</a>
+        <button class="dugme ikincil kucuk" type="button" id="d-musteri-sil" style="color:#b42318;border-color:#e8b4ae">🗑 Sil</button>
       </div>
       <form id="d-form" novalidate>
         <div class="alan"><label for="d-etiket">Etiket</label><input id="d-etiket" value="${kacis(m.etiket)}" placeholder="ör. VIP, Kurumsal, Dikkat"></div>
@@ -1095,8 +1096,7 @@
       <h3 style="font-size:20px;margin:18px 0 8px">Rezervasyon geçmişi</h3>
       ${m.rezervasyonlar.length ? `<ul class="gecmis-liste">${m.rezervasyonlar.map((r) => `
         <li><span>${tarihYazi(r.isletmeGunu || r.tarih, true)} ${r.saat}<br><small class="soluk">${kacis(r.kaynak || "")} · ${kacis(r.kayitNo)}${r.kapora ? " · kapora " + kacis(r.kapora) : ""}</small></span>
-        <span class="rozet ${durumSinif(r.durum)}">${kacis(r.durum)}</span></li>`).join("")}</ul>` : '<p class="soluk">Kayıt yok.</p>'}
-      <button class="dugme ikincil tam" type="button" id="d-musteri-sil" style="color:#b42318;margin-top:16px">Müşteriyi sil</button>`);
+        <span class="rozet ${durumSinif(r.durum)}">${r.durum === "Kapora bekleniyor" ? "⏳ Opsiyon" : kacis(r.durum)}</span></li>`).join("")}</ul>` : '<p class="soluk">Kayıt yok.</p>'}`);
     $("d-musteri-sil").addEventListener("click", async () => {
       if (!confirm(`${m.ad || telYazi(m.telefon)} ve tüm geçmiş kayıtları kalıcı olarak silinsin mi?`)) return;
       const r = await api("musteri-sil", { telefon: m.telefon });

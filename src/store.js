@@ -232,7 +232,7 @@ export class RezervasyonDeposu extends DurableObject {
       // Kapora ödenmiş rezervasyonlarda sınır yok; aynı numarayla aynı anda sadece BİR ödemesi bekleyen opsiyon olabilir
       const bekleyen = gelecek.find((r) => r.durum === DURUM.bekliyor);
       if (bekleyen) {
-        return { hata: `Bu numarayla ödemesi beklenen bir rezervasyonunuz var (${bekleyen.gun} ${bekleyen.saat}). Önce onun dekontunu yükleyin ya da sayfanın altındaki "Rezervasyonlarım"dan bırakın.` };
+        return { hata: `Bu numarayla ödemesi beklenen bir rezervasyonunuz var (${bekleyen.gun} ${bekleyen.saat}). O saate (⏳) dokunup telefonunuzu yazarak dekontunu yükleyin; süre dolunca yeni rezervasyon yapabilirsiniz.` };
       }
     }
     const kayit = {

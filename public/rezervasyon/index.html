@@ -303,7 +303,7 @@
 
       <div class="dekont-kutu" id="t-dekont">
         <h3>Ödeme yaptıktan sonra dekontu yükleyin</h3>
-        <p>Dekonttaki IBAN, hesap adı ve tutar doğruysa rezervasyonunuz <b>hemen kesinleşir</b>. Kapora gelmeden rezervasyon kesinleşmez.</p>
+        <p>Dekonttaki IBAN ve hesap adı doğruysa rezervasyonunuz <b>hemen kesinleşir</b>. Kapora gelmeden rezervasyon kesinleşmez.</p>
         <label class="dugme tam" for="t-dosya">Dekontun ekran görüntüsünü yükle</label>
         <input type="file" id="t-dosya" accept="image/*" hidden>
         <p class="dekont-sonuc" id="t-dekont-sonuc" role="status" aria-live="polite"></p>
@@ -598,7 +598,7 @@
         sonucEl.classList.add("iyi"); sonucEl.textContent = "✓ Dekontunuz doğrulandı, rezervasyonunuz kesinleşti. İyi maçlar!";
       } else {
         sonucEl.classList.add("kotu");
-        sonucEl.textContent = `Dekont doğrulanamadı${v.nedenler && v.nedenler.length ? ": " + v.nedenler.join(" ") : "."} IBAN'ı (TR70 0015 7000 0000 0154 8342 35), hesap adını (Ahmet Aysu) ve tutarı (en az 1.200 TL) kontrol edip dekontu yeniden yükleyin. Opsiyon süresi içinde doğrulanmazsa yer boşa çıkar.`;
+        sonucEl.textContent = `Dekont doğrulanamadı${v.nedenler && v.nedenler.length ? ": " + v.nedenler.join(" ") : "."} IBAN'ı (TR70 0015 7000 0000 0154 8342 35) ve hesap adını (Ahmet Aysu) kontrol edip dekontu yeniden yükleyin. Opsiyon süresi içinde doğrulanmazsa yer boşa çıkar.`;
       }
     } catch (e) {
       sonucEl.classList.add("kotu"); sonucEl.textContent = e.message || "Dekont yüklenemedi.";

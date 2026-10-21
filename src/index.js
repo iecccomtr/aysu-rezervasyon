@@ -441,6 +441,16 @@ export default {
               : ["Neden", `${k.nedenler.join(" ")} Müşteri süre içinde geçerli dekont yüklemezse yer boşa çıkar.`]],
           ekler: [{ ad: `dekont-${r.kayitNo}.${uzanti}`, tur: r.dekont.tur, veri }],
         }));
+        // Kaporadan az (ya da okunamayan) ödeme: Müdür ve Müdür Yardımcısı'na bilgi
+        if (k.onay && k.eksik) {
+          ctx.waitUntil(d.rolEpostalari(["mudur", "mudur_yrd"]).then((kime) => epostaYolla(env, {
+            kime, konu: `Eksik kapora: ${r.gun} ${r.saat} — ${k.tutar ?? "?"} TL (${r.kayitNo})`,
+            satirlar: [["Maç", `${r.gun}, ${r.tarih} saat ${r.saat}`], ["Ad soyad", r.ad], ["Telefon", r.telefon], ["Kayıt no", r.kayitNo],
+              ["Ödenen", k.tutar != null ? `${k.tutar} TL` : "dekonttan okunamadı"], ["Kapora", `${FIYATLAR.kapora} TL`], ["Toplam ücret", `${r.ucret} TL`]],
+            alt: "Rezervasyon onaylandı (IBAN ve hesap adı doğru). Kalan tutarı sahada tahsil edin.",
+            ekler: [{ ad: `dekont-${r.kayitNo}.${uzanti}`, tur: r.dekont.tur, veri }],
+          })));
+        }
         return json({ basarili: true, kayitNo: r.kayitNo, onay: k.onay, nedenler: k.onay ? [] : k.nedenler });
       } catch (e) {
         console.error(e);

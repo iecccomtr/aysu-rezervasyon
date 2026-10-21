@@ -295,3 +295,20 @@ test("Bağlantısı kopan müşteri opsiyonlu saatine telefonla geri döner; yan
   const l = (await istek("/api/rezervasyonlarim", { telefon: "05321112233" })).veri;
   assert.equal(l.rezervasyonlar[0].kayitNo, r.kayitNo);
 });
+
+test("Dekont: 500 TL ödeme de onaylanır, Müdür ve Müdür Yardımcısı'na eksik kapora e-postası gider", async () => {
+  const AI = { run: async () => ({ response: JSON.stringify({ alici_iban: "TR700015700000000154834235", alici_ad: "Ahmet Aysu", tutar: "500,00", tarih: "2026-10-21" }) }) };
+  const { istek } = await kur({ AI, RESEND_API_KEY: "re_test" });
+  await istek("/api/panel/kur", { kurulumKodu: "kurulum-kodu", eposta: "admin@aysu.com", sifre: "aysu-sifre-1" });
+  for (const [eposta, rol] of [["mudur@aysu.com", "mudur"], ["yrd@aysu.com", "mudur_yrd"], ["p@aysu.com", "personel"]]) {
+    await istek("/api/panel/kayit", { eposta, ad: "Kişi " + rol, sifre: "sifre-1234", rol });
+    await istek("/api/panel/kullanici", { eposta, rol, durum: "aktif" });
+  }
+  const r = (await istek("/api/rezervasyon", REZ)).veri;
+  const y = await istek("/api/dekont", { kayitNo: r.kayitNo, telefon: REZ.telefon, tur: "image/jpeg", ad: "d.jpg", dosya: btoa("y".repeat(300)) });
+  assert.equal(y.veri.onay, true);
+  const eksik = epostalar.find((e) => /^Eksik kapora/.test(e.subject));
+  assert.ok(eksik, "eksik kapora e-postası");
+  assert.deepEqual(eksik.to.sort(), ["mudur@aysu.com", "yrd@aysu.com"]);
+  assert.match(eksik.text, /500 TL/);
+});

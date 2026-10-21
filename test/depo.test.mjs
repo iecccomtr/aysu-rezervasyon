@@ -377,7 +377,9 @@ test("Dekont değerlendirme kuralları", async () => {
   const iyi = { alici_iban: "TR700015700000000154834235", alici_ad: "AHMET AYSU", tutar: 1200, tarih: "21.10.2026" };
   assert.equal(dekontDegerlendir(iyi, k).onay, true);
   assert.equal(dekontDegerlendir({ ...iyi, alici_ad: "Ahmet Aysu" }, k).onay, true, "büyük/küçük harf fark etmez");
-  assert.match(dekontDegerlendir({ ...iyi, tutar: "1.000,00" }, k).nedenler.join(), /kaporadan az/);
+  const az = dekontDegerlendir({ ...iyi, tutar: "500,00" }, k);
+  assert.equal(az.onay, true, "tutar onayı engellemez"); assert.equal(az.eksik, true); assert.equal(az.tutar, 500);
+  assert.equal(dekontDegerlendir({ ...iyi, tutar: 3700 }, k).eksik, false);
   assert.match(dekontDegerlendir({ ...iyi, alici_ad: "MEHMET YILMAZ" }, k).nedenler.join(), /Hesap adı/);
   assert.match(dekontDegerlendir({ ...iyi, tarih: "2026-09-01" }, k).nedenler.join(), /önce/);
   assert.equal(dekontDegerlendir({ hata: "okunamadı" }, k).onay, false);

@@ -5,7 +5,7 @@
 // kalır ve panelde neden yazılır. Sahte dekont ihtimaline karşı:
 //   - aynı dosya ikinci bir rezervasyon için kullanılamaz (dosya özeti saklanır),
 //   - dekont tarihi rezervasyondan eski olamaz,
-//   - tutar kaporadan az ise otomatik onay yok.
+//   - tutar kaporadan azsa yine onaylanır ama Müdür / Müdür Yardımcısı'na e-posta gider.
 // Yine de banka hesabını gün sonunda kontrol etmek önerilir.
 
 const METIN_MODELI = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
@@ -130,14 +130,14 @@ export function dekontDegerlendir(okunan, { iban, alici, kapora, rezTarihi, bugu
   const kelimeler = harfler(alici).split(" ").filter((k) => k.length > 1);
   const tumMetin = harfler(okunan._metin || okunan.tum_metin || "");
   if (!kelimeler.every((k) => ad.includes(k) || tumMetin.includes(k))) nedenler.push(`Hesap adı eşleşmiyor (${okunan.alici_ad || "okunamadı"}).`);
+  // Tutar onayı engellemez (kimi maçın tamamını, kimi 500 TL öder); kaporadan azsa yöneticiye bilgi gider
   const tutar = tutarSayi(okunan.tutar);
-  if (tutar == null) nedenler.push("Tutar okunamadı.");
-  else if (tutar < kapora) nedenler.push(`Tutar kaporadan az: ${tutar} TL (kapora ${kapora} TL).`);
+  const eksik = tutar == null || tutar < kapora;
   const tarih = tarihNorm(okunan.tarih);
   if (!tarih) nedenler.push("Dekont tarihi okunamadı.");
   else if (rezTarihi && tarih < oncekiGun(rezTarihi)) nedenler.push(`Dekont tarihi (${tarih}) rezervasyondan önce.`);
   else if (bugun && tarih > bugun) nedenler.push(`Dekont tarihi (${tarih}) ileri bir tarih.`);
-  return { onay: nedenler.length === 0, nedenler, tutar, okunan };
+  return { onay: nedenler.length === 0, nedenler, tutar, eksik, okunan };
 }
 
 export async function ozet(veri) {

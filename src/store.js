@@ -342,13 +342,13 @@ export class RezervasyonDeposu extends DurableObject {
       if (onay && kayit.durum === DURUM.bekliyor) {
         kayit.durum = DURUM.onayli;
         kayit.opsiyonBitis = null;
-        kayit.kapora = kayit.kapora || String(deger.tutar);
+        kayit.kapora = kayit.kapora || (deger.tutar != null ? String(deger.tutar) : "dekontta okunamadı");
         kayit.onaylayan = "Dekont (otomatik)";
       }
       await this.st.put(b.anahtar, kayit);
       await this.kayitTut(null, onay ? "Dekont otomatik onaylandı" : "Dekont kontrol gerekiyor",
         `${kayit.kayitNo} · ${kayit.ad} · ${onay ? deger.tutar + " TL" : nedenler.join(" ")}`);
-      return { basarili: true, onay, nedenler, rez: kayit };
+      return { basarili: true, onay, nedenler, rez: kayit, eksik: Boolean(deger.eksik), tutar: deger.tutar };
     });
   }
 
@@ -580,6 +580,11 @@ export class RezervasyonDeposu extends DurableObject {
       await this.kayitTut(yapan, "Kullanıcı onayladı (e-posta bağlantısı)", `${u.ad} · ${u.eposta} · ${ROLLER[u.istenenRol].ad}`);
       return { basarili: true, karar: "onayla", ad: u.ad, rolAd: ROLLER[u.istenenRol].ad };
     });
+  }
+
+  /** Belirli rollerdeki aktif kullanıcıların e-postaları (bilgilendirme için). */
+  async rolEpostalari(roller) {
+    return (await this.kullaniciListesi()).filter((u) => u.durum === "aktif" && roller.includes(u.rol)).map((u) => u.eposta);
   }
 
   async kullanicilar() {

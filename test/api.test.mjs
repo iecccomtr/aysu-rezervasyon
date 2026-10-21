@@ -128,7 +128,11 @@ test("Panel: kayıt, onay, Temizlik Şefi sadece haftayı telefonsuz görür; ş
   await istek("/api/panel/rez", { gun: "2026-10-23", saat: "20:00", ad: "Eren", telefon: "0533 000 00 00", kapora: "1200" });
   cerezSil();
   assert.equal((await istek("/api/panel/kayit", { eposta: "t@aysu.com", ad: "Ayşe Temiz", sifre: "temizlik-1", rol: "personel" })).durum, 200);
-  assert.match(epostalar.at(-1).subject, /onay bekliyor/);
+  // Onay e-postası Admin'e gider; bağlantıdaki sayfa bilgi gösterir, onay POST ile olur
+  const onayEp = epostalar.at(-1);
+  assert.deepEqual(onayEp.to, ["m@aysu.com"]);
+  assert.match(onayEp.subject, /^Onay bekliyor: Ayşe Temiz \(Personel\)/);
+  const onayToken = onayEp.text.match(/#onay=([0-9a-f]{64})/)[1];
   assert.match((await istek("/api/panel/giris", { eposta: "t@aysu.com", sifre: "temizlik-1" })).veri.hata, /onay/);
   await istek("/api/panel/giris", { eposta: "m@aysu.com", sifre: "aysu-sifre-1" });
   const liste = (await istek("/api/panel/kullanicilar")).veri;
@@ -137,7 +141,15 @@ test("Panel: kayıt, onay, Temizlik Şefi sadece haftayı telefonsuz görür; ş
   await istek("/api/panel/kullanici", { eposta: "t@aysu.com", rol: "personel" });
   const islem = (await istek("/api/panel/islemler")).veri;
   assert.equal(islem[0].islem, "Kullanıcı güncelledi");
-  assert.equal((await istek("/api/panel/kullanici", { eposta: "t@aysu.com", rol: "temizlik", durum: "aktif" })).durum, 200);
+  cerezSil();
+  const bilgi = (await istek(`/api/panel/onay?t=${onayToken}`)).veri;
+  assert.equal(bilgi.ad, "Ayşe Temiz"); assert.equal(bilgi.rolAd, "Personel");
+  assert.equal((await istek(`/api/panel/onay?t=${onayToken}`)).veri.ad, "Ayşe Temiz", "GET onaylamaz");
+  const onay = await istek("/api/panel/onay", { token: onayToken, karar: "onayla" });
+  assert.equal(onay.durum, 200, JSON.stringify(onay.veri));
+  assert.equal((await istek("/api/panel/onay", { token: onayToken, karar: "onayla" })).durum, 400, "tek kullanımlık");
+  await istek("/api/panel/giris", { eposta: "m@aysu.com", sifre: "aysu-sifre-1" });
+  assert.equal((await istek("/api/panel/kullanici", { eposta: "t@aysu.com", rol: "temizlik" })).durum, 200);
   cerezSil();
   await istek("/api/panel/giris", { eposta: "t@aysu.com", sifre: "temizlik-1" });
   const h = (await istek("/api/panel/hafta?bas=2026-10-19")).veri;

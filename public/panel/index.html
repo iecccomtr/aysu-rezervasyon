@@ -239,6 +239,7 @@
     <p class="alt" id="giris-alt"></p>
     <div id="giris-uyari" class="uyari" role="alert" hidden></div>
     <div id="giris-tamam" class="tamam-kutu" role="status" hidden></div>
+    <div id="onay-alan" data-mod="onay"></div>
     <div class="alan" data-mod="kur"><label for="g-kod">Kurulum kodu</label><input id="g-kod" autocomplete="off" autocapitalize="off"></div>
     <div class="alan" data-mod="kur kayit"><label for="g-ad">Ad soyad</label><input id="g-ad" autocomplete="name" maxlength="60"></div>
     <div class="alan" data-mod="giris kur kayit unuttum"><label for="g-eposta">E-posta</label><input id="g-eposta" type="email" inputmode="email" autocomplete="username" autocapitalize="off" spellcheck="false"></div>
@@ -250,7 +251,7 @@
     <div class="alan" data-mod="kur kayit sifirla"><label for="g-sifre2">Şifre (tekrar)</label><input id="g-sifre2" type="password" autocomplete="new-password"></div>
     <input type="text" id="g-web" name="web" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
     <div id="g-dogrulama" data-mod="kayit unuttum" style="margin-bottom:8px"></div>
-    <button class="dugme tam" type="submit" id="giris-dugme">Giriş yap</button>
+    <button class="dugme tam" type="submit" id="giris-dugme" data-mod="giris kur kayit unuttum sifirla">Giriş yap</button>
     <p class="giris-linkler" id="giris-not"></p>
   </form>
 </section>
@@ -326,7 +327,7 @@
     <!-- Kullanıcılar (Müdür / Müdür Yardımcısı) -->
     <section id="v-kullanicilar" data-gorunum hidden>
       <div class="baslik-satir"><h2>Kullanıcılar</h2><span class="soluk sag" id="kullanici-sayi"></span></div>
-      <p class="soluk" style="margin-bottom:12px">Personel <b>/panel</b> adresinden e-postasıyla kayıt olur. Burada rol seçip hesabı açarsınız. Temizlik Şefi ve Personel sadece haftalık tabloyu görür.</p>
+      <p class="soluk" style="margin-bottom:12px">Personel <b>/panel</b> adresinden e-postasıyla kayıt olur. Burada onaylayıp hesabı açarsınız.</p>
       <div class="kutu" id="kullanici-liste"></div>
       <div id="islem-alan" hidden>
         <div class="baslik-satir" style="margin-top:22px"><h2>İşlem kaydı</h2><span class="soluk sag">Sadece Admin görür</span></div>
@@ -421,6 +422,7 @@
     giris: { baslik: "Panel girişi", alt: "E-posta adresiniz ve şifrenizle girin.", dugme: "Giriş yap", yol: "giris" },
     kayit: { baslik: "Kayıt ol", alt: "Görevinizi seçin. Hesabınız yönetici (Admin / Müdür) onayladıktan sonra açılır.", dugme: "Kayıt ol", yol: "kayit" },
     unuttum: { baslik: "Şifremi unuttum", alt: "E-posta adresinizi yazın, şifre yenileme bağlantısı gönderelim.", dugme: "Bağlantı gönder", yol: "sifre-unuttum" },
+    onay: { baslik: "Kullanıcı onayı", alt: "E-postadaki bağlantıyla yeni kaydı onaylayın ya da reddedin.", dugme: "", yol: "" },
     sifirla: { baslik: "Yeni şifre", alt: "Yeni şifrenizi belirleyin.", dugme: "Şifreyi kaydet", yol: "sifre-sifirla" },
     kur: { baslik: "Admin kurulumu", alt: "Kurulum koduyla Admin hesabı oluşturulur (şifre unutulursa da buradan yenilenir). Diğer çalışanlar giriş ekranındaki \"Kayıt ol\" ile görevlerini seçerek kaydolur; Admin onaylar.", dugme: "Admin hesabını kaydet ve gir", yol: "kur" },
   };
@@ -458,6 +460,8 @@
   async function basla() {
     const h = location.hash.match(/^#sifirla=([0-9a-f]{64})$/);
     if (h) { sifirlaToken = h[1]; history.replaceState(null, "", location.pathname); return girisGoster("sifirla"); }
+    const o = location.hash.match(/^#onay=([0-9a-f]{64})$/);
+    if (o) { history.replaceState(null, "", location.pathname); return onayGoster(o[1]); }
     try {
       const d = await (await fetch("/api/panel/durum", { cache: "no-store" })).json();
       kurulu = d.kurulu;
@@ -468,6 +472,32 @@
       girisGoster("giris");
       girisUyari("Sunucuya ulaşılamadı. Sayfayı yenileyin.");
     }
+  }
+
+  // E-postadaki onay bağlantısı: bilgiyi göster, karar düğmeyle (POST) verilir
+  async function onayGoster(token) {
+    girisGoster("onay");
+    const alan = $("onay-alan");
+    alan.innerHTML = '<p class="soluk">Yükleniyor…</p>';
+    const v = await (await fetch("/api/panel/onay?t=" + token, { cache: "no-store" })).json().catch(() => ({ hata: "Sunucuya ulaşılamadı." }));
+    if (v.hata) { alan.innerHTML = ""; girisUyari(v.hata); return; }
+    alan.innerHTML = `<div class="kutu" style="padding:12px 14px;margin-bottom:14px;line-height:1.6">
+        <b style="font-size:19px">${kacis(v.ad)}</b><br>${kacis(v.eposta)}${v.telefon ? "<br>" + telYazi(v.telefon) : ""}
+        <br>İstediği görev: <b>${kacis(v.rolAd)}</b><br><span class="soluk" style="font-size:14px">Kayıt: ${kacis(v.kayit || "")}</span></div>
+      <div style="display:grid;gap:8px">
+        <button class="dugme tam" type="button" data-karar="onayla">Onayla (${kacis(v.rolAd)})</button>
+        <button class="dugme ikincil tam" type="button" data-karar="reddet" style="color:#b42318">Reddet ve kaydı sil</button>
+      </div>`;
+    alan.querySelectorAll("[data-karar]").forEach((b) => b.addEventListener("click", async () => {
+      if (b.dataset.karar === "reddet" && !confirm(`${v.ad} kaydı silinsin mi?`)) return;
+      alan.querySelectorAll("button").forEach((x) => { x.disabled = true; });
+      const r = await (await fetch("/api/panel/onay", { method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ token, karar: b.dataset.karar }) })).json().catch(() => ({ hata: "Bağlantı kurulamadı." }));
+      alan.innerHTML = "";
+      if (r.hata) return girisUyari(r.hata);
+      girisTamam(r.karar === "reddet" ? `${r.ad} kaydı reddedildi ve silindi.` : `${r.ad} onaylandı (${r.rolAd}). Artık panele giriş yapabilir.`);
+      $("giris-not").innerHTML = '<a href="/panel/">Panele git</a>';
+    }));
   }
 
   function girisUyari(metin) { $("giris-uyari").textContent = metin; $("giris-uyari").hidden = !metin; }
@@ -486,7 +516,7 @@
     $("g-sifre-etiket").textContent = yeni ? "Şifre (en az 8 karakter)" : "Şifre";
     $("g-sifre").autocomplete = yeni ? "new-password" : "current-password";
     const link = (m2, yazi) => `<a href="#" data-git="${m2}">${yazi}</a>`;
-    $("giris-not").innerHTML = mod === "giris" ? link("unuttum", "Şifremi unuttum") + link("kayit", "Kayıt ol")
+    $("giris-not").innerHTML = mod === "onay" ? '<a href="/panel/">Panele git</a>' : mod === "giris" ? link("unuttum", "Şifremi unuttum") + link("kayit", "Kayıt ol")
       : mod === "kur" ? (kurulu ? link("giris", "← Girişe dön") : "")
       : link("giris", "← Girişe dön") + (mod === "unuttum" ? link("kur", "Admin: kurulum koduyla sıfırla") : "");
     $("giris-not").querySelectorAll("[data-git]").forEach((a) => a.addEventListener("click", (e) => {
@@ -1084,7 +1114,6 @@
       <div class="alan"><label for="d-rol">Rol</label>
         <select id="d-rol"><option value="">— Rol seçin —</option>${roller.map(([k, ad]) => `<option value="${k}"${(u.rol || u.istenenRol) === k ? " selected" : ""}>${ad}</option>`).join("")}</select>
       </div>
-      <p class="soluk" style="font-size:14px;margin:-4px 0 12px">Admin, Müdür ve Müdür Yardımcısı her şeye erişir; herkes sadece kendinden alt görevleri yönetir. Temizlik Şefi ve Personel sadece haftalık tabloyu görür, değişiklik yapamaz.</p>
       <div class="eylemler" style="display:grid;gap:8px">
         ${u.durum === "aktif"
           ? '<button class="dugme" type="button" id="d-kaydet">Kaydet</button><button class="dugme ikincil" type="button" id="d-kapat">Hesabı kapat</button>'

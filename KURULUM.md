@@ -78,16 +78,20 @@ Kurallar: en fazla 4 hafta ileriye rezervasyon (sayfada haftalar ‹ › okları
 
 ## İsteğe bağlı
 
-### E-posta (bildirim, şifre sıfırlama) — isteğe bağlı
-"Şifremi unuttum" bağlantısının e-postayla gidebilmesi için (kurulmazsa yönetici bağlantıyı panelden alıp WhatsApp'tan iletir):
-1. resend.com'da **aysuhalisaha@gmail.com** ile ücretsiz hesap açın (ayda 3.000 e-posta).
-2. Resend → **Domains → Add domain** → `aysuhalisaha.com`. Gösterilen DNS kayıtlarını Cloudflare → aysuhalisaha.com → **DNS**'e ekleyin (Resend'in "Sign in to Cloudflare" düğmesi bunu otomatik de yapabilir). Gmail kullanımınızı etkilemez.
-3. Resend → **API Keys → Create** ile anahtar alın.
-4. Cloudflare → Workers → aysu-rezervasyon → **Settings → Variables and Secrets**:
-   - `RESEND_API_KEY` → **Secret** olarak anahtar
-   - `GONDEREN_EPOSTA` → **Text** olarak `Aysu Halı Saha <panel@aysuhalisaha.com>`
+### E-posta (Gmail) — kayıt onayı, şifre sıfırlama, rezervasyon bildirimi
+E-postalar işletmenin Gmail hesabından gider:
+1. O Gmail hesabında myaccount.google.com → **Güvenlik** → **2 Adımlı Doğrulama**'yı açın.
+2. Arama kutusuna **Uygulama şifreleri** yazın → ad "Aysu site" → **Oluştur**. 16 haneli şifreyi kopyalayın.
+3. Cloudflare → Workers → aysu-rezervasyon → **Settings → Variables and Secrets**:
+   - `GMAIL_ADRES` → **Text**: Gmail adresi
+   - `GMAIL_UYGULAMA_SIFRESI` → **Secret**: 16 haneli uygulama şifresi
 
-Alan adı doğrulanmadan Resend sadece hesabı açtığınız adrese gönderir; personele gitmez.
+Bundan sonra:
+- **Yeni kayıt** olunca Admin'e ve (görev Müdür'den alt ise) Müdür'e **"…kullanıcısını onayla"** düğmeli e-posta gider. Düğme açılan sayfada **Onayla** / **Reddet** sorar (e-posta programları bağlantıyı önceden açsa bile kimse kendiliğinden onaylanmaz). Bağlantı 7 gün geçerli, tek kullanımlıktır; biri onaylayınca diğerlerinin bağlantısı geçersiz olur. Onay İşlem kaydına yazılır.
+- **Şifremi unuttum** e-postası gider.
+- Online rezervasyon / iptal bildirimi `BILDIRIM_EPOSTA` adresine (yoksa aysuhalisaha@gmail.com) gider.
+
+Gmail şifresi değişirse uygulama şifresi iptal olur; yenisini oluşturup Cloudflare'de güncelleyin. (Alternatif: Resend — `RESEND_API_KEY` + `GONDEREN_EPOSTA`.)
 
 ### Bot koruması (Cloudflare Turnstile) — önerilir
 Hız sınırı (IP başına dakikada 20 istek), gizli bot tuzağı ve aynı-site kontrolü zaten açık. Ek olarak "ben robot değilim" doğrulaması için:

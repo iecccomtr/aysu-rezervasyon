@@ -3,7 +3,7 @@
 
 import { simdi, isletmeGunu, gunEkle } from "./time.js";
 import { KURALLAR, FIYATLAR, IBAN, ISLETME } from "./config.js";
-import { bildir, epostaYolla } from "./bildirim.js";
+import { bildir, epostaYolla, epostaKurulu } from "./bildirim.js";
 import { ROLLER } from "./store.js";
 export { RezervasyonDeposu } from "./store.js";
 
@@ -167,7 +167,7 @@ async function panel(request, env, ctx, yol) {
   if (yol === "durum") {
     const { kurulu } = await d.panelDurum();
     const k = await d.oturum(token);
-    return json({ kurulu, girisli: Boolean(k), kullanici: k, eposta: Boolean(env.RESEND_API_KEY), dogrulama: env.TURNSTILE_SITE_KEY || null });
+    return json({ kurulu, girisli: Boolean(k), kullanici: k, eposta: epostaKurulu(env), dogrulama: env.TURNSTILE_SITE_KEY || null });
   }
   if (post && ["kur", "giris", "kayit", "sifre-unuttum", "sifre-sifirla"].includes(yol)) {
     if (await sinirAsildi(env, request, "giris")) return cokFazla();
@@ -179,14 +179,7 @@ async function panel(request, env, ctx, yol) {
     if (yol === "sifre-sifirla") return girisCevabi(await d.sifreSifirla(g));
     if (yol === "kayit") {
       const r = await d.kayitOl(g);
-      if (r.basarili) {
-        ctx.waitUntil(bildir(env, {
-          konu: `Panel: yeni kayıt onay bekliyor (${r.kullanici.ad})`,
-          satirlar: [["Ad", r.kullanici.ad], ["E-posta", r.kullanici.eposta], ["Telefon", r.kullanici.telefon || "-"],
-            ["İstenen rol", r.kullanici.istenenRolAd],
-            ["Ne yapmalı?", "Panel → Kullanıcılar bölümünden rol seçip onaylayın."]],
-        }));
-      }
+      if (r.basarili) ctx.waitUntil(onayEpostalari(env, d, r.kullanici, url.origin).catch((e) => console.error("Onay e-postası", e)));
       return json(r.basarili ? { basarili: true } : r, r.basarili ? 200 : 400);
     }
     // Şifremi unuttum: hesap olsun olmasın aynı cevap (kimin kayıtlı olduğu anlaşılmasın)
@@ -195,11 +188,24 @@ async function panel(request, env, ctx, yol) {
       const link = `${url.origin}/panel/#sifirla=${r.token}`;
       ctx.waitUntil(epostaYolla(env, {
         kime: [r.eposta], konu: "Aysu Halı Saha panel şifre sıfırlama",
-        satirlar: [["Merhaba", r.ad], ["Şifrenizi yenilemek için", link], ["Geçerlilik", "1 saat"]],
+        satirlar: [["Merhaba", r.ad], ["Geçerlilik", "1 saat, tek kullanımlık"]],
+        dugme: { yazi: "Şifremi yenile", link },
         alt: "Bu isteği siz yapmadıysanız bu e-postayı yok sayın.",
       }));
     }
-    return json({ basarili: true, eposta: Boolean(env.RESEND_API_KEY) });
+    return json({ basarili: true, eposta: epostaKurulu(env) });
+  }
+  // E-postadaki onay bağlantısı: GET bilgi gösterir, onay/ret POST ile (e-posta tarayıcılarının
+  // bağlantıyı önceden açması kullanıcıyı kendiliğinden onaylamasın diye)
+  if (yol === "onay") {
+    if (await sinirAsildi(env, request, "giris")) return cokFazla();
+    if (!post) {
+      const r = await d.onayBilgisi(url.searchParams.get("t"));
+      return json(r, r.hata ? 400 : 200);
+    }
+    const g = (await govdeOku(request)) || {};
+    const r = await d.onayKarari(g.token, g.karar === "reddet" ? "reddet" : "onayla");
+    return json(r, r.hata ? 400 : 200);
   }
   if (yol === "cikis" && post) {
     await d.cikis(token);
@@ -274,6 +280,20 @@ async function panel(request, env, ctx, yol) {
     }
     default: return json({ hata: "Bulunamadı" }, 404);
   }
+}
+
+/** Yeni kayıt: Admin ve Müdür(ler)e tek tıkla onay bağlantısı. */
+async function onayEpostalari(env, d, kullanici, koken) {
+  if (!epostaKurulu(env)) return;
+  const baglantilar = await d.onayBaglantilari(kullanici.eposta);
+  await Promise.all(baglantilar.map((b) => epostaYolla(env, {
+    kime: [b.kime],
+    konu: `Onay bekliyor: ${kullanici.ad} (${kullanici.istenenRolAd})`,
+    satirlar: [["Merhaba", b.ad], ["Ad soyad", kullanici.ad], ["E-posta", kullanici.eposta], ["Telefon", kullanici.telefon || "-"],
+      ["İstediği görev", kullanici.istenenRolAd]],
+    dugme: { yazi: `${kullanici.ad} kullanıcısını onayla`, link: `${koken}/panel/#onay=${b.token}` },
+    alt: "Bağlantı 7 gün geçerli ve tek kullanımlık. Açılan sayfada Onayla ya da Reddet'i seçin. Kişiyi tanımıyorsanız reddedin.",
+  })));
 }
 
 const ISLEM_ADLARI = {

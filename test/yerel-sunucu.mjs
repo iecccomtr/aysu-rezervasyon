@@ -33,7 +33,19 @@ const ASSETS = {
   },
 };
 
+// Yerel denemede e-postalar gönderilmez, konsola yazılır (onay / şifre bağlantılarını görmek için).
+const gercekFetch = globalThis.fetch;
+globalThis.fetch = async (url, init) => {
+  if (String(url).startsWith("https://api.resend.com/")) {
+    const e = JSON.parse(init.body);
+    console.log(`\n[E-POSTA] ${e.to.join(", ")} — ${e.subject}\n${e.text}\n`);
+    return new Response("{}");
+  }
+  return gercekFetch(url, init);
+};
+
 const env = {
+  RESEND_API_KEY: "yerel",
   ASSETS,
   PANEL_KURULUM_KODU: KOD,
   REZERVASYON_DEPOSU: { idFromName: () => "aysu", get: () => depo },

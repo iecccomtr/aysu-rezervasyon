@@ -395,6 +395,65 @@ export class RezervasyonDeposu extends DurableObject {
     });
   }
 
+  // ---------- E-postadaki bağlantıyla onay ----------
+  //   t:<token>  { eposta (onaylanacak), onaylayan (eposta), bitis } — 7 gün geçerli, tek kullanımlık
+
+  /** Yeni kaydı onaylayabilecek kişiler (Admin her zaman; Müdür, istenen rol kendinden alttaysa) için birer bağlantı. */
+  async onayBaglantilari(eposta) {
+    return this.kilitli(async () => {
+      const u = await this.st.get(`u:${eposta}`);
+      if (!u || u.durum !== "bekliyor") return [];
+      const onaylayanlar = (await this.kullaniciListesi())
+        .filter((x) => x.durum === "aktif" && (x.rol === "admin" || x.rol === "mudur") && yonetebilir(x, u.istenenRol));
+      const sonuc = [];
+      for (const x of onaylayanlar) {
+        const token = hex(crypto.getRandomValues(new Uint8Array(32)));
+        await this.st.put(`t:${token}`, { eposta: u.eposta, onaylayan: x.eposta, bitis: Date.now() + 7 * 86400_000 });
+        sonuc.push({ kime: x.eposta, ad: x.ad, token });
+      }
+      return sonuc;
+    });
+  }
+
+  async onayBaglantilariniSil(eposta) {
+    const sil = [...(await this.st.list({ prefix: "t:" }))].filter(([, v]) => v.eposta === eposta).map(([k]) => k);
+    if (sil.length) await this.st.delete(sil);
+  }
+
+  async onayBilgisi(token) {
+    if (!token || !/^[0-9a-f]{64}$/.test(token)) return { hata: "Bağlantı geçersiz." };
+    const t = await this.st.get(`t:${token}`);
+    if (!t || t.bitis < Date.now()) return { hata: "Bağlantının süresi dolmuş ya da daha önce kullanılmış." };
+    const u = await this.st.get(`u:${t.eposta}`);
+    if (!u) return { hata: "Bu kayıt artık yok." };
+    if (u.durum !== "bekliyor") return { hata: `${u.ad} zaten ${u.durum === "aktif" ? "onaylanmış" : "kapatılmış"}.` };
+    return { ad: u.ad, eposta: u.eposta, telefon: u.telefon, rolAd: ROLLER[u.istenenRol]?.ad || "", kayit: u.kayit };
+  }
+
+  /** karar: "onayla" (istenen rolle hesabı açar) ya da "reddet" (kaydı siler). */
+  async onayKarari(token, karar) {
+    return this.kilitli(async () => {
+      if (!token || !/^[0-9a-f]{64}$/.test(token)) return { hata: "Bağlantı geçersiz." };
+      const t = await this.st.get(`t:${token}`);
+      if (!t || t.bitis < Date.now()) return { hata: "Bağlantının süresi dolmuş ya da daha önce kullanılmış." };
+      const [u, yapan] = await Promise.all([this.st.get(`u:${t.eposta}`), this.st.get(`u:${t.onaylayan}`)]);
+      const tumu = await this.st.list({ prefix: "t:" });
+      const sil = [...tumu].filter(([, v]) => v.eposta === t.eposta).map(([k]) => k);
+      if (!u || u.durum !== "bekliyor") { if (sil.length) await this.st.delete(sil); return { hata: "Bu kayıt artık onay beklemiyor." }; }
+      if (!yapan || yapan.durum !== "aktif" || !yonetebilir(yapan, u.istenenRol)) return { hata: "Bu bağlantıyla onay yetkiniz kalmamış." };
+      if (sil.length) await this.st.delete(sil); // tüm onaylayıcıların bağlantıları geçersiz olur
+      if (karar === "reddet") {
+        await this.st.delete(`u:${u.eposta}`);
+        await this.kayitTut(yapan, "Kaydı reddetti (e-posta bağlantısı)", `${u.ad} · ${u.eposta}`);
+        return { basarili: true, karar, ad: u.ad };
+      }
+      if (!ROLLER[u.istenenRol]) return { hata: "Kayıtta görev seçilmemiş; panelden onaylayın." };
+      await this.st.put(`u:${u.eposta}`, { ...u, rol: u.istenenRol, durum: "aktif" });
+      await this.kayitTut(yapan, "Kullanıcı onayladı (e-posta bağlantısı)", `${u.ad} · ${u.eposta} · ${ROLLER[u.istenenRol].ad}`);
+      return { basarili: true, karar: "onayla", ad: u.ad, rolAd: ROLLER[u.istenenRol].ad };
+    });
+  }
+
   async kullanicilar() {
     return (await this.kullaniciListesi())
       .map(kullaniciDisi)
@@ -429,6 +488,7 @@ export class RezervasyonDeposu extends DurableObject {
       }
       await this.st.put(`u:${e}`, yeni);
       if (yeni.durum !== "aktif" || yeni.rol !== u.rol) await this.oturumlariKapat(e);
+      if (u.durum === "bekliyor" && yeni.durum !== "bekliyor") await this.onayBaglantilariniSil(e);
       return { basarili: true, kullanici: kullaniciDisi(yeni) };
     });
   }
@@ -456,6 +516,7 @@ export class RezervasyonDeposu extends DurableObject {
       }
       await this.st.delete(`u:${e}`);
       await this.oturumlariKapat(e);
+      await this.onayBaglantilariniSil(e);
       return { basarili: true };
     });
   }
@@ -783,7 +844,7 @@ export class RezervasyonDeposu extends DurableObject {
       const atla = await this.st.list({ start: "x:", end: `x:${sinir}` });
       silinecek.push(...atla.keys());
       // süresi dolmuş oturum ve şifre bağlantıları
-      for (const onek of ["o:", "s:"]) {
+      for (const onek of ["o:", "s:", "t:"]) {
         for (const [k, v] of await this.st.list({ prefix: onek })) if (!v.bitis || v.bitis < Date.now()) silinecek.push(k);
       }
       for (let i = 0; i < silinecek.length; i += 128) await this.st.delete(silinecek.slice(i, i + 128));

@@ -15,29 +15,32 @@ Canlı adres: **https://aysu-rezervasyon.aysuahmt.workers.dev**. GitHub'a gönde
 
 ## Panel kurulumu ve kullanıcılar
 
-### İlk kurulum (Müdür hesabı, bir kez)
+### İlk kurulum (Admin hesabı, bir kez)
 1. `/panel/` adresini açın. Panel henüz kurulmadıysa **Panel kurulumu** ekranı gelir.
 2. **Kurulum kodu** (`wrangler.jsonc` → `PANEL_KURULUM_KODU`), adınız, e-postanız ve şifrenizi (en az 8 karakter) girin.
-3. Bu hesap **Müdür** olur. Oturum 30 gün açık kalır.
+3. Bu hesap **Admin** olur (her şeyi kontrol eder, işlem kaydını görür). Sonraki girişler normal e-posta + şifre ekranından yapılır. Oturum 30 gün açık kalır.
 
 ### Personel nasıl eklenir?
-1. Personel `/panel/` → **Kayıt ol** ile ad, e-posta ve şifresini girer.
+1. Personel `/panel/` → **Kayıt ol** ile ad, e-posta, **görevini** ve şifresini girer.
 2. Hesap **onay bekliyor** durumunda kalır; Müdür onaylamadan giriş yapılamaz.
-3. Müdür (veya Müdür Yardımcısı) **Panel → Kullanıcılar**'da kişiye dokunur, **rol** seçer ve **Onayla ve hesabı aç**'a basar.
+3. Admin / Müdür / Müdür Yardımcısı **Panel → Kullanıcılar**'da kişiye dokunur (seçtiği görev hazır gelir) ve **Onayla ve hesabı aç**'a basar. Herkes sadece kendinden alt görevleri onaylayabilir.
 
 | Rol | Yetki |
 |---|---|
-| Müdür | Her şey (Müdür hesaplarını da yönetir) |
-| Müdür Yardımcısı | Her şey (Müdür hesaplarına dokunamaz, kimseyi Müdür yapamaz) |
+| Admin | Her şey; tüm hesapları yönetir; **İşlem kaydı**nı (kim, ne zaman, ne yaptı) görür |
+| Müdür | Her şey; Müdür Yardımcısı, Temizlik Şefi ve Personel'i yönetir |
+| Müdür Yardımcısı | Her şey; Temizlik Şefi ve Personel'i yönetir |
 | Temizlik Şefi | Sadece haftalık rezervasyon tablosunu görür (telefon, kapora görünmez), değişiklik yapamaz |
 | Personel | Temizlik Şefi ile aynı |
 
-Hesabı kapatılan kullanıcının açık oturumu hemen kapanır. En az bir aktif Müdür her zaman kalır.
+Hesabı kapatılan kullanıcının açık oturumu hemen kapanır. En az bir aktif Admin her zaman kalır.
+
+Takvim tablosunda aboneler adla değil **numarayla** görünür ("Abone 3"). Numara abone formundan değiştirilebilir; boş bırakılırsa ilk boş numara verilir.
 
 ### Şifremi unuttum
 - Giriş ekranında **Şifremi unuttum** → e-posta yazılır → 1 saat geçerli, tek kullanımlık yenileme bağlantısı e-postaya gider (e-posta kurulumu gerekir, aşağıda).
 - E-posta kurulu değilse: Müdür, **Kullanıcılar → kişi → Şifre yenileme bağlantısı al** ile bağlantıyı alıp WhatsApp'tan iletir.
-- Müdür kendi şifresini unutursa: **Şifremi unuttum → Müdür: kurulum koduyla sıfırla** (kurulum kodu + e-posta + yeni şifre).
+- Admin şifresini unutursa: **Şifremi unuttum → Admin: kurulum koduyla sıfırla** (kurulum kodu + e-posta + yeni şifre).
 
 ### Mesai e-postası
 Her akşam **20:00**'de ertesi günün çalışma saati, rolü Temizlik Şefi veya Personel olan aktif kullanıcılara e-postayla gider: **işe başlama = ilk maçtan 1 saat önce**, ilk/son maç ve tahmini bitiş (son maçtan 1 saat sonra). Önizleme ve **Şimdi gönder** düğmesi: Panel → Kullanıcılar → Mesai e-postası. Kişi bazında kapatılabilir.

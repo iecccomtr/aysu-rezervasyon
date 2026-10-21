@@ -89,8 +89,8 @@ test("Bot koruması (Turnstile): anahtar varsa doğrulamasız rezervasyon/kayıt
   assert.equal((await istek("/api/rezervasyon", REZ)).durum, 403);
   assert.equal((await istek("/api/rezervasyon", { ...REZ, dogrulama: "bot" })).durum, 403);
   assert.equal((await istek("/api/rezervasyon", { ...REZ, dogrulama: "insan" })).durum, 200);
-  assert.equal((await istek("/api/panel/kayit", { eposta: "x@aysu.com", ad: "Bot", sifre: "12345678" })).durum, 403);
-  assert.equal((await istek("/api/panel/kayit", { eposta: "x@aysu.com", ad: "İnsan", sifre: "12345678", dogrulama: "insan" })).durum, 200);
+  assert.equal((await istek("/api/panel/kayit", { eposta: "x@aysu.com", ad: "Bot", sifre: "12345678", rol: "personel" })).durum, 403);
+  assert.equal((await istek("/api/panel/kayit", { eposta: "x@aysu.com", ad: "İnsan", sifre: "12345678", rol: "personel", dogrulama: "insan" })).durum, 200);
 });
 
 test("İptal: doğru kayıt no + telefonla; saat yeniden boşalır", async () => {
@@ -112,7 +112,7 @@ test("Panel: girişsiz erişim yok; kurulum, giriş, çıkış", async () => {
   assert.equal(k.durum, 200);
   assert.match(k.r.headers.get("set-cookie"), /aysu_panel=[0-9a-f]{64}; Path=\/; HttpOnly; Secure; SameSite=Strict/);
   assert.equal((await istek("/api/panel/hafta")).durum, 200);
-  assert.equal((await istek("/api/panel/durum")).veri.kullanici.rol, "mudur");
+  assert.equal((await istek("/api/panel/durum")).veri.kullanici.rol, "admin");
   await istek("/api/panel/cikis", {});
   assert.equal((await istek("/api/panel/hafta")).durum, 401);
   cerezSil();
@@ -127,12 +127,16 @@ test("Panel: kayıt, onay, Temizlik Şefi sadece haftayı telefonsuz görür; ş
   await istek("/api/panel/kur", { kurulumKodu: "kurulum-kodu", eposta: "m@aysu.com", sifre: "aysu-sifre-1" });
   await istek("/api/panel/rez", { gun: "2026-10-23", saat: "20:00", ad: "Eren", telefon: "0533 000 00 00", kapora: "1200" });
   cerezSil();
-  assert.equal((await istek("/api/panel/kayit", { eposta: "t@aysu.com", ad: "Ayşe Temiz", sifre: "temizlik-1" })).durum, 200);
+  assert.equal((await istek("/api/panel/kayit", { eposta: "t@aysu.com", ad: "Ayşe Temiz", sifre: "temizlik-1", rol: "personel" })).durum, 200);
   assert.match(epostalar.at(-1).subject, /onay bekliyor/);
   assert.match((await istek("/api/panel/giris", { eposta: "t@aysu.com", sifre: "temizlik-1" })).veri.hata, /onay/);
   await istek("/api/panel/giris", { eposta: "m@aysu.com", sifre: "aysu-sifre-1" });
   const liste = (await istek("/api/panel/kullanicilar")).veri;
   assert.equal(liste[0].durum, "bekliyor");
+  // Admin işlem kaydını görür
+  await istek("/api/panel/kullanici", { eposta: "t@aysu.com", rol: "personel" });
+  const islem = (await istek("/api/panel/islemler")).veri;
+  assert.equal(islem[0].islem, "Kullanıcı güncelledi");
   assert.equal((await istek("/api/panel/kullanici", { eposta: "t@aysu.com", rol: "temizlik", durum: "aktif" })).durum, 200);
   cerezSil();
   await istek("/api/panel/giris", { eposta: "t@aysu.com", sifre: "temizlik-1" });
@@ -141,6 +145,8 @@ test("Panel: kayıt, onay, Temizlik Şefi sadece haftayı telefonsuz görür; ş
   assert.equal(s.rez.ad, "Eren");
   assert.equal(s.rez.telefon, undefined);
   assert.equal(s.rez.kapora, undefined);
+  const ab = h.gunler.find((g) => g.tarih === "2026-10-22").saatler.find((x) => x.saat === "21:00").abone;
+  assert.deepEqual(ab, { no: 1 }, "salt-okur rol abonenin adını değil numarasını görür");
   for (const [yol, govde] of [["aboneler"], ["musteriler"], ["kullanicilar"], ["rez", { gun: "2026-10-24", saat: "10:00", ad: "X" }], ["abone-atla", {}]]) {
     assert.equal((await istek("/api/panel/" + yol, govde)).durum, 403, yol);
   }
@@ -159,7 +165,7 @@ test("Panel: kayıt, onay, Temizlik Şefi sadece haftayı telefonsuz görür; ş
 test("Mesai e-postası: Personel'e ilk maçtan 1 saat önce; zamanlanmış görev", async () => {
   const { istek, depo } = await kur({ RESEND_API_KEY: "re_test" });
   await istek("/api/panel/kur", { kurulumKodu: "kurulum-kodu", eposta: "m@aysu.com", sifre: "aysu-sifre-1" });
-  await istek("/api/panel/kayit", { eposta: "p@aysu.com", ad: "Personel Bir", sifre: "personel-1" });
+  await istek("/api/panel/kayit", { eposta: "p@aysu.com", ad: "Personel Bir", sifre: "personel-1", rol: "personel" });
   await istek("/api/panel/kullanici", { eposta: "p@aysu.com", rol: "personel", durum: "aktif" });
   // Perşembe 22 Ekim: Abone Üç 21:00
   const onizleme = (await istek("/api/panel/mesai?gun=2026-10-22")).veri;

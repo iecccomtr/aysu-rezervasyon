@@ -25,18 +25,22 @@ const OTURUM_GUN = 30;
 
 /** Panel rolleri. yonetici: her şeye erişir; mesai: günlük çalışma saati e-postası alır. */
 export const ROLLER = {
+  admin: { ad: "Admin", yonetici: true },
   mudur: { ad: "Müdür", yonetici: true },
   mudur_yrd: { ad: "Müdür Yardımcısı", yonetici: true },
   temizlik: { ad: "Temizlik Şefi", yonetici: false, mesai: true },
   personel: { ad: "Personel", yonetici: false, mesai: true },
 };
-const ROL_SIRA = { mudur: 0, mudur_yrd: 1, temizlik: 2, personel: 3 };
+const ROL_SIRA = { admin: 0, mudur: 1, mudur_yrd: 2, temizlik: 3, personel: 4 };
+/** Yetki seviyesi: kişi sadece kendinden alt seviyedeki hesapları yönetir (Admin herkesi). */
+const SEVIYE = { admin: 3, mudur: 2, mudur_yrd: 1, temizlik: 0, personel: 0 };
+const yonetebilir = (yapan, rol) => yapan.rol === "admin" || (SEVIYE[yapan.rol] ?? -1) > (SEVIYE[rol] ?? 0);
 const epostaNormalize = (e) => {
   const s = String(e || "").trim().toLocaleLowerCase("en").slice(0, 120);
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s) ? s : null;
 };
 /** Kullanıcıyı dışarı verirken şifre bilgilerini çıkar. */
-const kullaniciDisi = ({ hash, tuz, ...u }) => ({ ...u, rolAd: ROLLER[u.rol]?.ad || "" });
+const kullaniciDisi = ({ hash, tuz, ...u }) => ({ ...u, rolAd: ROLLER[u.rol]?.ad || "", istenenRolAd: ROLLER[u.istenenRol]?.ad || "" });
 
 const iptalMi = (durum) => String(durum || "").toLocaleLowerCase("tr").includes("iptal");
 const geceSaati = (saat) => Number(saat.slice(0, 2)) < 6;
@@ -46,6 +50,8 @@ const takvimTarihi = (gun, saat) => (geceSaati(saat) ? gunEkle(gun, 1) : gun);
 const gunNo = (tarih) => (new Date(tarih + "T00:00:00Z").getUTCDay() + 6) % 7;
 /** Abonenin haftalık saatleri: [{gun: 0-6 (0=pazartesi, işletme günü), saat: "HH:MM"}] (eski kayıtlarla uyumlu) */
 const slotlarOf = (a) => (Array.isArray(a.slotlar) ? a.slotlar : (a.gun != null && a.saat ? [{ gun: a.gun, saat: a.saat }] : []));
+/** Abone numarası: kayıtlı "no" ya da eski kayıtlarda nottaki "Abone 3" ifadesi. */
+const aboneNo = (a) => (Number.isInteger(a.no) && a.no > 0 ? a.no : Number(String(a.not || "").match(/abone\s*(\d+)/i)?.[1]) || null);
 const SAAT_SIRA = (saat) => (Number(saat.slice(0, 2)) < 6 ? 24 : 0) + Number(saat.slice(0, 2));
 const slotSirala = (l) => [...l].sort((x, y) => x.gun - y.gun || SAAT_SIRA(x.saat) - SAAT_SIRA(y.saat));
 const simdiYazi = () => new Date(Date.now() + 3 * 3600_000).toISOString().slice(0, 16).replace("T", " ");
@@ -258,10 +264,10 @@ export class RezervasyonDeposu extends DurableObject {
   }
 
   async panelDurum() {
-    return { kurulu: (await this.kullaniciListesi()).some((u) => u.rol === "mudur" && u.durum === "aktif") };
+    return { kurulu: (await this.kullaniciListesi()).some((u) => u.rol === "admin" && u.durum === "aktif") };
   }
 
-  /** İlk kurulum / acil durum: PANEL_KURULUM_KODU ile bir Müdür hesabı oluşturur veya şifresini yeniler. */
+  /** İlk kurulum / acil durum: PANEL_KURULUM_KODU ile bir Admin hesabı oluşturur veya şifresini yeniler. */
   async panelKur({ kurulumKodu, eposta, ad, sifre }) {
     return this.kilitli(async () => {
       const kod = this.env.PANEL_KURULUM_KODU;
@@ -273,28 +279,31 @@ export class RezervasyonDeposu extends DurableObject {
       const tuz = rastgele(16);
       await this.st.put(`u:${e}`, {
         ...(eski || { kayit: simdiYazi(), telefon: "", mesaiEposta: true }),
-        eposta: e, ad: kirp(ad, 60) || eski?.ad || "Müdür", rol: "mudur", durum: "aktif",
+        eposta: e, ad: kirp(ad, 60) || eski?.ad || "Admin", rol: "admin", durum: "aktif",
         hash: await sifreHash(sifre, tuz), tuz,
       });
       await this.oturumlariKapat(e);
+      await this.kayitTut({ ad: kirp(ad, 60) || eski?.ad || "Admin", eposta: e, rol: "admin" }, "Kurulum kodu ile Admin girişi");
       return this.oturumAc(e);
     });
   }
 
   /** Kendi kendine kayıt: hesap Müdür / Müdür Yardımcısı onaylayıp rol verene kadar kapalıdır. */
-  async kayitOl({ eposta, ad, telefon: tel, sifre }) {
+  async kayitOl({ eposta, ad, telefon: tel, sifre, rol }) {
     return this.kilitli(async () => {
       const e = epostaNormalize(eposta);
       if (!e) return { hata: "Geçerli bir e-posta adresi girin." };
       if (kirp(ad, 60).length < 2) return { hata: "Adınızı ve soyadınızı yazın." };
       if (typeof sifre !== "string" || sifre.length < 8) return { hata: "Şifre en az 8 karakter olmalı." };
+      if (!ROLLER[rol] || rol === "admin") return { hata: "Görevinizi (rol) seçin." };
       if (await this.st.get(`u:${e}`)) return { hata: "Bu e-posta ile zaten bir hesap var. Giriş yapın ya da şifrenizi sıfırlayın." };
       const tuz = rastgele(16);
       const u = {
-        eposta: e, ad: kirp(ad, 60), telefon: telefonNormalize(tel) || "", rol: null, durum: "bekliyor",
+        eposta: e, ad: kirp(ad, 60), telefon: telefonNormalize(tel) || "", rol: null, istenenRol: rol, durum: "bekliyor",
         hash: await sifreHash(sifre, tuz), tuz, kayit: simdiYazi(), mesaiEposta: true,
       };
       await this.st.put(`u:${e}`, u);
+      await this.kayitTut(u, "Kayıt oldu", `İstenen görev: ${ROLLER[rol].ad}`);
       return { basarili: true, kullanici: kullaniciDisi(u) };
     });
   }
@@ -308,6 +317,7 @@ export class RezervasyonDeposu extends DurableObject {
       if (!u || !esitMi(hash, u.hash)) return { hata: "E-posta veya şifre hatalı." };
       if (u.durum === "bekliyor") return { hata: "Hesabınız Müdür onayı bekliyor. Onaylanınca giriş yapabilirsiniz." };
       if (u.durum !== "aktif" || !ROLLER[u.rol]) return { hata: "Hesabınız kapalı. Müdürle görüşün." };
+      await this.kayitTut(u, "Giriş yaptı");
       return this.oturumAc(e);
     });
   }
@@ -368,6 +378,7 @@ export class RezervasyonDeposu extends DurableObject {
       await this.st.put(`u:${s.eposta}`, { ...u, hash: await sifreHash(sifre, tuz), tuz });
       await this.st.delete(`s:${token}`);
       await this.oturumlariKapat(s.eposta);
+      await this.kayitTut(u, "Şifresini yeniledi");
       if (u.durum !== "aktif" || !ROLLER[u.rol]) return { basarili: true, onayBekliyor: true };
       return { ...(await this.oturumAc(s.eposta)), basarili: true };
     });
@@ -402,9 +413,9 @@ export class RezervasyonDeposu extends DurableObject {
 
       const hata = this.yetkiKontrol(u, yeni, yapan);
       if (hata) return { hata };
-      if (u.rol === "mudur" && (yeni.rol !== "mudur" || yeni.durum !== "aktif")) {
-        const digerMudur = (await this.kullaniciListesi()).some((x) => x.eposta !== e && x.rol === "mudur" && x.durum === "aktif");
-        if (!digerMudur) return { hata: "En az bir aktif Müdür kalmalı." };
+      if (u.rol === "admin" && u.durum === "aktif" && (yeni.rol !== "admin" || yeni.durum !== "aktif")) {
+        const digerAdmin = (await this.kullaniciListesi()).some((x) => x.eposta !== e && x.rol === "admin" && x.durum === "aktif");
+        if (!digerAdmin) return { hata: "En az bir aktif Admin kalmalı." };
       }
       await this.st.put(`u:${e}`, yeni);
       if (yeni.durum !== "aktif" || yeni.rol !== u.rol) await this.oturumlariKapat(e);
@@ -415,7 +426,9 @@ export class RezervasyonDeposu extends DurableObject {
   yetkiKontrol(eski, yeni, yapan) {
     if (!yapan || !ROLLER[yapan.rol]?.yonetici) return "Bu işlem için yetkiniz yok.";
     if (eski.eposta === yapan.eposta && (yeni.rol !== eski.rol || yeni.durum !== eski.durum)) return "Kendi rolünüzü veya durumunuzu değiştiremezsiniz.";
-    if (yapan.rol !== "mudur" && (eski.rol === "mudur" || yeni.rol === "mudur")) return "Müdür hesaplarını sadece Müdür yönetebilir.";
+    if (!yonetebilir(yapan, eski.rol) || !yonetebilir(yapan, yeni.rol)) {
+      return `${ROLLER[eski.rol]?.ad || ROLLER[yeni.rol]?.ad} hesaplarını yönetme yetkiniz yok.`;
+    }
     return null;
   }
 
@@ -427,14 +440,31 @@ export class RezervasyonDeposu extends DurableObject {
       if (u.eposta === yapan?.eposta) return { hata: "Kendi hesabınızı silemezsiniz." };
       const hata = this.yetkiKontrol(u, u, yapan);
       if (hata) return { hata };
-      if (u.rol === "mudur" && u.durum === "aktif"
-        && !(await this.kullaniciListesi()).some((x) => x.eposta !== e && x.rol === "mudur" && x.durum === "aktif")) {
-        return { hata: "En az bir aktif Müdür kalmalı." };
+      if (u.rol === "admin" && u.durum === "aktif"
+        && !(await this.kullaniciListesi()).some((x) => x.eposta !== e && x.rol === "admin" && x.durum === "aktif")) {
+        return { hata: "En az bir aktif Admin kalmalı." };
       }
       await this.st.delete(`u:${e}`);
       await this.oturumlariKapat(e);
       return { basarili: true };
     });
+  }
+
+  // ================= İşlem kaydı (Admin kontrolü) =================
+  //   l:<zaman ISO>:<rastgele>  { zaman, kim, rol, islem, detay }
+
+  async kayitTut(kim, islem, detay = "") {
+    const z = new Date(Date.now()).toISOString();
+    this.sira = ((this.sira || 0) + 1) % 1e6; // aynı milisaniyedeki kayıtlar da sırasını korusun
+    await this.st.put(`l:${z}:${String(this.sira).padStart(6, "0")}${rastgele(3)}`, {
+      zaman: simdiYazi(), kim: kim?.ad || "Sistem", eposta: kim?.eposta || "", rol: ROLLER[kim?.rol]?.ad || "",
+      islem: kirp(islem, 60), detay: kirp(detay, 300),
+    });
+  }
+
+  async islemler(adet = 200) {
+    const m = await this.st.list({ prefix: "l:", reverse: true, limit: Math.min(Number(adet) || 200, 500) });
+    return [...m.values()];
   }
 
   // ================= Mesai planı (personel e-postası) =================
@@ -479,7 +509,7 @@ export class RezervasyonDeposu extends DurableObject {
             return {
               saat, tarih, gecmis: macZamani(tarih, saat) < Date.now() - 3600_000, tur: s.tur,
               ...(s.rez ? { rez: s.rez } : {}),
-              ...(s.abone ? { abone: { id: s.abone.id, ad: s.abone.ad, telefon: s.abone.telefon, not: s.abone.not, slotlar: slotlarOf(s.abone) } } : {}),
+              ...(s.abone ? { abone: { id: s.abone.id, no: aboneNo(s.abone), ad: s.abone.ad, telefon: s.abone.telefon, not: s.abone.not, slotlar: slotlarOf(s.abone) } } : {}),
             };
           }),
         });
@@ -530,13 +560,13 @@ export class RezervasyonDeposu extends DurableObject {
   // ================= Panel: aboneler =================
 
   async aboneListe() {
-    const liste = (await this.aboneler()).map((a) => ({ ...a, slotlar: slotSirala(slotlarOf(a)) }));
+    const liste = (await this.aboneler()).map((a) => ({ ...a, no: aboneNo(a), slotlar: slotSirala(slotlarOf(a)) }));
     const ilk = (a) => a.slotlar[0] || { gun: 9, saat: "00:00" };
     return liste.sort((a, b) => ilk(a).gun - ilk(b).gun || SAAT_SIRA(ilk(a).saat) - SAAT_SIRA(ilk(b).saat) || a.ad.localeCompare(b.ad, "tr"));
   }
 
   /** slotlar: [{gun, saat}] — ya da eski biçimde tek gun + saat */
-  async aboneKaydet({ id, ad, telefon, slotlar, gun, saat, baslangic, not = "", ucret = "" }) {
+  async aboneKaydet({ id, ad, telefon, slotlar, gun, saat, baslangic, not = "", ucret = "", no }) {
     return this.kilitli(async () => {
       let liste = Array.isArray(slotlar) ? slotlar : [{ gun, saat }];
       liste = liste.map((x) => ({ gun: Number(x.gun), saat: saatNormalize(x.saat) }));
@@ -558,7 +588,15 @@ export class RezervasyonDeposu extends DurableObject {
         if (c) return { hata: `${GUNLER[x.gun]} ${x.saat} saatinde zaten abone var: ${c.ad}.` };
       }
       const eski = id ? await this.st.get(`a:${id}`) : null;
+      // Abone numarası: girilmezse eskisi, o da yoksa ilk boş numara
+      const tumu = (await this.aboneler()).filter((a) => a.id !== id && !a.bitis);
+      const kullanilan = new Set(tumu.map(aboneNo).filter(Boolean));
+      let numara = no === "" || no == null ? (eski ? aboneNo(eski) : null) : Number(no);
+      if (numara != null && !(Number.isInteger(numara) && numara > 0 && numara < 1000)) return { hata: "Abone numarası 1–999 arası olmalı." };
+      if (numara && kullanilan.has(numara)) return { hata: `Abone ${numara} numarası başka bir abonede kayıtlı.` };
+      if (!numara) { numara = 1; while (kullanilan.has(numara)) numara++; }
       const abone = {
+        no: numara,
         id: eski?.id || rastgele(8, "abcdefghjkmnpqrstuvwxyz23456789"),
         ad: kirp(ad, 60), telefon: tel, slotlar: liste, baslangic: bas, bitis: null,
         not: kirp(not, 200), ucret: kirp(ucret, 40), olusturma: eski?.olusturma || simdiYazi(),

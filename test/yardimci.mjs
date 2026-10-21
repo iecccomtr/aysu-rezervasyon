@@ -28,9 +28,11 @@ export function bellekDeposu() {
       if (Array.isArray(k)) { let n = 0; for (const x of k) n += veri.delete(x) ? 1 : 0; return n; }
       return veri.delete(k);
     },
-    async list({ prefix, start, end } = {}) {
-      const anahtarlar = [...veri.keys()].sort()
+    async list({ prefix, start, end, reverse, limit } = {}) {
+      let anahtarlar = [...veri.keys()].sort()
         .filter((k) => (!prefix || k.startsWith(prefix)) && (!start || k >= start) && (!end || k < end));
+      if (reverse) anahtarlar.reverse();
+      if (limit) anahtarlar = anahtarlar.slice(0, limit);
       return new Map(anahtarlar.map((k) => [k, kopya(veri.get(k))]));
     },
   };

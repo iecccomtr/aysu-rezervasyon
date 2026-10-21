@@ -166,7 +166,7 @@ test("CRM: müşteriler telefonla gruplanır; maç, iptal, abone ve not", async 
   assert.equal(det.not, "Kaporayı hep 2 parça atıyor");
 });
 
-test("Panel girişi: kurulum kodu ile Müdür, e-posta + şifre, oturum", async () => {
+test("Panel girişi: kurulum kodu ile Admin, e-posta + şifre, oturum", async () => {
   const d = demoDepo({ PANEL_KURULUM_KODU: "kod123" });
   assert.equal((await d.panelDurum()).kurulu, false);
   assert.ok((await d.panelGiris({ eposta: "a@b.com", sifre: "x" })).hata);
@@ -175,7 +175,7 @@ test("Panel girişi: kurulum kodu ile Müdür, e-posta + şifre, oturum", async 
   assert.match((await d.panelKur({ kurulumKodu: "kod123", eposta: "bozuk", sifre: "aysu-2026!" })).hata, /e-posta/);
   const k = await d.panelKur({ kurulumKodu: "kod123", eposta: "Mudur@Aysu.com", ad: "Ahmet Aysu", sifre: "aysu-2026!" });
   assert.ok(k.basarili);
-  assert.equal((await d.oturum(k.token)).rol, "mudur");
+  assert.equal((await d.oturum(k.token)).rol, "admin");
   assert.equal((await d.panelDurum()).kurulu, true);
   assert.match((await d.panelGiris({ eposta: "mudur@aysu.com", sifre: "yanlis-sifre" })).hata, /hatalı/);
   const g = await d.panelGiris({ eposta: " MUDUR@aysu.com ", sifre: "aysu-2026!" });
@@ -189,37 +189,59 @@ test("Panel girişi: kurulum kodu ile Müdür, e-posta + şifre, oturum", async 
   assert.equal(await d.oturum(k.token), null);
 });
 
-test("Kayıt → onay bekler → rol verilince girer; roller ve yetkiler", async () => {
+test("Kayıt (görev seçerek) → onay bekler → rol verilince girer; yetki hiyerarşisi; işlem kaydı", async () => {
   const d = demoDepo({ PANEL_KURULUM_KODU: "kod123" });
-  const m = await d.panelKur({ kurulumKodu: "kod123", eposta: "mudur@aysu.com", ad: "Ahmet", sifre: "aysu-2026!" });
-  const mudur = await d.oturum(m.token);
+  const a = await d.panelKur({ kurulumKodu: "kod123", eposta: "admin@aysu.com", ad: "Admin", sifre: "aysu-2026!" });
+  const admin = await d.oturum(a.token);
 
-  assert.ok((await d.kayitOl({ eposta: "temiz@aysu.com", ad: "Ayşe Temiz", sifre: "temizlik-1" })).basarili);
-  assert.match((await d.kayitOl({ eposta: "temiz@aysu.com", ad: "Tekrar", sifre: "temizlik-1" })).hata, /zaten/);
+  assert.match((await d.kayitOl({ eposta: "temiz@aysu.com", ad: "Ayşe Temiz", sifre: "temizlik-1" })).hata, /Görev/);
+  assert.match((await d.kayitOl({ eposta: "temiz@aysu.com", ad: "Ayşe Temiz", sifre: "temizlik-1", rol: "admin" })).hata, /Görev/);
+  assert.ok((await d.kayitOl({ eposta: "temiz@aysu.com", ad: "Ayşe Temiz", sifre: "temizlik-1", rol: "temizlik" })).basarili);
+  assert.equal((await d.kullanicilar()).find((u) => u.eposta === "temiz@aysu.com").istenenRolAd, "Temizlik Şefi");
+  assert.match((await d.kayitOl({ eposta: "temiz@aysu.com", ad: "Tekrar", sifre: "temizlik-1", rol: "personel" })).hata, /zaten/);
   assert.match((await d.panelGiris({ eposta: "temiz@aysu.com", sifre: "temizlik-1" })).hata, /onay/);
-  assert.match((await d.kullaniciGuncelle({ eposta: "temiz@aysu.com", durum: "aktif" }, mudur)).hata, /rol/);
-  assert.ok((await d.kullaniciGuncelle({ eposta: "temiz@aysu.com", rol: "temizlik", durum: "aktif" }, mudur)).basarili);
+  assert.match((await d.kullaniciGuncelle({ eposta: "temiz@aysu.com", durum: "aktif" }, admin)).hata, /rol/);
+  assert.ok((await d.kullaniciGuncelle({ eposta: "temiz@aysu.com", rol: "temizlik", durum: "aktif" }, admin)).basarili);
   const t = await d.panelGiris({ eposta: "temiz@aysu.com", sifre: "temizlik-1" });
   const temiz = await d.oturum(t.token);
   assert.equal(temiz.rolAd, "Temizlik Şefi");
-  // Salt-okur rol kimseyi yönetemez
   assert.match((await d.kullaniciGuncelle({ eposta: "temiz@aysu.com", rol: "mudur" }, temiz)).hata, /yetki/);
 
-  // Müdür Yardımcısı: Müdür'e dokunamaz, kimseyi Müdür yapamaz
-  await d.kayitOl({ eposta: "yrd@aysu.com", ad: "Mehmet Yrd", sifre: "yardimci-1" });
-  await d.kullaniciGuncelle({ eposta: "yrd@aysu.com", rol: "mudur_yrd", durum: "aktif" }, mudur);
+  // Müdür: Admin'e dokunamaz, kimseyi Admin/Müdür yapamaz; Müdür Yardımcısı'nı yönetir
+  await d.kayitOl({ eposta: "mudur@aysu.com", ad: "Ahmet Müdür", sifre: "mudur-123", rol: "mudur" });
+  await d.kullaniciGuncelle({ eposta: "mudur@aysu.com", rol: "mudur", durum: "aktif" }, admin);
+  const mudur = await d.oturum((await d.panelGiris({ eposta: "mudur@aysu.com", sifre: "mudur-123" })).token);
+  assert.match((await d.kullaniciGuncelle({ eposta: "admin@aysu.com", durum: "pasif" }, mudur)).hata, /yetki/);
+  assert.match((await d.kullaniciGuncelle({ eposta: "temiz@aysu.com", rol: "admin" }, mudur)).hata, /yetki/);
+  await d.kayitOl({ eposta: "yrd@aysu.com", ad: "Mehmet Yrd", sifre: "yardimci-1", rol: "mudur_yrd" });
+  assert.ok((await d.kullaniciGuncelle({ eposta: "yrd@aysu.com", rol: "mudur_yrd", durum: "aktif" }, mudur)).basarili);
   const yrd = await d.oturum((await d.panelGiris({ eposta: "yrd@aysu.com", sifre: "yardimci-1" })).token);
-  assert.match((await d.kullaniciGuncelle({ eposta: "mudur@aysu.com", durum: "pasif" }, yrd)).hata, /Müdür/);
-  assert.match((await d.kullaniciGuncelle({ eposta: "temiz@aysu.com", rol: "mudur" }, yrd)).hata, /Müdür/);
+  assert.match((await d.kullaniciGuncelle({ eposta: "mudur@aysu.com", durum: "pasif" }, yrd)).hata, /yetki/);
   assert.match((await d.kullaniciGuncelle({ eposta: "yrd@aysu.com", rol: "personel" }, yrd)).hata, /Kendi/);
   // Pasife alınan kullanıcının oturumu kapanır
   assert.ok((await d.kullaniciGuncelle({ eposta: "temiz@aysu.com", durum: "pasif" }, yrd)).basarili);
   assert.equal(await d.oturum(t.token), null);
-  // Son Müdür kendini/başkası tarafından düşürülemez
-  assert.match((await d.kullaniciSil("mudur@aysu.com", mudur)).hata, /Kendi/);
+  // Son Admin silinemez / düşürülemez
+  assert.match((await d.kullaniciSil("admin@aysu.com", admin)).hata, /Kendi/);
   const liste = await d.kullanicilar();
-  assert.equal(liste.length, 3);
+  assert.equal(liste[0].rol, "admin");
   assert.ok(liste.every((u) => u.hash === undefined && u.tuz === undefined));
+  // İşlem kaydı: girişler ve kayıtlar en yeni başta
+  const islem = await d.islemler();
+  assert.ok(islem.some((x) => x.islem === "Giriş yaptı" && x.kim === "Ahmet Müdür"));
+  assert.ok(islem.some((x) => x.islem === "Kurulum kodu ile Admin girişi"));
+});
+
+test("Abone numarası: nottan okunur, boşsa ilk boş numara, çakışma reddedilir; tabloda numara", async () => {
+  const d = demoDepo();
+  await d.iceAktar({ aboneler: [{ ad: "Futbol Koleji", slotlar: [{ gun: 5, saat: "08:00" }], baslangic: "2026-10-19", not: "Abone 1" }] });
+  const b = await d.aboneKaydet({ ad: "Yeni Takım", gun: 0, saat: "20:00" });
+  assert.equal(b.abone.no, 2);
+  assert.match((await d.aboneKaydet({ ad: "Çakışan No", gun: 1, saat: "20:00", no: 1 })).hata, /Abone 1/);
+  assert.equal((await d.aboneKaydet({ ad: "Elle", gun: 1, saat: "20:00", no: 17 })).abone.no, 17);
+  const h = await d.panelHafta("2026-10-19");
+  assert.equal(h.gunler[5].saatler.find((x) => x.saat === "08:00").abone.no, 1);
+  assert.deepEqual((await d.aboneListe()).map((a) => a.no).sort((x, y) => x - y), [1, 2, 17]);
 });
 
 test("Şifremi unuttum: tek kullanımlık, 1 saatlik bağlantı", async () => {
@@ -243,9 +265,9 @@ test("Mesai planı: ilk maçtan 1 saat önce başlama; alıcılar sadece Persone
   const d = demoDepo({ PANEL_KURULUM_KODU: "kod123" });
   const m = await d.panelKur({ kurulumKodu: "kod123", eposta: "mudur@aysu.com", sifre: "aysu-2026!" });
   const mudur = await d.oturum(m.token);
-  await d.kayitOl({ eposta: "p@aysu.com", ad: "Personel Bir", sifre: "personel-1" });
+  await d.kayitOl({ eposta: "p@aysu.com", ad: "Personel Bir", sifre: "personel-1", rol: "personel" });
   await d.kullaniciGuncelle({ eposta: "p@aysu.com", rol: "personel", durum: "aktif" }, mudur);
-  await d.kayitOl({ eposta: "bekleyen@aysu.com", ad: "Onaysız", sifre: "personel-1" });
+  await d.kayitOl({ eposta: "bekleyen@aysu.com", ad: "Onaysız", sifre: "personel-1", rol: "personel" });
   await d.panelRezEkle({ gunTarihi: "2026-10-23", saat: "19:00", ad: "Fevzi", telefon: "" });
   await d.panelRezEkle({ gunTarihi: "2026-10-23", saat: "01:00", ad: "Gece", telefon: "" });
   const p = await d.mesaiPlani("2026-10-23");

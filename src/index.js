@@ -148,7 +148,7 @@ function haftaSaltOkur(h) {
       saatler: g.saatler.map((s) => ({
         saat: s.saat, tarih: s.tarih, gecmis: s.gecmis, tur: s.tur,
         ...(s.rez ? { rez: { ad: s.rez.ad, durum: s.rez.durum, kaynak: s.rez.kaynak } } : {}),
-        ...(s.abone ? { abone: { ad: s.abone.ad } } : {}),
+        ...(s.abone ? { abone: { no: s.abone.no } } : {}),
       })),
     })),
   };
@@ -183,6 +183,7 @@ async function panel(request, env, ctx, yol) {
         ctx.waitUntil(bildir(env, {
           konu: `Panel: yeni kayıt onay bekliyor (${r.kullanici.ad})`,
           satirlar: [["Ad", r.kullanici.ad], ["E-posta", r.kullanici.eposta], ["Telefon", r.kullanici.telefon || "-"],
+            ["İstenen rol", r.kullanici.istenenRolAd],
             ["Ne yapmalı?", "Panel → Kullanıcılar bölümünden rol seçip onaylayın."]],
         }));
       }
@@ -230,11 +231,19 @@ async function panel(request, env, ctx, yol) {
   if (!yonetici) return json({ hata: "Bu işlem için yetkiniz yok." }, 403);
 
   const g = post ? (await govdeOku(request)) || {} : null;
-  const degisti = (r) => {
+  // Admin kontrolü için her başarılı değişiklik işlem kaydına yazılır
+  const kaydet = async (r) => {
+    if (r && r.basarili && post) {
+      const islem = ISLEM_ADLARI[yol] || yol;
+      await d.kayitTut(ben, islem, islemDetayi(yol, g, r)).catch((e) => console.error("Kayıt yazılamadı", e));
+    }
+  };
+  const degisti = async (r) => {
     if (r && r.basarili) onbellegiTemizle(request, ctx);
+    await kaydet(r);
     return json(r, r && r.hata ? 400 : 200);
   };
-  const sonuc = (r) => json(r, r && r.hata ? 400 : 200);
+  const sonuc = async (r) => { await kaydet(r); return json(r, r && r.hata ? 400 : 200); };
 
   switch (`${request.method} ${yol}`) {
     case "POST rez": return degisti(await d.panelRezEkle({
@@ -249,12 +258,16 @@ async function panel(request, env, ctx, yol) {
     case "GET musteri": return json(await d.musteriDetay(url.searchParams.get("tel")));
     case "POST musteri-not": return degisti(await d.musteriNot(g));
     case "GET kullanicilar": return json(await d.kullanicilar());
+    case "GET islemler":
+      if (ben.rol !== "admin") return json({ hata: "Bu bölüm sadece Admin içindir." }, 403);
+      return json(await d.islemler(url.searchParams.get("adet")));
     case "POST kullanici": return sonuc(await d.kullaniciGuncelle(g, ben));
     case "POST kullanici-sil": return sonuc(await d.kullaniciSil(g.eposta, ben));
     case "POST sifirlama-linki": {
       // E-posta kurulu değilse yönetici bağlantıyı alıp WhatsApp'tan iletebilir
       const r = await d.sifirlamaOlustur(g.eposta);
       if (!r.basarili) return json({ hata: "Kullanıcı bulunamadı." }, 400);
+      await d.kayitTut(ben, "Şifre yenileme bağlantısı aldı", r.eposta);
       return json({ basarili: true, link: `${url.origin}/panel/#sifirla=${r.token}` });
     }
     case "GET mesai": {
@@ -263,6 +276,27 @@ async function panel(request, env, ctx, yol) {
     }
     case "POST mesai-gonder": return sonuc(await mesaiGonder(env, d, g.gun));
     default: return json({ hata: "Bulunamadı" }, 404);
+  }
+}
+
+const ISLEM_ADLARI = {
+  rez: "Rezervasyon ekledi", "rez-guncelle": "Rezervasyon güncelledi", abone: "Abone kaydetti",
+  "abone-sil": "Abonelik sonlandırdı", "abone-atla": "Abone gelmiyor/geliyor", "musteri-not": "Müşteri notu",
+  kullanici: "Kullanıcı güncelledi", "kullanici-sil": "Kullanıcı sildi", "mesai-gonder": "Mesai e-postası gönderdi",
+};
+function islemDetayi(yol, g, r) {
+  const k = r.rez || r;
+  switch (yol) {
+    case "rez": return `${g.gun} ${g.saat} · ${g.ad || ""}`;
+    case "rez-guncelle": return `${k.kayitNo || g.kayitNo} · ${k.tarih || ""} ${k.saat || ""} · ${k.ad || ""} · ${g.durum || ""}${g.kapora ? " · kapora " + g.kapora : ""}`;
+    case "abone": return `${g.ad || ""}`;
+    case "abone-sil": return `${g.id}`;
+    case "abone-atla": return `${g.gun} ${g.saat || ""} · ${g.gelmiyor ? "gelmiyor" : "geliyor"} (${g.kapsam || "saat"})`;
+    case "musteri-not": return `${g.telefon || ""} · ${g.etiket || ""}`;
+    case "kullanici": return `${g.eposta} · ${[g.rol, g.durum].filter(Boolean).join(" · ")}`;
+    case "kullanici-sil": return `${g.eposta}`;
+    case "mesai-gonder": return `${g.gun || ""} · ${r.gonderilen || 0} kişi`;
+    default: return "";
   }
 }
 

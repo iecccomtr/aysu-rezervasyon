@@ -325,6 +325,10 @@
   @media (max-width: 760px) { .sabit { right: 86px; } }
   @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
 </style>
+<script>
+  // Eski "/#rezervasyon" bağlantıları rezervasyon sayfasına gider
+  if (location.hash === "#rezervasyon") location.replace("/rezervasyon/");
+</script>
 </head>
 <body>
 
@@ -332,9 +336,10 @@
   <div class="kap">
     <a class="marka" href="/" aria-label="Aysu Halı Saha ana sayfa"><img src="/img/aysu-logo.svg" alt="Aysu Halı Saha" width="122" height="52"></a>
     <nav aria-label="Ana menü">
+      <a href="/rezervasyon/">Rezervasyon</a>
       <a href="#tesis">Tesis</a>
-      <a href="#rezervasyon">Rezervasyon</a>
-      <a href="#konum">Konum</a>
+      <a href="#sss">Sorular</a>
+      <a href="#konum">İletişim</a>
     </nav>
     <a class="tel" href="tel:+905555102626">0 555 510 26 26</a>
   </div>
@@ -429,7 +434,7 @@
     </div>
   </section>
 
-  <section class="adimlar-bolum" id="rezervasyon" aria-labelledby="rez-baslik">
+  <section class="adimlar-bolum" id="nasil" aria-labelledby="rez-baslik">
     <div class="kap">
       <h2 id="rez-baslik">Rezervasyon iki dakika sürer</h2>
       <ol class="adimlar">
@@ -495,6 +500,9 @@
     <nav aria-label="Alt menü">
       <a href="https://www.instagram.com/aysuhalisahacom" target="_blank" rel="noopener">Instagram</a>
       <a href="https://www.facebook.com/aysuhalisahaa" target="_blank" rel="noopener">Facebook</a>
+      <a href="/rezervasyon/">Online rezervasyon</a>
+      <a href="https://wa.me/905555102626" target="_blank" rel="noopener">WhatsApp</a>
+      <a href="https://www.google.com/maps/place/?q=place_id:ChIJZ76wIWcXzBQRD1Ja6OQDysA" target="_blank" rel="noopener">Google Haritalar</a>
       <a href="/kvkk.html">Aydınlatma metni</a>
     </nav>
   </div>

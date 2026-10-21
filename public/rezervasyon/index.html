@@ -160,6 +160,10 @@
   .sayac.az { color: #b42318; }
   .saat.opsiyonlu { color: #f3c97a; border: 1px dashed #b45309; background: transparent; display: grid; place-items: center; line-height: 1; }
   .saat.opsiyonlu small { display: block; font: 600 12px/1.2 "Barlow", sans-serif; color: #f3c97a; margin-top: 2px; }
+  .ops-devam { display: grid; gap: 8px; margin-top: 8px; }
+  .ops-devam input { flex: 1; min-width: 0; padding: 10px 12px; border: 1px solid #d9b46a; border-radius: 10px; font: inherit; }
+  .ops-hata { color: #b42318; font-weight: 600; margin-top: 6px; }
+  .ops-hata:empty { display: none; }
   .ops-uyari { background: #fff1d6; color: #7a4a00; border-radius: 10px; padding: 10px 12px; margin-top: 10px; font-size: 15px; }
   .vip { border: 2px solid #f3c97a; background: #fff8ec; border-radius: 12px; padding: 10px 14px 12px; margin: 0 0 16px; }
   .vip legend { font-weight: 700; padding: 0 6px; }
@@ -188,6 +192,10 @@
   .iptal-alan summary { cursor: pointer; font-weight: 600; color: var(--cim); }
   .iptal-alan form { margin-top: 14px; }
   .iptal-sonuc { margin-top: 12px; font-weight: 600; }
+  .rez-kart { display: grid; gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--cizgi); }
+  .rez-kart small { color: var(--gri, #566270); font-size: 14px; }
+  .rez-eylem { display: flex; gap: 8px; flex-wrap: wrap; }
+  .rez-kart .dekont-sonuc { margin: 0 !important; }
 
   .alt-bilgi { font-size: 14px; color: var(--gri); text-align: center; margin-top: 28px; }
   .alt-bilgi a { color: inherit; }
@@ -305,52 +313,24 @@
         <a class="dugme wp" id="t-wp" target="_blank" rel="noopener">Dekontu WhatsApp'tan gönder</a>
         <button class="dugme ikincil" id="yeni" type="button">Başka bir saat ayırt</button>
       </div>
-      <p class="alt-bilgi">Bu ekranın görüntüsünü alın. Sonradan dekont yüklemek ya da iptal etmek için: <a href="/rezervasyon/#rezervasyonum">aysuhalisaha.com/rezervasyon/#rezervasyonum</a></p>
+      <p class="alt-bilgi">Bu ekranın görüntüsünü alın. Sonradan dekont yüklemek ya da iptal etmek için bu sayfanın altındaki <b>Rezervasyonlarım</b> bölümüne telefon numaranızı yazmanız yeterli.</p>
     </section>
 
-    <!-- ===== Rezervasyonum: dekont / iptal (sadece rezervasyon yapınca, kayıtlı rezervasyon varsa ya da #rezervasyonum ile görünür) ===== -->
-    <div id="rezervasyonum" hidden>
-    <!-- ===== Sonradan dekont ===== -->
-    <details class="iptal-alan" id="dekont-alan">
-      <summary>Dekontumu yüklemek istiyorum</summary>
-      <form id="dekont-form" novalidate>
-        <div id="dekont-uyari" class="uyari" role="alert" hidden></div>
+    <!-- ===== Rezervasyonlarım: telefonla bul → dekont yükle / iptal ===== -->
+    <details class="iptal-alan" id="rezervasyonlarim">
+      <summary>Rezervasyonlarım (dekont yükle / iptal)</summary>
+      <form id="bul-form" novalidate>
         <div class="alan">
-          <label for="k-kayit">Kayıt numarası</label>
-          <input id="k-kayit" placeholder="AY-XXXXX" autocapitalize="characters" autocomplete="off" required>
+          <label for="b-telefon">Rezervasyondaki cep telefonu</label>
+          <input id="b-telefon" type="tel" inputmode="tel" placeholder="05XX XXX XX XX" autocomplete="off" required>
         </div>
-        <div class="alan">
-          <label for="k-telefon">Rezervasyondaki cep telefonu</label>
-          <input id="k-telefon" type="tel" inputmode="tel" placeholder="05XX XXX XX XX" required>
-        </div>
-        <div class="alan">
-          <label for="k-dosya">Dekont (fotoğraf / PDF)</label>
-          <input id="k-dosya" type="file" accept="image/*,application/pdf" required>
-        </div>
-        <button class="dugme" type="submit">Dekontu gönder</button>
-        <p class="iptal-sonuc" id="dekont-sonuc" role="status"></p>
+        <button class="dugme ikincil" type="submit">Rezervasyonlarımı göster</button>
       </form>
+      <div id="bul-uyari" class="uyari" role="alert" hidden></div>
+      <div id="bul-liste"></div>
+      <input type="file" id="b-dosya" accept="image/*,application/pdf" hidden>
+      <p class="alt-bilgi" style="text-align:left">Onaylı maça 3 saatten az kaldıysa iptal için lütfen arayın: <a href="tel:+905555102626">0 555 510 26 26</a></p>
     </details>
-
-    <!-- ===== İptal ===== -->
-    <details class="iptal-alan" id="iptal-alan">
-      <summary>Rezervasyonumu iptal etmek istiyorum</summary>
-      <form id="iptal-form" novalidate>
-        <div id="iptal-uyari" class="uyari" role="alert" hidden></div>
-        <div class="alan">
-          <label for="i-kayit">Kayıt numarası</label>
-          <input id="i-kayit" placeholder="AY-XXXXX" autocapitalize="characters" autocomplete="off" required>
-        </div>
-        <div class="alan">
-          <label for="i-telefon">Rezervasyondaki cep telefonu</label>
-          <input id="i-telefon" type="tel" inputmode="tel" placeholder="05XX XXX XX XX" required>
-        </div>
-        <button class="dugme ikincil" type="submit">Rezervasyonu iptal et</button>
-        <p class="iptal-sonuc" id="iptal-sonuc" role="status"></p>
-      </form>
-      <p class="alt-bilgi" style="text-align:left">Maça 3 saatten az kaldıysa iptal için lütfen arayın: <a href="tel:+905555102626">0 555 510 26 26</a></p>
-    </details>
-    </div>
 
     <p class="alt-bilgi"><a href="/">Ana sayfa</a> · Abonelik ve toplu rezervasyon için <a href="https://wa.me/905555102626" target="_blank" rel="noopener">WhatsApp'tan yazın</a></p>
   </main>
@@ -446,15 +426,28 @@
     if (geceler.length) html += `<div class="grup"><p class="grup-ad">${g.gun} gecesi (gece yarısından sonra)</p><div class="saatler">${geceler.map(dugme).join("")}</div></div>`;
     if (!g.saatler.some((s) => s.bos)) html += `<p class="tabela-not">Bu gün boş saat kalmadı. Başka bir gün seçin.</p>`;
     else html += `<p class="tabela-not">Sarı saatler boş. Üstü çizili saatler dolu.${g.saatler.some((s) => s.opsiyon) ? " ⏳ işaretli saat başka bir müşteriye kısa süreliğine ayrılmış." : ""}</p>`;
-    html += `<p class="ops-uyari" id="ops-uyari" role="status" hidden></p>`;
+    html += `<div class="ops-uyari" id="ops-uyari" role="status" hidden></div>`;
     el.innerHTML = html;
     el.querySelectorAll("[data-ops]").forEach((b) => b.addEventListener("click", () => {
       const s = g.saatler.find((x) => x.saat === b.dataset.ops);
       const u = $("ops-uyari");
-      u.textContent = s.opsiyon.dekont
-        ? `${s.saat} başka bir müşteriye ayrılmış, ödemesi kontrol ediliyor. Biraz sonra tekrar bakın.`
-        : `${s.saat} şu an başka bir müşteriye ayrılmış. Ödeme gelmezse yaklaşık ${s.opsiyon.dk} dakika sonra boşa çıkar; o zaman tekrar deneyin.`;
+      // Bağlantısı kopan müşteri kendi opsiyonuna telefonla geri döner
+      u.innerHTML = `<p><b>${s.saat} şu an ayrılmış.</b> ${s.opsiyon.dekont ? "Ödemesi kontrol ediliyor." : `Ödeme gelmezse yaklaşık ${s.opsiyon.dk} dakika sonra boşa çıkar.`}</p>
+        <p style="margin-top:8px">Bu saati siz mi ayırdınız? Telefon numaranızı yazın, kaldığınız yerden devam edin:</p>
+        <form class="ops-devam" novalidate><input type="tel" inputmode="tel" placeholder="05XX XXX XX XX" autocomplete="off" aria-label="Cep telefonu">
+        <button class="dugme kucuk" type="submit">Devam et</button></form><p class="ops-hata" role="alert"></p>`;
       u.hidden = false;
+      u.querySelector("form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const telefon = u.querySelector("input").value.trim();
+        const r = await fetch("/api/opsiyon-devam", { method: "POST", headers: { "content-type": "application/json" },
+          body: JSON.stringify({ tarih: g.tarih, saat: s.saat, telefon }) }).catch(() => null);
+        const v = r ? await r.json().catch(() => ({})) : {};
+        if (!r || !r.ok) { u.querySelector(".ops-hata").textContent = v.hata || "Bağlantı kurulamadı."; return; }
+        sonRez = { kayitNo: v.kayitNo, telefon };
+        basariGoster(v, g);
+        if (v.dekont) { $("t-dekont-sonuc").className = "dekont-sonuc bekle"; $("t-dekont-sonuc").textContent = "Dekontunuz alındı, kontrol ediliyor."; }
+      });
     }));
     el.querySelectorAll(".saat[data-saat]:not(:disabled)").forEach((b) => b.addEventListener("click", () => {
       secilenSaat = b.dataset.saat; saatleriCiz(); formuGuncelle(true);
@@ -616,13 +609,6 @@
     const f = e.target.files[0]; e.target.value = "";
     if (f && sonRez) dekontGonder(sonRez.kayitNo, sonRez.telefon, f, $("t-dekont-sonuc"));
   });
-  $("dekont-form").addEventListener("submit", (e) => {
-    e.preventDefault();
-    const uyari = $("dekont-uyari"); uyari.hidden = true;
-    const kayitNo = $("k-kayit").value.trim(), telefon = $("k-telefon").value.trim(), f = $("k-dosya").files[0];
-    if (!kayitNo || !telefon || !f) return uyar(uyari, "Kayıt numarası, telefon ve dekont dosyası gerekli.");
-    dekontGonder(kayitNo, telefon, f, $("dekont-sonuc"));
-  });
 
   let sayacZaman = null;
   function sayacBaslat(bitis) {
@@ -639,19 +625,12 @@
     ciz(); sayacZaman = setInterval(ciz, 1000);
   }
 
-  /** Dekont / iptal bölümleri: sadece rezervasyonu olan kişiye */
-  function rezervasyonumGoster(ac) {
-    $("rezervasyonum").hidden = false;
-    if (ac) { $(ac).open = true; $(ac).scrollIntoView({ block: "start" }); }
-  }
   try { localStorage.removeItem("aysu-son-rez"); } catch {}
-  // Sadece müşteriye gönderilen bağlantıyla (…/rezervasyon/#rezervasyonum) açılır
-  if (location.hash === "#rezervasyonum") rezervasyonumGoster("dekont-alan");
+  if (location.hash === "#rezervasyonum") { $("rezervasyonlarim").open = true; setTimeout(() => $("rezervasyonlarim").scrollIntoView(), 300); }
 
   function basariGoster(v, g) {
     sayacBaslat(v.opsiyonBitis);
     if (sonRez) sonRez.yazi = `${g.gun} ${tarihYazi(g.tarih)}, ${v.saat}`;
-    if (sonRez) { $("k-telefon").value = sonRez.telefon; $("i-telefon").value = sonRez.telefon; }
     const zaman = `${g.gun} ${tarihYazi(g.tarih)}${gece(v.saat) ? " gecesi" : ""}, ${v.saat}`;
     $("t-zaman").textContent = zaman;
     $("t-kayit").textContent = v.kayitNo;
@@ -676,8 +655,6 @@
     $("secim").hidden = true;
     $("tamam").hidden = false;
     document.querySelector(".wp-yuzen").hidden = true;
-    $("i-kayit").value = v.kayitNo;
-    $("k-kayit").value = v.kayitNo;
     $("t-dekont-sonuc").textContent = "";
     window.scrollTo({ top: 0 });
   }
@@ -696,28 +673,63 @@
     $("tamam").hidden = true; $("secim").hidden = false;
     document.querySelector(".wp-yuzen").hidden = false;
     secilenSaat = null;
-    ["ad", "telefon", "not", "k-telefon", "i-telefon"].forEach((id) => { $(id).value = ""; }); $("kvkk").checked = false;
+    ["ad", "telefon", "not", "b-telefon"].forEach((id) => { $(id).value = ""; }); $("kvkk").checked = false;
     await yukle();
   });
 
-  $("iptal-form").addEventListener("submit", async (e) => {
+  // ================= Rezervasyonlarım (telefonla) =================
+  let bulunan = [], bulTelefon = "", dekontIcin = null;
+  async function rezervasyonlarimiGetir() {
+    const uyari = $("bul-uyari"); uyari.hidden = true;
+    const r = await fetch("/api/rezervasyonlarim", { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ telefon: bulTelefon }) }).catch(() => null);
+    const v = r ? await r.json().catch(() => ({})) : { hata: "Bağlantı kurulamadı." };
+    if (!r || !r.ok) return uyar(uyari, v.hata || "Rezervasyonlar getirilemedi.");
+    bulunan = v.rezervasyonlar || [];
+    listeCiz();
+  }
+  function listeCiz() {
+    const el = $("bul-liste");
+    if (!bulunan.length) { el.innerHTML = '<p class="alt-bilgi" style="text-align:left">Bu numaraya ait ileri tarihli rezervasyon yok.</p>'; return; }
+    el.innerHTML = bulunan.map((r, i) => {
+      const zaman = `${r.gun} ${tarihYazi(r.isletmeGunu)}, ${r.saat}`;
+      const durum = r.durum === "Onaylı" ? '<b style="color:#14532d">Onaylı</b>'
+        : r.dekont ? '<b style="color:#8a5a00">Dekont kontrol ediliyor</b>' : '<b style="color:#8a5a00">Kapora bekleniyor</b>';
+      return `<div class="rez-kart">
+        <div><b>${zaman}</b><br><small>${r.kayitNo} · ${durum}</small></div>
+        <div class="rez-eylem">
+          ${r.durum !== "Onaylı" ? `<button type="button" class="dugme kucuk" data-dekont="${i}">${r.dekont ? "Dekontu yenile" : "Dekont yükle"}</button>` : ""}
+          <button type="button" class="dugme ikincil kucuk" data-iptal="${i}">İptal et</button>
+        </div>
+        <p class="dekont-sonuc" id="bul-sonuc-${i}" role="status"></p>
+      </div>`;
+    }).join("");
+    el.querySelectorAll("[data-dekont]").forEach((b) => b.addEventListener("click", () => { dekontIcin = Number(b.dataset.dekont); $("b-dosya").click(); }));
+    el.querySelectorAll("[data-iptal]").forEach((b) => b.addEventListener("click", async () => {
+      const r = bulunan[b.dataset.iptal];
+      if (!confirm(`${r.gun} ${tarihYazi(r.isletmeGunu)} ${r.saat} rezervasyonu iptal edilsin mi?`)) return;
+      const y = await fetch("/api/iptal", { method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ kayitNo: r.kayitNo, telefon: bulTelefon }) }).catch(() => null);
+      const v = y ? await y.json().catch(() => ({})) : {};
+      if (!y || !y.ok) return uyar($("bul-uyari"), v.hata || "İptal yapılamadı.");
+      await rezervasyonlarimiGetir(); yukle();
+    }));
+  }
+  $("bul-form").addEventListener("submit", (e) => {
     e.preventDefault();
-    const uyari = $("iptal-uyari"), sonuc = $("iptal-sonuc");
-    uyari.hidden = true; sonuc.textContent = "";
-    const kayitNo = $("i-kayit").value.trim(), telefon = $("i-telefon").value.trim();
-    if (!kayitNo || !telefon) return uyar(uyari, "Kayıt numarası ve telefonu yazın.");
-    try {
-      const r = await fetch("/api/iptal", {
-        method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ kayitNo, telefon }),
-      });
-      const v = await r.json().catch(() => ({}));
-      if (!r.ok || !v.basarili) return uyar(uyari, v.hata || "İptal yapılamadı.");
-      sonuc.textContent = `${v.kayitNo} numaralı rezervasyon iptal edildi.`;
-      yukle();
-    } catch {
-      uyar(uyari, "Bağlantı kurulamadı. Tekrar deneyin.");
-    }
+    bulTelefon = $("b-telefon").value.trim();
+    if (bulTelefon.replace(/\D/g, "").length < 10) return uyar($("bul-uyari"), "Cep telefonunuzu 05XX XXX XX XX biçiminde yazın.");
+    rezervasyonlarimiGetir();
+  });
+  $("b-dosya").addEventListener("change", async (e) => {
+    const f = e.target.files[0]; e.target.value = "";
+    if (!f || dekontIcin == null) return;
+    const r = bulunan[dekontIcin];
+    await dekontGonder(r.kayitNo, bulTelefon, f, $(`bul-sonuc-${dekontIcin}`));
+    const sonuc = $(`bul-sonuc-${dekontIcin}`).textContent;
+    await rezervasyonlarimiGetir();
+    const yeni = $(`bul-sonuc-${dekontIcin}`); if (yeni) yeni.textContent = sonuc;
+    yukle();
   });
 
   yukle();

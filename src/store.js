@@ -263,13 +263,29 @@ export class RezervasyonDeposu extends DurableObject {
     return kayit ? { anahtar, kayit } : null;
   }
 
+  /** Bağlantısı kopan müşteri: opsiyonlu saatine telefonla geri döner. */
+  async opsiyonDevam({ tarih: gunGirdi, saat: s, telefon: tel }) {
+    return this.kilitli(async () => {
+      const gun = tarihNormalize(gunGirdi), saat = saatNormalize(s), telefon = telefonNormalize(tel);
+      if (!gun || !saat || !telefon) return { hata: "Telefon numarası eşleşmedi." };
+      const sl = this.slot(await this.durumYukle(gun, gun), gun, saat);
+      if (sl.tur !== "rez" || sl.rez.telefon !== telefon || sl.rez.durum !== DURUM.bekliyor) return { hata: "Telefon numarası eşleşmedi." };
+      return { basarili: true, ...sl.rez };
+    });
+  }
+
   async bul(tel) {
     return this.kilitli(async () => {
       const telefon = telefonNormalize(tel);
       if (!telefon) return { hata: "Geçersiz telefon." };
       const liste = (await this.rezervasyonlar(simdi().tarih, gunEkle(simdi().tarih, 60)))
-        .filter((r) => r.telefon === telefon && !iptalMi(r.durum) && macZamani(r.tarih, r.saat) > Date.now())
-        .map((r) => ({ kayitNo: r.kayitNo, tarih: r.tarih, gun: r.gun, saat: r.saat, durum: r.durum }));
+        .filter((r) => r.telefon === telefon && !iptalMi(r.durum) && !opsiyonDustu(r) && macZamani(r.tarih, r.saat) > Date.now())
+        .sort((a, b) => (a.tarih + a.saat).localeCompare(b.tarih + b.saat))
+        .map((r) => ({
+          kayitNo: r.kayitNo, tarih: r.tarih, isletmeGunu: r.isletmeGunu || r.tarih, gun: r.gun, saat: r.saat, durum: r.durum,
+          dekont: Boolean(r.dekont), opsiyonBitis: r.durum === DURUM.bekliyor && !r.dekont ? r.opsiyonBitis || null : null,
+          ucret: r.ucret || null,
+        }));
       return { rezervasyonlar: liste };
     });
   }

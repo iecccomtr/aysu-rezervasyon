@@ -302,6 +302,13 @@ async function panel(request, env, ctx, yol) {
   }
 }
 
+/** Müşteriye dönen rezervasyon özeti (onay ekranı). */
+const rezCevap = (r) => ({
+  basarili: true, kayitNo: r.kayitNo, tarih: r.tarih, gun: r.gun, saat: r.saat, durum: r.durum,
+  ucret: r.ucret, kapora: FIYATLAR.kapora, kalan: r.ucret - FIYATLAR.kapora,
+  iban: IBAN.no || null, alici: IBAN.alici || null, opsiyonBitis: r.opsiyonBitis || null, dekont: Boolean(r.dekont),
+});
+
 /** Dekontu okur, kurallara göre değerlendirir ve sonucu rezervasyona yazar. */
 async function dekontKontrolEt(env, d, rez, veri) {
   const okunan = await dekontOku(env, { tur: rez.dekont.tur, veri });
@@ -409,11 +416,7 @@ export default {
             ["Kayıt no", r.kayitNo], ["Durum", `${r.durum} (${FIYATLAR.kapora} TL)`],
           ],
         }));
-        return json({
-          basarili: true, kayitNo: r.kayitNo, tarih: r.tarih, gun: r.gun, saat: r.saat, durum: r.durum,
-          ucret: r.ucret, kapora: FIYATLAR.kapora, kalan: r.ucret - FIYATLAR.kapora,
-          iban: IBAN.no || null, alici: IBAN.alici || null, opsiyonBitis: r.opsiyonBitis || null,
-        });
+        return json(rezCevap(r));
       } catch (e) {
         console.error(e);
         return json({ hata: `Rezervasyon şu an kaydedilemedi. Lütfen ${ISLETME.telefon} numarasını arayın.` }, 502);
@@ -449,6 +452,26 @@ export default {
         console.error(e);
         return json({ hata: `Dekont şu an yüklenemedi. WhatsApp'tan gönderebilirsiniz.` }, 502);
       }
+    }
+
+    // Bağlantısı kopan müşteri opsiyonlu saatine dokunup telefonunu yazınca kaldığı yerden devam eder
+    if (yol === "/api/opsiyon-devam" && request.method === "POST") {
+      if (!ayniKaynak(request)) return json({ hata: "Yetkisiz istek." }, 403);
+      if (await sinirAsildi(env, request, "iptal")) return cokFazla();
+      const g = await govdeOku(request);
+      if (!g) return json({ hata: "Geçersiz istek." }, 400);
+      const r = await depo(env).opsiyonDevam(g);
+      return r.basarili ? json(rezCevap(r)) : json(r, 400);
+    }
+
+    // Müşteri telefon numarasıyla ileri tarihli rezervasyonlarını görür (dekont yükleme / iptal için)
+    if (yol === "/api/rezervasyonlarim" && request.method === "POST") {
+      if (!ayniKaynak(request)) return json({ hata: "Yetkisiz istek." }, 403);
+      if (await sinirAsildi(env, request, "iptal")) return cokFazla();
+      const g = await govdeOku(request);
+      if (!g) return json({ hata: "Geçersiz istek." }, 400);
+      const r = await depo(env).bul(g.telefon);
+      return json(r, r.hata ? 400 : 200);
     }
 
     if (yol === "/api/iptal" && request.method === "POST") {

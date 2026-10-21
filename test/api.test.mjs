@@ -285,3 +285,16 @@ test("VIP spiker (+1600) ve VIP hakem (+1000) ücrete eklenir", async () => {
   const r2 = (await istek("/api/rezervasyon", { ...REZ, saat: "23:00", telefon: "0532 999 88 77", ekstra: ["hakem"] })).veri;
   assert.equal(r2.ucret, 4700);
 });
+
+test("Bağlantısı kopan müşteri opsiyonlu saatine telefonla geri döner; yanlış telefon reddedilir", async () => {
+  const { istek } = await kur();
+  const r = (await istek("/api/rezervasyon", REZ)).veri;
+  assert.equal((await istek("/api/opsiyon-devam", { tarih: REZ.tarih, saat: REZ.saat, telefon: "05329999999" })).durum, 400);
+  const d = await istek("/api/opsiyon-devam", { tarih: REZ.tarih, saat: REZ.saat, telefon: "0532 111 22 33" });
+  assert.equal(d.durum, 200);
+  assert.equal(d.veri.kayitNo, r.kayitNo);
+  assert.match(d.veri.iban, /^TR70/);
+  assert.ok(d.veri.opsiyonBitis > Date.now());
+  const l = (await istek("/api/rezervasyonlarim", { telefon: "05321112233" })).veri;
+  assert.equal(l.rezervasyonlar[0].kayitNo, r.kayitNo);
+});

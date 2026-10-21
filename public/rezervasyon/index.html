@@ -236,11 +236,11 @@
           <div id="form-uyari" class="uyari" role="alert" hidden></div>
           <div class="alan">
             <label for="ad">Ad soyad</label>
-            <input id="ad" name="ad" autocomplete="name" required minlength="3" maxlength="60">
+            <input id="ad" name="ad" autocomplete="off" required minlength="3" maxlength="60">
           </div>
           <div class="alan">
             <label for="telefon">Cep telefonu</label>
-            <input id="telefon" name="telefon" type="tel" inputmode="tel" autocomplete="tel" placeholder="05XX XXX XX XX" required>
+            <input id="telefon" name="telefon" type="tel" inputmode="tel" autocomplete="off" placeholder="05XX XXX XX XX" required>
             <p class="ipucu">Rezervasyonla ilgili sizi bu numaradan ararız.</p>
           </div>
           <div class="alan">
@@ -288,9 +288,11 @@
         <a class="dugme wp" id="t-wp" target="_blank" rel="noopener">Dekontu WhatsApp'tan gönder</a>
         <button class="dugme ikincil" id="yeni" type="button">Başka bir saat ayırt</button>
       </div>
-      <p class="alt-bilgi">Bu ekranın görüntüsünü alın. İptal için kayıt numaranız gerekecek.</p>
+      <p class="alt-bilgi">Bu ekranın görüntüsünü alın. Sonradan dekont yüklemek ya da iptal etmek için kayıt numaranız gerekecek: <a href="/rezervasyon/#rezervasyonum">aysuhalisaha.com/rezervasyon/#rezervasyonum</a></p>
     </section>
 
+    <!-- ===== Rezervasyonum: dekont / iptal (sadece rezervasyon yapınca, kayıtlı rezervasyon varsa ya da #rezervasyonum ile görünür) ===== -->
+    <div id="rezervasyonum" hidden>
     <!-- ===== Sonradan dekont ===== -->
     <details class="iptal-alan" id="dekont-alan">
       <summary>Dekontumu yüklemek istiyorum</summary>
@@ -331,6 +333,7 @@
       </form>
       <p class="alt-bilgi" style="text-align:left">Maça 3 saatten az kaldıysa iptal için lütfen arayın: <a href="tel:+905555102626">0 555 510 26 26</a></p>
     </details>
+    </div>
 
     <p class="alt-bilgi"><a href="/">Ana sayfa</a> · Abonelik ve toplu rezervasyon için <a href="https://wa.me/905555102626" target="_blank" rel="noopener">WhatsApp'tan yazın</a></p>
   </main>
@@ -357,11 +360,8 @@
   let istenen = { tarih: url.get("tarih"), saat: url.get("saat") };
   if (istenen.tarih || istenen.saat) history.replaceState(null, "", location.pathname);
 
-  // Ad ve telefonu bu cihazda hatırla (isteğe bağlı kolaylık).
-  try {
-    const k = JSON.parse(localStorage.getItem("aysu-kisi") || "null");
-    if (k) { $("ad").value = k.ad || ""; $("telefon").value = k.telefon || ""; $("i-telefon").value = k.telefon || ""; }
-  } catch {}
+  // Form bilgileri cihazda saklanmaz (ortak kullanılan telefon/bilgisayarda başkası görmesin); eski kayıt silinir.
+  try { localStorage.removeItem("aysu-kisi"); } catch {}
 
   function gunleriCiz() {
     const el = $("gunler");
@@ -528,7 +528,7 @@
         if (/dolu/i.test(v.hata || "")) { secilenSaat = null; await yukle(); }
         return;
       }
-      try { localStorage.setItem("aysu-kisi", JSON.stringify({ ad, telefon })); } catch {}
+      ["ad", "telefon", "not"].forEach((id) => { $(id).value = ""; }); $("kvkk").checked = false; // formu sıfırla
       sonRez = { kayitNo: v.kayitNo, telefon };
       basariGoster(v, g);
     } catch {
@@ -605,8 +605,26 @@
     ciz(); sayacZaman = setInterval(ciz, 1000);
   }
 
+  /** Dekont / iptal bölümleri: sadece rezervasyonu olan kişiye */
+  function rezervasyonumGoster(ac) {
+    $("rezervasyonum").hidden = false;
+    if (ac) { $(ac).open = true; $(ac).scrollIntoView({ block: "start" }); }
+  }
+  try {
+    const son = JSON.parse(localStorage.getItem("aysu-son-rez") || "null");
+    // Kayıtlı, maçı henüz geçmemiş bir rezervasyon varsa bölümleri göster ve doldur
+    if (son && son.kayitNo && Date.parse(son.tarih + "T" + son.saat + ":00+03:00") > Date.now()) {
+      rezervasyonumGoster();
+      $("k-kayit").value = son.kayitNo; $("i-kayit").value = son.kayitNo;
+    }
+  } catch {}
+  if (location.hash === "#rezervasyonum") rezervasyonumGoster("dekont-alan");
+
   function basariGoster(v, g) {
     sayacBaslat(v.opsiyonBitis);
+    rezervasyonumGoster();
+    try { localStorage.setItem("aysu-son-rez", JSON.stringify({ kayitNo: v.kayitNo, tarih: v.tarih, saat: v.saat })); } catch {}
+    if (sonRez) { $("k-telefon").value = sonRez.telefon; $("i-telefon").value = sonRez.telefon; }
     const zaman = `${g.gun} ${tarihYazi(g.tarih)}${gece(v.saat) ? " gecesi" : ""}, ${v.saat}`;
     $("t-zaman").textContent = zaman;
     $("t-kayit").textContent = v.kayitNo;
@@ -640,7 +658,8 @@
   $("yeni").addEventListener("click", async () => {
     $("tamam").hidden = true; $("secim").hidden = false;
     document.querySelector(".wp-yuzen").hidden = false;
-    secilenSaat = null; $("not").value = "";
+    secilenSaat = null;
+    ["ad", "telefon", "not", "k-telefon", "i-telefon"].forEach((id) => { $(id).value = ""; }); $("kvkk").checked = false;
     await yukle();
   });
 

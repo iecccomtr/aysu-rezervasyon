@@ -37,6 +37,12 @@ export const FIYATLAR = {
 // Boş bırakılırsa IBAN gösterilmez, "sizi arayacağız" denir.
 export const IBAN = { no: "TR70 0015 7000 0000 0154 8342 35", alici: "Ahmet Aysu" };
 
+/** Rezervasyonda seçilebilen ek hizmetler (maç ücretine eklenir). */
+export const EKSTRALAR = {
+  spiker: { ad: "VIP spiker", ucret: 2000 },
+  hakem: { ad: "VIP hakem", ucret: 1000 },
+};
+
 export const KURALLAR = {
   enFazlaGunSonra: 27,          // en fazla kaç gün sonrasına rezervasyon alınır (bugün + 27 gün = 4 hafta)
   kisiBasiAktifRezervasyon: 4,  // bir numara için gelecekteki en fazla rezervasyon (4 haftada haftada bir)

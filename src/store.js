@@ -14,7 +14,7 @@
 //   d:<kayitNo>                  müşterinin yüklediği kapora dekontu (fotoğraf/PDF)
 
 import { DurableObject } from "cloudflare:workers";
-import { SAATLER, KURALLAR, DURUM } from "./config.js";
+import { SAATLER, KURALLAR, DURUM, EKSTRALAR } from "./config.js";
 import {
   simdi, gunAdi, gunEkle, macZamani, tarihNormalize, saatNormalize,
   telefonNormalize, gecerliSaat, fiyat, isletmeGunu, haftaBasi,
@@ -51,6 +51,12 @@ const kullaniciDisi = ({ hash, tuz, ...u }) => ({ ...u, rolAd: ROLLER[u.rol]?.ad
  */
 export const opsiyonDustu = (r, simdiMs = Date.now()) =>
   r.kaynak === "Online" && r.durum === DURUM.bekliyor && !r.dekont && Number(r.opsiyonBitis) > 0 && Number(r.opsiyonBitis) <= simdiMs;
+/** Başka müşteriye opsiyonlu yer: { dk } (kalan dakika) ya da { dekont: true } (dekont kontrolde). Değilse null. */
+const opsiyonBilgisi = (r, simdiMs = Date.now()) => {
+  if (!r || r.kaynak !== "Online" || r.durum !== DURUM.bekliyor) return null;
+  if (r.dekont) return { dekont: true };
+  return r.opsiyonBitis ? { dk: Math.max(1, Math.ceil((r.opsiyonBitis - simdiMs) / 60000)) } : null;
+};
 const iptalMi = (durum) => String(durum || "").toLocaleLowerCase("tr").includes("iptal");
 const geceSaati = (saat) => Number(saat.slice(0, 2)) < 6;
 /** İşletme günü + saat → maçın takvim tarihi */
@@ -173,7 +179,8 @@ export class RezervasyonDeposu extends DurableObject {
       .filter((saat) => macZamani(takvimTarihi(tarih, saat), saat) > simdiMs)
       .map((saat) => {
         const s = this.slot(durum, tarih, saat);
-        return { saat, bos: s.tur === "bos" || s.tur === "abone-gelmiyor", ucret: fiyat(takvimTarihi(tarih, saat), saat) };
+        const ops = opsiyonBilgisi(s.rez, simdiMs);
+        return { saat, bos: s.tur === "bos" || s.tur === "abone-gelmiyor", ucret: fiyat(takvimTarihi(tarih, saat), saat), ...(ops ? { opsiyon: ops } : {}) };
       });
     return { tarih, gun: gunAdi(tarih), bosSaatler: detay.filter((s) => s.bos).map((s) => s.saat), detay };
   }
@@ -191,7 +198,7 @@ export class RezervasyonDeposu extends DurableObject {
   }
 
   /** Ortak kayıt oluşturma. `panel` true ise müşteri sınırları uygulanmaz. */
-  async rezervasyonYaz({ gunTarihi, saat: s, ad, telefon: tel, not = "", durum, kaynak, kapora = "" }, panel) {
+  async rezervasyonYaz({ gunTarihi, saat: s, ad, telefon: tel, not = "", durum, kaynak, kapora = "", ekstra = [] }, panel) {
     const gun = tarihNormalize(gunTarihi);
     const saat = saatNormalize(s);
     const telefon = telefonNormalize(tel);
@@ -212,6 +219,12 @@ export class RezervasyonDeposu extends DurableObject {
     const d = await this.durumYukle(gun, gun);
     const sl = this.slot(d, gun, saat);
     if (sl.tur === "rez" || sl.tur === "abone") {
+      const ops = opsiyonBilgisi(sl.rez);
+      if (ops && !panel) {
+        return { hata: ops.dekont
+          ? "Bu saat şu an başka bir müşteriye ayrılmış, ödemesi kontrol ediliyor. Biraz sonra tekrar bakın ya da başka bir saat seçin."
+          : `Bu saat şu an başka bir müşteriye ${KURALLAR.opsiyonDakika} dakikalığına ayrılmış. Ödeme gelmezse yaklaşık ${ops.dk} dakika sonra boşa çıkar; o zaman tekrar deneyin.` };
+      }
       return { hata: "Bu saat dolu. Lütfen başka bir saat seçin." };
     }
     if (!panel) {
@@ -229,11 +242,14 @@ export class RezervasyonDeposu extends DurableObject {
       durum: DURUMLAR.includes(durum) ? durum : DURUM.bekliyor,
       kayitNo: `AY-${rastgele(5)}`, not: kirp(not, 200), kapora: kirp(kapora, 60),
       kaynak: kaynak || "Online", olusturma: simdiYazi(),
+      // VIP spiker / VIP hakem: ücrete eklenir
+      ekstra: [...new Set(Array.isArray(ekstra) ? ekstra : [])].filter((x) => EKSTRALAR[x]),
       ...(!panel ? { opsiyonBitis: Date.now() + KURALLAR.opsiyonDakika * 60_000 } : {}),
     };
+    kayit.ucret = fiyat(tarih, saat) + kayit.ekstra.reduce((t, x) => t + EKSTRALAR[x].ucret, 0);
     const anahtar = `r:${tarih}:${saat}:${kayit.kayitNo}`;
     await this.st.put({ [anahtar]: kayit, [`k:${kayit.kayitNo}`]: anahtar });
-    return { basarili: true, ...kayit, ucret: fiyat(tarih, saat) };
+    return { basarili: true, ...kayit };
   }
 
   async olustur(girdi) {

@@ -2,7 +2,7 @@
 // Statik sayfalar /public klasöründen sunulur; /api/* istekleri burada işlenir.
 
 import { simdi, isletmeGunu, gunEkle } from "./time.js";
-import { KURALLAR, FIYATLAR, IBAN, ISLETME } from "./config.js";
+import { KURALLAR, FIYATLAR, IBAN, ISLETME, EKSTRALAR } from "./config.js";
 import { bildir, epostaYolla, epostaKurulu } from "./bildirim.js";
 import { dekontOku, dekontDegerlendir, ozet } from "./dekont-kontrol.js";
 import { ROLLER } from "./store.js";
@@ -124,7 +124,7 @@ async function gunleriGetir(env) {
   for (let t = ilk; t <= gunEkle(n.tarih, KURALLAR.enFazlaGunSonra); t = gunEkle(t, 1)) tarihler.push(t);
   return (await depo(env).musaitlikCoklu(tarihler))
     .filter((g) => !g.hata && g.detay.length > 0)
-    .map((g) => ({ tarih: g.tarih, gun: g.gun, saatler: g.detay.map((s) => ({ saat: s.saat, bos: s.bos })) }));
+    .map((g) => ({ tarih: g.tarih, gun: g.gun, saatler: g.detay.map((s) => ({ saat: s.saat, bos: s.bos, ...(s.opsiyon ? { opsiyon: s.opsiyon } : {}) })) }));
 }
 
 function cerez(request, ad) {
@@ -148,7 +148,7 @@ function haftaSaltOkur(h) {
       ...g,
       saatler: g.saatler.map((s) => ({
         saat: s.saat, tarih: s.tarih, gecmis: s.gecmis, tur: s.tur, ...(s.ozel ? { ozel: true } : {}),
-        ...(s.rez ? { rez: { ad: s.rez.ad, durum: s.rez.durum, kaynak: s.rez.kaynak } } : {}),
+        ...(s.rez ? { rez: { ad: s.rez.ad, durum: s.rez.durum, kaynak: s.rez.kaynak, ekstra: s.rez.ekstra || [] } } : {}),
         ...(s.abone ? { abone: { no: s.abone.no } } : {}),
       })),
     })),
@@ -256,7 +256,7 @@ async function panel(request, env, ctx, yol) {
 
   switch (`${request.method} ${yol}`) {
     case "POST rez": return degisti(await d.panelRezEkle({
-      gunTarihi: g.gun, saat: g.saat, ad: g.ad, telefon: g.telefon, not: g.not, durum: g.durum, kapora: g.kapora,
+      gunTarihi: g.gun, saat: g.saat, ad: g.ad, telefon: g.telefon, not: g.not, durum: g.durum, kapora: g.kapora, ekstra: g.ekstra,
     }));
     case "POST rez-guncelle": return degisti(await d.panelRezGuncelle(g));
     case "GET aboneler": return json(await d.aboneListe());
@@ -347,7 +347,7 @@ export default {
     if (yol === "/api/musaitlik" && request.method === "GET") {
       return onbellekli(request, ctx, 10, async () => {
         try {
-          return json({ gunler: await gunleriGetir(env), fiyat: FIYATLAR.gunduz, kapora: FIYATLAR.kapora, dogrulama: env.TURNSTILE_SITE_KEY || null });
+          return json({ gunler: await gunleriGetir(env), fiyat: FIYATLAR.gunduz, kapora: FIYATLAR.kapora, ekstralar: EKSTRALAR, dogrulama: env.TURNSTILE_SITE_KEY || null });
         } catch (e) {
           console.error(e);
           return json({ hata: "Boş saatler şu an okunamıyor." }, 503);
@@ -377,7 +377,7 @@ export default {
       if (g.kvkk !== true) return json({ hata: "Devam etmek için aydınlatma metnini onaylayın." }, 400);
       if (!(await insanMi(env, request, g.dogrulama))) return robotHatasi();
       try {
-        const r = await depo(env).olustur({ gunTarihi: g.tarih, saat: g.saat, ad: g.ad, telefon: g.telefon, not: g.not || "" });
+        const r = await depo(env).olustur({ gunTarihi: g.tarih, saat: g.saat, ad: g.ad, telefon: g.telefon, not: g.not || "", ekstra: g.ekstra });
         if (!r.basarili) return json(r, 409);
         onbellegiTemizle(request, ctx);
         ctx.waitUntil(bildir(env, {
@@ -385,6 +385,7 @@ export default {
           satirlar: [
             ["Maç", `${r.gun}, ${r.tarih} saat ${r.saat}`],
             ["Ad soyad", r.ad], ["Telefon", r.telefon], ["Not", r.not || "-"],
+            ["VIP", r.ekstra.length ? r.ekstra.map((x) => EKSTRALAR[x].ad).join(", ") : "-"], ["Toplam ücret", `${r.ucret} TL`],
             ["Kayıt no", r.kayitNo], ["Durum", `${r.durum} (${FIYATLAR.kapora} TL)`],
           ],
         }));

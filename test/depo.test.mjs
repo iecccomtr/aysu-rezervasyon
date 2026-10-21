@@ -417,3 +417,13 @@ test("Müşteri silme: aktif rezervasyon/abonelik varsa engellenir, yoksa tüm k
   await d.aboneKaydet({ ad: "Abone", telefon: "05330000001", gun: 0, saat: "21:00" });
   assert.match((await d.musteriSil("05330000001")).hata, /abone/);
 });
+
+test("Opsiyonlu yer: başkası denerse 'x dakika sonra tekrar deneyin' uyarısı; müsaitlikte işaretli", async () => {
+  const d = demoDepo();
+  await d.olustur({ gunTarihi: "2026-10-21", saat: "21:00", ...ALI });
+  saatiAyarla("2026-10-19T10:05");
+  const r = await d.olustur({ gunTarihi: "2026-10-21", saat: "21:00", ad: "Başkası", telefon: "05330000009" });
+  assert.match(r.hata, /10 dakika sonra/);
+  const s = (await d.musaitlik("2026-10-21")).detay.find((x) => x.saat === "21:00");
+  assert.deepEqual(s.opsiyon, { dk: 10 });
+});

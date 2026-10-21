@@ -715,7 +715,7 @@
       if (s.tur === "rez") {
         const bek = s.rez.durum === "Kapora bekleniyor";
         sinif = `h ${bek ? "h-bekliyor" : "h-onayli"}`;
-        yazi = kacis(kisaAd(s.rez.ad));
+        yazi = (s.rez.ekstra && s.rez.ekstra.length ? "★ " : "") + kacis(kisaAd(s.rez.ad)); // ★ = VIP
         baslik = `${g.gun} ${saat}: ${s.rez.ad}${s.rez.telefon ? " " + telYazi(s.rez.telefon) : ""} (${s.rez.durum})`;
       } else if (s.tur === "abone") {
         sinif = "h h-abone"; yazi = aboneEtiket(s.abone); baslik = `${g.gun} ${saat}: ${aboneEtiket(s.abone)}${yonetici() && s.abone.ad ? " (" + s.abone.ad + ")" : ""}`;
@@ -811,6 +811,10 @@
           <div class="alan"><label for="d-kapora">Alınan kapora</label><input id="d-kapora" placeholder="ör. 1200"></div>
           <div class="alan"><label for="d-not">Not</label><input id="d-not"></div>
         </div>
+        <div style="display:flex;gap:18px;flex-wrap:wrap;margin:-2px 0 14px">
+          <label style="display:flex;gap:6px;align-items:center;font-weight:600"><input type="checkbox" data-ekstra="spiker"> VIP spiker (+2.000 TL)</label>
+          <label style="display:flex;gap:6px;align-items:center;font-weight:600"><input type="checkbox" data-ekstra="hakem"> VIP hakem (+1.000 TL)</label>
+        </div>
         <button class="dugme tam" type="submit">Rezervasyonu kaydet</button>
       </form>`);
     ic.querySelector(".durum-sec").style.gridTemplateColumns = "1fr 1fr";
@@ -825,7 +829,8 @@
       e.preventDefault();
       const btn = e.submitter; btn.disabled = true;
       try {
-        const r = await api("rez", { gun: g.tarih, saat: s.saat, ad: $("d-ad").value, telefon: $("d-tel").value, kapora: $("d-kapora").value, not: $("d-not").value, durum: durumAl() });
+        const r = await api("rez", { gun: g.tarih, saat: s.saat, ad: $("d-ad").value, telefon: $("d-tel").value, kapora: $("d-kapora").value, not: $("d-not").value, durum: durumAl(),
+          ekstra: [...$("dlg-ic").querySelectorAll("[data-ekstra]:checked")].map((x) => x.dataset.ekstra) });
         if (r.hata) return dlgUyari(r.hata);
         dlg.close(); bildir(`${s.saat} kaydedildi`); haftaYukle();
       } finally { btn.disabled = false; }
@@ -839,6 +844,8 @@
         <div><span>Ad</span><b>${kacis(r.ad)}</b></div>
         <div><span>Telefon</span>${r.telefon ? `<a href="tel:${r.telefon}">${telYazi(r.telefon)}</a>` : "—"}</div>
         <div><span>Kayıt no</span><b>${kacis(r.kayitNo)}</b></div>
+        ${r.ekstra && r.ekstra.length ? `<div><span>VIP</span><b style="color:#b45309">${r.ekstra.map((x) => ({ spiker: "VIP spiker", hakem: "VIP hakem" })[x] || x).join(" + ")}</b></div>` : ""}
+        ${r.ucret ? `<div><span>Toplam ücret</span>${Number(r.ucret).toLocaleString("tr-TR")} TL</div>` : ""}
         <div><span>Kaynak</span>${kacis(r.kaynak || "")} · ${kacis(r.olusturma || "")}</div>
         ${r.dekont ? `<div><span>Dekont</span><a href="/api/panel/dekont?k=${encodeURIComponent(r.kayitNo)}" target="_blank" rel="noopener"><b>Dekontu aç</b></a> · ${kacis(r.dekont.zaman)}
           ${r.dekont.kontrol ? (r.dekont.kontrol.onay

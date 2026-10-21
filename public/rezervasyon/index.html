@@ -158,6 +158,17 @@
   .bilet-ust .zaman { font: 700 26px/1.05 "Barlow Condensed", sans-serif; }
   .sayac { font: 700 22px/1.2 "Barlow Condensed", sans-serif; text-align: center; margin: 4px 0 8px; color: var(--cim, #0067a4); }
   .sayac.az { color: #b42318; }
+  .saat.opsiyonlu { color: #f3c97a; border: 1px dashed #b45309; background: transparent; display: grid; place-items: center; line-height: 1; }
+  .saat.opsiyonlu small { display: block; font: 600 12px/1.2 "Barlow", sans-serif; color: #f3c97a; margin-top: 2px; }
+  .ops-uyari { background: #fff1d6; color: #7a4a00; border-radius: 10px; padding: 10px 12px; margin-top: 10px; font-size: 15px; }
+  .vip { border: 2px solid #f3c97a; background: #fff8ec; border-radius: 12px; padding: 10px 14px 12px; margin: 0 0 16px; }
+  .vip legend { font-weight: 700; padding: 0 6px; }
+  .vip legend small { font-weight: 400; color: var(--gri, #566270); }
+  .vip-sec { display: flex; align-items: center; gap: 10px; padding: 8px 0; cursor: pointer; font-weight: 600; }
+  .vip-sec input { width: 22px; height: 22px; accent-color: #ef7f1a; }
+  .vip-sec span { flex: 1; }
+  .vip-sec b { color: #b45309; }
+  .vip-not { font-size: 14px; color: #8a5a00; margin: 4px 0 0; }
   .dekont-kutu { background: var(--kart, #fff); border: 2px solid var(--cim, #0067a4); border-radius: 14px; padding: 16px; margin: 16px 0; }
   .dekont-kutu h3 { font-size: 20px; margin-bottom: 4px; }
   .dekont-kutu p { margin-bottom: 12px; }
@@ -234,6 +245,12 @@
         </div>
         <form id="form" novalidate>
           <div id="form-uyari" class="uyari" role="alert" hidden></div>
+          <fieldset class="vip">
+            <legend>VIP hizmetler <small>(isteğe bağlı)</small></legend>
+            <label class="vip-sec"><input type="checkbox" id="vip-spiker" data-ekstra="spiker"><span>VIP spiker</span><b>+2.000 TL</b></label>
+            <label class="vip-sec"><input type="checkbox" id="vip-hakem" data-ekstra="hakem"><span>VIP hakem</span><b>+1.000 TL</b></label>
+            <p class="vip-not">VIP sporcularımıza çaylarımız ve sular 1'er kez ikramımızdır.</p>
+          </fieldset>
           <div class="alan">
             <label for="ad">Ad soyad</label>
             <input id="ad" name="ad" autocomplete="off" required minlength="3" maxlength="60">
@@ -421,17 +438,32 @@
     if (!g) { el.innerHTML = '<p class="bos-mesaj">Gösterilecek gün yok.</p>'; return; }
     const gunduz = g.saatler.filter((s) => !gece(s.saat));
     const geceler = g.saatler.filter((s) => gece(s.saat));
-    const dugme = (s) => `<button type="button" class="saat" data-saat="${s.saat}" ${s.bos ? "" : "disabled"} aria-pressed="${s.saat === secilenSaat}" aria-label="${s.saat} ${s.bos ? "boş" : "dolu"}">${s.saat}</button>`;
+    const dugme = (s) => s.opsiyon
+      ? `<button type="button" class="saat opsiyonlu" data-ops="${s.saat}" aria-label="${s.saat} başka müşteriye ayrılmış">${s.saat}<small>${s.opsiyon.dekont ? "kontrolde" : `⏳ ${s.opsiyon.dk} dk`}</small></button>`
+      : `<button type="button" class="saat" data-saat="${s.saat}" ${s.bos ? "" : "disabled"} aria-pressed="${s.saat === secilenSaat}" aria-label="${s.saat} ${s.bos ? "boş" : "dolu"}">${s.saat}</button>`;
     let html = "";
     if (gunduz.length) html += `<div class="grup"><div class="saatler">${gunduz.map(dugme).join("")}</div></div>`;
     if (geceler.length) html += `<div class="grup"><p class="grup-ad">${g.gun} gecesi (gece yarısından sonra)</p><div class="saatler">${geceler.map(dugme).join("")}</div></div>`;
     if (!g.saatler.some((s) => s.bos)) html += `<p class="tabela-not">Bu gün boş saat kalmadı. Başka bir gün seçin.</p>`;
-    else html += `<p class="tabela-not">Sarı saatler boş. Üstü çizili saatler dolu.</p>`;
+    else html += `<p class="tabela-not">Sarı saatler boş. Üstü çizili saatler dolu.${g.saatler.some((s) => s.opsiyon) ? " ⏳ işaretli saat başka bir müşteriye kısa süreliğine ayrılmış." : ""}</p>`;
+    html += `<p class="ops-uyari" id="ops-uyari" role="status" hidden></p>`;
     el.innerHTML = html;
-    el.querySelectorAll(".saat:not(:disabled)").forEach((b) => b.addEventListener("click", () => {
+    el.querySelectorAll("[data-ops]").forEach((b) => b.addEventListener("click", () => {
+      const s = g.saatler.find((x) => x.saat === b.dataset.ops);
+      const u = $("ops-uyari");
+      u.textContent = s.opsiyon.dekont
+        ? `${s.saat} başka bir müşteriye ayrılmış, ödemesi kontrol ediliyor. Biraz sonra tekrar bakın.`
+        : `${s.saat} şu an başka bir müşteriye ayrılmış. Ödeme gelmezse yaklaşık ${s.opsiyon.dk} dakika sonra boşa çıkar; o zaman tekrar deneyin.`;
+      u.hidden = false;
+    }));
+    el.querySelectorAll(".saat[data-saat]:not(:disabled)").forEach((b) => b.addEventListener("click", () => {
       secilenSaat = b.dataset.saat; saatleriCiz(); formuGuncelle(true);
     }));
   }
+
+  const seciliEkstralar = () => [...document.querySelectorAll("[data-ekstra]")].filter((x) => x.checked).map((x) => x.dataset.ekstra);
+  const toplamUcret = () => veri.fiyat + seciliEkstralar().reduce((t, x) => t + ((veri.ekstralar || {})[x]?.ucret || 0), 0);
+  document.querySelectorAll("[data-ekstra]").forEach((x) => x.addEventListener("change", () => { $("ozet-ucret").textContent = tl(toplamUcret()); }));
 
   function formuGuncelle(kaydir) {
     const g = veri.gunler[gunIdx];
@@ -439,7 +471,7 @@
     $("form-uyari").hidden = true;
     if (!secilenSaat) return;
     $("ozet-zaman").textContent = `${g.gun} ${tarihYazi(g.tarih)}${gece(secilenSaat) ? " gecesi" : ""}, ${secilenSaat}`;
-    $("ozet-ucret").textContent = tl(veri.fiyat);
+    $("ozet-ucret").textContent = tl(toplamUcret());
     $("ozet-kapora").textContent = `${tl(veri.kapora)} kapora`;
     if (kaydir) $("form-adim").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
   }
@@ -519,7 +551,7 @@
       if (dogrulamaToken === "") return uyar(uyari, "Güvenlik doğrulamasını tamamlayın, ardından tekrar deneyin.");
       const r = await fetch("/api/rezervasyon", {
         method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ tarih: g.tarih, saat: secilenSaat, ad, telefon, not: $("not").value.trim(), kvkk: true, web: $("web").value, dogrulama: dogrulamaToken }),
+        body: JSON.stringify({ tarih: g.tarih, saat: secilenSaat, ad, telefon, not: $("not").value.trim(), kvkk: true, web: $("web").value, dogrulama: dogrulamaToken, ekstra: seciliEkstralar() }),
       });
       dogrulamaYenile();
       const v = await r.json().catch(() => ({}));
@@ -529,6 +561,7 @@
         return;
       }
       ["ad", "telefon", "not"].forEach((id) => { $(id).value = ""; }); $("kvkk").checked = false; // formu sıfırla
+      document.querySelectorAll("[data-ekstra]").forEach((x) => { x.checked = false; });
       sonRez = { kayitNo: v.kayitNo, telefon };
       basariGoster(v, g);
     } catch {

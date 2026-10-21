@@ -20,9 +20,10 @@
 
   "observability": { "enabled": true },
 
-  // Her akşam 20:00 (Türkiye) ertesi günün çalışma saati Personel ve Temizlik Şefi'ne e-postayla gider (UTC 17:00).
+  // Her akşam 18:00 (Türkiye) ertesi günün çalışma saati Personel ve Temizlik Şefi'ne e-postayla gider (UTC 15:00).
+  // Sonradan gelen rezervasyon/iptal başlama saatini değiştirirse otomatik "GÜNCELLEME" e-postası gider.
   // Pazartesi 03:00 (Türkiye, UTC 00:00): Pazar gecesi bitince geçen haftanın rezervasyon listesi silinir, aboneler kalır.
-  "triggers": { "crons": ["0 17 * * *", "0 0 * * 1"] },
+  "triggers": { "crons": ["0 15 * * *", "0 0 * * 1"] },
 
   // Panelden girilen değişkenler yeni yüklemelerde silinmesin
   "keep_vars": true,

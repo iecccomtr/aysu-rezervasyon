@@ -171,7 +171,7 @@ test("Mesai e-postası: Personel'e ilk maçtan 1 saat önce; zamanlanmış göre
   const onizleme = (await istek("/api/panel/mesai?gun=2026-10-22")).veri;
   assert.equal(onizleme.baslama, "20:00");
   const n = epostalar.length;
-  const r = await worker.scheduled({}, {
+  const r = await worker.scheduled({ cron: "0 15 * * *" }, {
     RESEND_API_KEY: "re_test", REZERVASYON_DEPOSU: { idFromName: () => "aysu", get: () => depo },
   }, { waitUntil: (p) => p });
   await new Promise((ok) => setTimeout(ok, 10));
@@ -180,6 +180,18 @@ test("Mesai e-postası: Personel'e ilk maçtan 1 saat önce; zamanlanmış göre
   assert.equal(e.length, 1);
   assert.deepEqual(e[0].to, ["p@aysu.com"]);
   assert.match(e[0].subject, /20:00'da sahada olun/);
+
+  // E-posta gittikten sonra daha erken bir rezervasyon gelirse otomatik güncelleme gider
+  const m = epostalar.length;
+  assert.equal((await istek("/api/rezervasyon", { ...REZ, saat: "18:00" })).durum, 200);
+  const g = epostalar.slice(m).filter((x) => x.to[0] === "p@aysu.com");
+  assert.equal(g.length, 1);
+  assert.match(g[0].subject, /^GÜNCELLEME — .*17:00'da sahada olun/);
+  assert.match(g[0].text, /Önceki başlama: 20:00/);
+  // Başlama saatini değiştirmeyen rezervasyon e-posta göndermez
+  const k = epostalar.length;
+  await istek("/api/rezervasyon", { ...REZ, saat: "23:00", telefon: "0532 222 33 44" });
+  assert.equal(epostalar.slice(k).filter((x) => x.to[0] === "p@aysu.com").length, 0);
 });
 
 test("Panel: telefon rezervasyonu, kapora onayı, abone 'gelmiyor', CRM", async () => {  const { istek, depo } = await kur();

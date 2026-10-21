@@ -43,7 +43,7 @@ Takvim tablosunda aboneler adla değil **numarayla** görünür ("Abone 3"). Num
 - Admin şifresini unutursa: **Şifremi unuttum → Admin: kurulum koduyla sıfırla** (kurulum kodu + e-posta + yeni şifre).
 
 ### Mesai e-postası
-Her akşam **20:00**'de ertesi günün çalışma saati, rolü Temizlik Şefi veya Personel olan aktif kullanıcılara e-postayla gider: **işe başlama = ilk maçtan 1 saat önce**, ilk/son maç ve tahmini bitiş (son maçtan 1 saat sonra). Önizleme ve **Şimdi gönder** düğmesi: Panel → Kullanıcılar → Mesai e-postası. Kişi bazında kapatılabilir.
+Her akşam **18:00**'de ertesi günün çalışma saati, rolü Temizlik Şefi veya Personel olan aktif kullanıcılara e-postayla gider: **işe başlama = ilk maçtan 1 saat önce**, ilk/son maç ve tahmini bitiş (son maçtan 1 saat sonra). E-posta gittikten sonra yeni rezervasyon, iptal ya da abone değişikliği başlama saatini değiştirirse personele otomatik **"GÜNCELLEME"** e-postası gider (önceki ve yeni saatle). Önizleme ve **Şimdi gönder** düğmesi: Panel → Kullanıcılar → Mesai e-postası. Kişi bazında kapatılabilir.
 
 ---
 

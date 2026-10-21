@@ -1140,7 +1140,7 @@
     const [y, a, g] = p.gun.split("-");
     const kim = p.alicilar.length ? p.alicilar.map((k) => kacis(k.ad)).join(", ") : "henüz kimse yok";
     $("mesai").innerHTML = `
-      <p class="soluk" style="margin-bottom:10px">Her akşam 20:00'de ertesi günün çalışma saati Temizlik Şefi ve Personel'e e-postayla gider. İşe başlama = ilk maçtan 1 saat önce.</p>
+      <p class="soluk" style="margin-bottom:10px">Her akşam 18:00'de ertesi günün çalışma saati Temizlik Şefi ve Personel'e otomatik e-postayla gider. İşe başlama = ilk maçtan 1 saat önce. Sonradan gelen rezervasyon veya iptal bu saati değiştirirse otomatik güncelleme e-postası gider.</p>
       <p style="margin-bottom:4px"><b>Yarın · ${Number(g)} ${AYLAR[Number(a) - 1]} ${kacis(p.gunAdi)}</b></p>
       ${p.maclar.length
         ? `<div class="buyuk">${p.baslama}</div><p class="soluk">işe başlama · ilk maç ${p.ilk}, son maç ${p.son}, tahmini bitiş ${p.bitis} · ${p.maclar.length} maç</p>`

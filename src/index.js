@@ -1,7 +1,7 @@
 // Aysu Halı Saha — Cloudflare Worker girişi.
 // Statik sayfalar /public klasöründen sunulur; /api/* istekleri burada işlenir.
 
-import { simdi, isletmeGunu, gunEkle } from "./time.js";
+import { simdi, isletmeGunu, gunEkle, macZamani } from "./time.js";
 import { KURALLAR, FIYATLAR, IBAN, ISLETME } from "./config.js";
 import { bildir, epostaYolla } from "./bildirim.js";
 import { ROLLER } from "./store.js";
@@ -239,7 +239,10 @@ async function panel(request, env, ctx, yol) {
     }
   };
   const degisti = async (r) => {
-    if (r && r.basarili) onbellegiTemizle(request, ctx);
+    if (r && r.basarili) {
+      onbellegiTemizle(request, ctx);
+      ctx.waitUntil(mesaiKontrol(env, d).catch((e) => console.error("Mesai kontrol", e)));
+    }
     await kaydet(r);
     return json(r, r && r.hata ? 400 : 200);
   };
@@ -300,25 +303,55 @@ function islemDetayi(yol, g, r) {
   }
 }
 
-/** Personel ve Temizlik Şefi'ne bir günün çalışma saatini e-postayla gönderir. */
-async function mesaiGonder(env, d, gun) {
+/**
+ * Personel ve Temizlik Şefi'ne bir günün çalışma saatini e-postayla gönderir.
+ * onceki verilirse "GÜNCELLEME" e-postasıdır (başlama saati değişti).
+ */
+async function mesaiGonder(env, d, gun, onceki) {
   const plan = await d.mesaiPlani(gun);
   if (plan.hata) return plan;
   if (!env.RESEND_API_KEY) return { hata: "E-posta gönderimi henüz kurulmadı (RESEND_API_KEY)." };
   if (!plan.alicilar.length) return { hata: "Mesai e-postası alacak aktif Personel / Temizlik Şefi yok." };
   const [y, a, g] = plan.gun.split("-");
   const tarihYazi = `${Number(g)}.${a}.${y} ${plan.gunAdi}`;
+  const degisim = onceki ? [["Önceki başlama", onceki.baslama || "maç yoktu"]] : [];
   const satirlar = plan.maclar.length
-    ? [["Gün", tarihYazi], ["İşe başlama", plan.baslama], ["İlk maç", plan.ilk], ["Son maç", plan.son], ["Tahmini bitiş", plan.bitis],
+    ? [["Gün", tarihYazi], ["İşe başlama", plan.baslama], ...degisim, ["İlk maç", plan.ilk], ["Son maç", plan.son], ["Tahmini bitiş", plan.bitis],
       ["Maçlar", plan.maclar.map((m) => `${m.saat} ${m.ad}${m.abone ? " (abone)" : ""}`).join(" · ")]]
-    : [["Gün", tarihYazi], ["Durum", "Bu gün için kayıtlı maç yok."]];
+    : [["Gün", tarihYazi], ["Durum", "Bu gün için kayıtlı maç yok."], ...degisim];
+  // Önce kaydet: aynı anda gelen iki değişiklik iki kez e-posta göndermesin
+  await d.mesaiKaydiYaz(plan.gun, { baslama: plan.baslama || null });
+  const on = onceki ? "GÜNCELLEME — " : "";
   await Promise.all(plan.alicilar.map((k) => epostaYolla(env, {
     kime: [k.eposta],
-    konu: plan.maclar.length ? `Çalışma saati: ${tarihYazi} — ${plan.baslama}'da sahada olun` : `Çalışma saati: ${tarihYazi} — maç yok`,
+    konu: plan.maclar.length ? `${on}Çalışma saati: ${tarihYazi} — ${plan.baslama}'da sahada olun` : `${on}Çalışma saati: ${tarihYazi} — maç yok`,
     satirlar: [["Merhaba", k.ad], ...satirlar],
     alt: "Saatler e-postanın gönderildiği andaki rezervasyonlara göredir. Güncel tablo: panel → Takvim.",
   })));
   return { basarili: true, gonderilen: plan.alicilar.length, plan };
+}
+
+/**
+ * Rezervasyon/abone değişikliğinden sonra: bugün veya yarın için mesai e-postası zaten gittiyse
+ * ve işe başlama saati değiştiyse personele güncelleme e-postası gönderir.
+ */
+async function mesaiKontrol(env, d) {
+  if (!env.RESEND_API_KEY) return;
+  const n = simdi();
+  const bugun = isletmeGunu(n.tarih, n.saat);
+  const zaman = (gun, saat) => macZamani(Number(saat.slice(0, 2)) < 6 ? gunEkle(gun, 1) : gun, saat);
+  for (const gun of [bugun, gunEkle(bugun, 1)]) {
+    const kayit = await d.mesaiKaydi(gun);
+    if (!kayit) continue; // henüz gönderilmedi; 18:00 e-postası güncel saati içerecek
+    const plan = await d.mesaiPlani(gun);
+    const yeni = plan.baslama || null;
+    if (yeni === kayit.baslama) continue;
+    // İki saat de geçmişse (personel zaten işte) haber vermeye gerek yok
+    const gecti = (s) => !s || zaman(gun, s) <= Date.now();
+    if (gecti(yeni) && gecti(kayit.baslama)) continue;
+    const r = await mesaiGonder(env, d, gun, kayit);
+    if (r.hata) console.log("Mesai güncellemesi:", r.hata);
+  }
 }
 
 export default {
@@ -374,6 +407,7 @@ export default {
         const r = await depo(env).olustur({ gunTarihi: g.tarih, saat: g.saat, ad: g.ad, telefon: g.telefon, not: g.not || "" });
         if (!r.basarili) return json(r, 409);
         onbellegiTemizle(request, ctx);
+        ctx.waitUntil(mesaiKontrol(env, depo(env)).catch((e) => console.error("Mesai kontrol", e)));
         ctx.waitUntil(bildir(env, {
           konu: `Yeni rezervasyon: ${r.gun} ${r.saat} (${r.kayitNo})`,
           satirlar: [
@@ -402,6 +436,7 @@ export default {
         const r = await depo(env).iptal({ kayitNo: g.kayitNo, telefon: g.telefon });
         if (!r.basarili) return json(r, 409);
         onbellegiTemizle(request, ctx);
+        ctx.waitUntil(mesaiKontrol(env, depo(env)).catch((e) => console.error("Mesai kontrol", e)));
         ctx.waitUntil(bildir(env, {
           konu: `İptal: ${r.tarih} ${r.saat} (${r.kayitNo})`,
           satirlar: [["Maç", `${r.tarih} saat ${r.saat}`], ["Kayıt no", r.kayitNo], ["Telefon", String(g.telefon).trim()]],
@@ -434,7 +469,7 @@ export default {
     return statik;
   },
 
-  // Her akşam (wrangler.jsonc → triggers.crons) ertesi günün çalışma saatini personele gönderir.
+  // Her akşam 18:00 (wrangler.jsonc → triggers.crons) ertesi günün çalışma saatini personele gönderir.
   async scheduled(event, env, ctx) {
     // Pazartesi 03:00 (Türkiye): geçen haftanın listesini temizle (aboneler kalır)
     if (event && event.cron === "0 0 * * 1") {

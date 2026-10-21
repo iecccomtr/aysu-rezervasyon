@@ -479,6 +479,11 @@ export class RezervasyonDeposu extends DurableObject {
   }
 
   // ================= Mesai planı (personel e-postası) =================
+  //   ms:<işletme günü>  { baslama, gonderim } — o gün için gönderilen son mesai e-postası
+
+  async mesaiKaydi(gun) { return (await this.st.get(`ms:${gun}`)) || null; }
+  async mesaiKaydiYaz(gun, kayit) { await this.st.put(`ms:${gun}`, { ...kayit, gonderim: simdiYazi() }); }
+
 
   /** İşletme günü için ilk/son dolu saat ve personelin başlama/bitiş saati (ilk maçtan 1 saat önce). */
   async mesaiPlani(gunGirdi) {
@@ -805,6 +810,7 @@ export class RezervasyonDeposu extends DurableObject {
       }
       const atla = await this.st.list({ start: "x:", end: `x:${sinir}` });
       silinecek.push(...atla.keys());
+      silinecek.push(...(await this.st.list({ start: "ms:", end: `ms:${sinir}` })).keys());
       // süresi dolmuş oturum ve şifre bağlantıları
       for (const onek of ["o:", "s:"]) {
         for (const [k, v] of await this.st.list({ prefix: onek })) if (!v.bitis || v.bitis < Date.now()) silinecek.push(k);

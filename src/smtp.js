@@ -13,6 +13,11 @@ const b64 = (s) => {
 };
 /** Türkçe karakterli başlıklar için RFC 2047 */
 const baslik = (s) => (/^[\x20-\x7e]*$/.test(s) ? s : `=?UTF-8?B?${b64(s)}?=`);
+const ikiliB64 = (veri) => {
+  let s = "";
+  for (let i = 0; i < veri.length; i += 0x8000) s += String.fromCharCode(...veri.subarray(i, i + 0x8000));
+  return btoa(s);
+};
 const satirla = (s) => s.replace(/.{1,76}/g, "$&\r\n");
 
 /** SMTP konuşması: her komuttan sonra beklenen yanıt kodunu kontrol eder. */
@@ -66,15 +71,9 @@ export async function smtpGonder(p) {
     for (const k of p.kime) await o.komut(`RCPT TO:<${k}>`, [250, 251]);
     await o.komut("DATA", [354]);
     const sinir = "aysu-" + crypto.randomUUID();
-    const mesaj = [
-      `From: ${baslik(p.kimdenAd || "Aysu Halı Saha")} <${p.kimden}>`,
-      `To: ${p.kime.join(", ")}`,
-      `Subject: ${baslik(p.konu)}`,
-      `Date: ${new Date().toUTCString()}`,
-      `Message-ID: <${crypto.randomUUID()}@aysuhalisaha.com>`,
-      "MIME-Version: 1.0",
-      `Content-Type: multipart/alternative; boundary="${sinir}"`,
-      "",
+    const ekSinir = "aysu-ek-" + crypto.randomUUID();
+    const ekler = p.ekler || [];
+    const govde = [
       `--${sinir}`,
       "Content-Type: text/plain; charset=UTF-8",
       "Content-Transfer-Encoding: base64",
@@ -86,6 +85,32 @@ export async function smtpGonder(p) {
       "",
       satirla(b64(p.html)),
       `--${sinir}--`,
+    ];
+    const icerik = ekler.length ? [
+      `Content-Type: multipart/mixed; boundary="${ekSinir}"`,
+      "",
+      `--${ekSinir}`,
+      `Content-Type: multipart/alternative; boundary="${sinir}"`,
+      "",
+      ...govde,
+      ...ekler.flatMap((e) => [
+        `--${ekSinir}`,
+        `Content-Type: ${e.tur}; name="${baslik(e.ad)}"`,
+        `Content-Disposition: attachment; filename="${baslik(e.ad)}"`,
+        "Content-Transfer-Encoding: base64",
+        "",
+        satirla(ikiliB64(e.veri)),
+      ]),
+      `--${ekSinir}--`,
+    ] : [`Content-Type: multipart/alternative; boundary="${sinir}"`, "", ...govde];
+    const mesaj = [
+      `From: ${baslik(p.kimdenAd || "Aysu Halı Saha")} <${p.kimden}>`,
+      `To: ${p.kime.join(", ")}`,
+      `Subject: ${baslik(p.konu)}`,
+      `Date: ${new Date().toUTCString()}`,
+      `Message-ID: <${crypto.randomUUID()}@aysuhalisaha.com>`,
+      "MIME-Version: 1.0",
+      ...icerik,
       ".",
     ].join("\r\n");
     await o.komut(mesaj, [250]);

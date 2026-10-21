@@ -149,6 +149,12 @@
   }
   .bilet-ust { background: var(--cim); color: var(--tebesir); padding: 16px; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
   .bilet-ust .zaman { font: 700 26px/1.05 "Barlow Condensed", sans-serif; }
+  .dekont-kutu { background: var(--kart, #fff); border: 2px solid var(--cim, #0067a4); border-radius: 14px; padding: 16px; margin: 16px 0; }
+  .dekont-kutu h3 { font-size: 20px; margin-bottom: 4px; }
+  .dekont-kutu p { margin-bottom: 12px; }
+  .dekont-kutu label.dugme { display: block; text-align: center; cursor: pointer; }
+  .dekont-sonuc { margin: 12px 0 0 !important; font-weight: 600; }
+  .dekont-sonuc.iyi { color: #14532d; } .dekont-sonuc.bekle { color: #8a5a00; } .dekont-sonuc.kotu { color: #b42318; }
   .kayit-no { font: 700 24px/1 "Barlow Condensed", sans-serif; letter-spacing: .08em; background: var(--isik); color: #1d1a00; padding: 6px 10px; border-radius: 6px; }
   .bilet-alt { padding: 16px; display: grid; gap: 12px; }
   .bilet-alt h3 { margin: 0; font-size: 18px; }
@@ -260,12 +266,42 @@
         <div class="bilet-alt" id="t-kapora"></div>
       </div>
 
+      <div class="dekont-kutu" id="t-dekont">
+        <h3>Ödeme yaptıktan sonra dekontu yükleyin</h3>
+        <p>Dekontta alıcı IBAN'ı ve adı doğruysa rezervasyonunuz <b>hemen kesinleşir</b>.</p>
+        <label class="dugme tam" for="t-dosya">Dekontu yükle (fotoğraf / PDF)</label>
+        <input type="file" id="t-dosya" accept="image/*,application/pdf" hidden>
+        <p class="dekont-sonuc" id="t-dekont-sonuc" role="status" aria-live="polite"></p>
+      </div>
+
       <div class="eylemler">
         <a class="dugme wp" id="t-wp" target="_blank" rel="noopener">Dekontu WhatsApp'tan gönder</a>
         <button class="dugme ikincil" id="yeni" type="button">Başka bir saat ayırt</button>
       </div>
       <p class="alt-bilgi">Bu ekranın görüntüsünü alın. İptal için kayıt numaranız gerekecek.</p>
     </section>
+
+    <!-- ===== Sonradan dekont ===== -->
+    <details class="iptal-alan" id="dekont-alan">
+      <summary>Dekontumu yüklemek istiyorum</summary>
+      <form id="dekont-form" novalidate>
+        <div id="dekont-uyari" class="uyari" role="alert" hidden></div>
+        <div class="alan">
+          <label for="k-kayit">Kayıt numarası</label>
+          <input id="k-kayit" placeholder="AY-XXXXX" autocapitalize="characters" autocomplete="off" required>
+        </div>
+        <div class="alan">
+          <label for="k-telefon">Rezervasyondaki cep telefonu</label>
+          <input id="k-telefon" type="tel" inputmode="tel" placeholder="05XX XXX XX XX" required>
+        </div>
+        <div class="alan">
+          <label for="k-dosya">Dekont (fotoğraf / PDF)</label>
+          <input id="k-dosya" type="file" accept="image/*,application/pdf" required>
+        </div>
+        <button class="dugme" type="submit">Dekontu gönder</button>
+        <p class="iptal-sonuc" id="dekont-sonuc" role="status"></p>
+      </form>
+    </details>
 
     <!-- ===== İptal ===== -->
     <details class="iptal-alan" id="iptal-alan">
@@ -483,12 +519,64 @@
         return;
       }
       try { localStorage.setItem("aysu-kisi", JSON.stringify({ ad, telefon })); } catch {}
+      sonRez = { kayitNo: v.kayitNo, telefon };
       basariGoster(v, g);
     } catch {
       uyar(uyari, "Bağlantı kurulamadı. İnternetinizi kontrol edip tekrar deneyin.");
     } finally {
       btn.disabled = false; btn.textContent = "Rezervasyonu tamamla";
     }
+  });
+
+  // ================= Dekont yükleme =================
+  let sonRez = null; // { kayitNo, telefon }
+  /** Fotoğrafı küçültüp JPEG yapar (en fazla 1600 px); PDF olduğu gibi gider. */
+  async function dosyaHazirla(dosya) {
+    if (dosya.type === "application/pdf") {
+      if (dosya.size > 1_800_000) throw new Error("PDF çok büyük (en fazla 1,8 MB). Ekran görüntüsü yükleyebilirsiniz.");
+      return { tur: "application/pdf", veri: new Uint8Array(await dosya.arrayBuffer()), ad: dosya.name };
+    }
+    if (!dosya.type.startsWith("image/")) throw new Error("Dekont fotoğraf ya da PDF olmalı.");
+    const resim = await createImageBitmap(dosya);
+    const oran = Math.min(1, 1600 / Math.max(resim.width, resim.height));
+    const tuval = document.createElement("canvas");
+    tuval.width = Math.round(resim.width * oran); tuval.height = Math.round(resim.height * oran);
+    tuval.getContext("2d").drawImage(resim, 0, 0, tuval.width, tuval.height);
+    for (const kalite of [0.85, 0.7, 0.55]) {
+      const blob = await new Promise((ok) => tuval.toBlob(ok, "image/jpeg", kalite));
+      if (blob.size <= 1_800_000) return { tur: "image/jpeg", veri: new Uint8Array(await blob.arrayBuffer()), ad: "dekont.jpg" };
+    }
+    throw new Error("Fotoğraf çok büyük.");
+  }
+  const b64 = (veri) => { let s = ""; for (let i = 0; i < veri.length; i += 0x8000) s += String.fromCharCode(...veri.subarray(i, i + 0x8000)); return btoa(s); };
+
+  async function dekontGonder(kayitNo, telefon, dosya, sonucEl) {
+    sonucEl.className = sonucEl.className.replace(/ (iyi|bekle|kotu)/g, "");
+    sonucEl.textContent = "Dekont yükleniyor ve kontrol ediliyor…";
+    try {
+      const f = await dosyaHazirla(dosya);
+      const r = await fetch("/api/dekont", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ kayitNo, telefon, tur: f.tur, ad: f.ad, dosya: b64(f.veri) }),
+      });
+      const v = await r.json().catch(() => ({}));
+      if (!r.ok || !v.basarili) { sonucEl.classList.add("kotu"); sonucEl.textContent = v.hata || "Dekont yüklenemedi. WhatsApp'tan gönderebilirsiniz."; return; }
+      if (v.onay) { sonucEl.classList.add("iyi"); sonucEl.textContent = "✓ Dekontunuz doğrulandı, rezervasyonunuz kesinleşti. İyi maçlar!"; }
+      else { sonucEl.classList.add("bekle"); sonucEl.textContent = "Dekontunuz alındı. Kısa süre içinde kontrol edilip rezervasyonunuz kesinleştirilecek."; }
+    } catch (e) {
+      sonucEl.classList.add("kotu"); sonucEl.textContent = e.message || "Dekont yüklenemedi.";
+    }
+  }
+  $("t-dosya").addEventListener("change", (e) => {
+    const f = e.target.files[0]; e.target.value = "";
+    if (f && sonRez) dekontGonder(sonRez.kayitNo, sonRez.telefon, f, $("t-dekont-sonuc"));
+  });
+  $("dekont-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const uyari = $("dekont-uyari"); uyari.hidden = true;
+    const kayitNo = $("k-kayit").value.trim(), telefon = $("k-telefon").value.trim(), f = $("k-dosya").files[0];
+    if (!kayitNo || !telefon || !f) return uyar(uyari, "Kayıt numarası, telefon ve dekont dosyası gerekli.");
+    dekontGonder(kayitNo, telefon, f, $("dekont-sonuc"));
   });
 
   function basariGoster(v, g) {
@@ -517,6 +605,8 @@
     $("tamam").hidden = false;
     document.querySelector(".wp-yuzen").hidden = true;
     $("i-kayit").value = v.kayitNo;
+    $("k-kayit").value = v.kayitNo;
+    $("t-dekont-sonuc").textContent = "";
     window.scrollTo({ top: 0 });
   }
 

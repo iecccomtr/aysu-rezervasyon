@@ -4,6 +4,7 @@
 import { simdi, isletmeGunu, gunEkle } from "./time.js";
 import { KURALLAR, FIYATLAR, IBAN, ISLETME } from "./config.js";
 import { bildir, epostaYolla, epostaKurulu } from "./bildirim.js";
+import { dekontOku, dekontDegerlendir, ozet } from "./dekont-kontrol.js";
 import { ROLLER } from "./store.js";
 export { RezervasyonDeposu } from "./store.js";
 
@@ -266,6 +267,15 @@ async function panel(request, env, ctx, yol) {
     case "GET musteri": return json(await d.musteriDetay(url.searchParams.get("tel")));
     case "POST musteri-not": return degisti(await d.musteriNot(g));
     case "GET kullanicilar": return json(await d.kullanicilar());
+    case "GET dekont": {
+      const f = await d.dekontGetir(url.searchParams.get("k"));
+      if (!f) return json({ hata: "Dekont bulunamadı." }, 404);
+      return new Response(f.veri, { headers: {
+        "content-type": f.tur, "cache-control": "private, no-store",
+        "content-disposition": `inline; filename="dekont-${encodeURIComponent(url.searchParams.get("k"))}"`,
+        "x-content-type-options": "nosniff", "content-security-policy": "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox",
+      } });
+    }
     case "GET islemler":
       if (ben.rol !== "admin") return json({ hata: "Bu bölüm sadece Admin içindir." }, 403);
       return json(await d.islemler(url.searchParams.get("adet")));
@@ -385,6 +395,43 @@ export default {
       } catch (e) {
         console.error(e);
         return json({ hata: `Rezervasyon şu an kaydedilemedi. Lütfen ${ISLETME.telefon} numarasını arayın.` }, 502);
+      }
+    }
+
+    // Müşteri kapora dekontunu yükler (kayıt no + telefon). İşletmeye e-postayla ek olarak gider.
+    if (yol === "/api/dekont" && request.method === "POST") {
+      if (!ayniKaynak(request)) return json({ hata: "Yetkisiz istek." }, 403);
+      if (await sinirAsildi(env, request, "dekont")) return cokFazla();
+      if (Number(request.headers.get("content-length") || 0) > 2_600_000) return json({ hata: "Dosya çok büyük (en fazla 1,8 MB)." }, 413);
+      const g = await govdeOku(request);
+      if (!g || typeof g.dosya !== "string") return json({ hata: "Geçersiz istek." }, 400);
+      let veri;
+      try { veri = Uint8Array.from(atob(g.dosya), (c) => c.charCodeAt(0)); } catch { return json({ hata: "Dosya okunamadı." }, 400); }
+      try {
+        const d = depo(env);
+        const r = await d.dekontYukle({ kayitNo: g.kayitNo, telefon: g.telefon, tur: g.tur, ad: g.ad, veri });
+        if (!r.basarili) return json(r, 400);
+        // Otomatik kontrol: doğru IBAN + alıcı + tutar + tarih → rezervasyon kesinleşir
+        const n = simdi();
+        const okunan = await dekontOku(env, { tur: r.dekont.tur, veri });
+        const deger = dekontDegerlendir(okunan, {
+          iban: IBAN.no, alici: IBAN.alici, kapora: FIYATLAR.kapora,
+          rezTarihi: String(r.olusturma || "").slice(0, 10) || null, bugun: n.tarih,
+        });
+        const k = await d.dekontSonuc(r.kayitNo, await ozet(veri), deger);
+        if (k.onay) onbellegiTemizle(request, ctx);
+        const uzanti = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "application/pdf": "pdf" }[r.dekont.tur];
+        ctx.waitUntil(bildir(env, {
+          konu: `${k.onay ? "Dekont onaylandı (otomatik)" : "Dekont geldi — kontrol edin"}: ${r.gun} ${r.saat} (${r.kayitNo})`,
+          satirlar: [["Maç", `${r.gun}, ${r.tarih} saat ${r.saat}`], ["Ad soyad", r.ad], ["Telefon", r.telefon], ["Kayıt no", r.kayitNo],
+            ["Okunan", `${okunan.alici_ad || "?"} · ${okunan.alici_iban || "?"} · ${k.rez.dekont.kontrol.tutar ?? "?"} TL · ${okunan.tarih || "?"}`],
+            k.onay ? ["Durum", "Onaylı — rezervasyon listesine alındı"] : ["Neden onaylanmadı", k.nedenler.join(" ")]],
+          ekler: [{ ad: `dekont-${r.kayitNo}.${uzanti}`, tur: r.dekont.tur, veri }],
+        }));
+        return json({ basarili: true, kayitNo: r.kayitNo, onay: k.onay });
+      } catch (e) {
+        console.error(e);
+        return json({ hata: `Dekont şu an yüklenemedi. WhatsApp'tan gönderebilirsiniz.` }, 502);
       }
     }
 

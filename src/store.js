@@ -11,6 +11,7 @@
 //   m:<telefon>                  müşteri notu / etiketi (CRM)
 //   f:<dosya>                    eski siteden kopyalanan fotoğraf
 //   u:<eposta>, o:<token>, s:<token>  panel kullanıcıları, oturumlar, şifre sıfırlama
+//   d:<kayitNo>                  müşterinin yüklediği kapora dekontu (fotoğraf/PDF)
 
 import { DurableObject } from "cloudflare:workers";
 import { SAATLER, KURALLAR, DURUM } from "./config.js";
@@ -22,6 +23,8 @@ import {
 export const GUNLER = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"];
 const DURUMLAR = [DURUM.bekliyor, DURUM.onayli, DURUM.iptal];
 const OTURUM_GUN = 30;
+const DEKONT_TURLERI = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+const DEKONT_EN_FAZLA = 1_800_000; // Durable Object kaydı başına 2 MB sınırının altında
 
 /** Panel rolleri. yonetici: her şeye erişir; diğerleri sadece haftalık tabloyu görür. */
 export const ROLLER = {
@@ -245,6 +248,57 @@ export class RezervasyonDeposu extends DurableObject {
         .map((r) => ({ kayitNo: r.kayitNo, tarih: r.tarih, gun: r.gun, saat: r.saat, durum: r.durum }));
       return { rezervasyonlar: liste };
     });
+  }
+
+  /** Müşteri dekont yükler (kayıt no + telefonla). Aynı rezervasyona yeniden yüklenirse eskisinin yerine geçer. */
+  async dekontYukle({ kayitNo, telefon: tel, tur, ad, veri }) {
+    return this.kilitli(async () => {
+      const telefon = telefonNormalize(tel);
+      if (!telefon) return { hata: "Geçersiz telefon." };
+      const b = await this.kayitBul(kayitNo);
+      if (!b || b.kayit.telefon !== telefon || iptalMi(b.kayit.durum)) {
+        return { hata: "Bu numaraya ait böyle bir aktif rezervasyon bulunamadı." };
+      }
+      if (!DEKONT_TURLERI.includes(tur)) return { hata: "Dekont fotoğraf (JPG/PNG) ya da PDF olmalı." };
+      if (!(veri instanceof Uint8Array) || veri.byteLength < 100) return { hata: "Dosya okunamadı." };
+      if (veri.byteLength > DEKONT_EN_FAZLA) return { hata: "Dosya çok büyük (en fazla 1,8 MB)." };
+      const dekont = { zaman: simdiYazi(), tur, ad: kirp(ad, 80) || "dekont", boyut: veri.byteLength };
+      await this.st.put(`d:${b.kayit.kayitNo}`, { ...dekont, veri });
+      const kayit = { ...b.kayit, dekont };
+      await this.st.put(b.anahtar, kayit);
+      return { basarili: true, ...kayit };
+    });
+  }
+
+  /**
+   * Otomatik kontrol sonucunu işler. Aynı dosya başka bir rezervasyonda kullanıldıysa onaylamaz.
+   * deger: dekontDegerlendir() sonucu
+   */
+  async dekontSonuc(kayitNo, dosyaOzeti, deger) {
+    return this.kilitli(async () => {
+      const b = await this.kayitBul(kayitNo);
+      if (!b) return { hata: "Rezervasyon bulunamadı." };
+      const nedenler = [...deger.nedenler];
+      const onceki = await this.st.get(`dh:${dosyaOzeti}`);
+      if (onceki && onceki.kayitNo !== b.kayit.kayitNo) nedenler.unshift(`Bu dekont daha önce ${onceki.kayitNo} için yüklenmiş.`);
+      else await this.st.put(`dh:${dosyaOzeti}`, { kayitNo: b.kayit.kayitNo, tarih: simdi().tarih });
+      const onay = nedenler.length === 0;
+      const kontrol = { onay, nedenler, tutar: deger.tutar, zaman: simdiYazi() };
+      const kayit = { ...b.kayit, dekont: { ...(b.kayit.dekont || {}), kontrol } };
+      if (onay && kayit.durum === DURUM.bekliyor) {
+        kayit.durum = DURUM.onayli;
+        kayit.kapora = kayit.kapora || String(deger.tutar);
+        kayit.onaylayan = "Dekont (otomatik)";
+      }
+      await this.st.put(b.anahtar, kayit);
+      await this.kayitTut(null, onay ? "Dekont otomatik onaylandı" : "Dekont kontrol gerekiyor",
+        `${kayit.kayitNo} · ${kayit.ad} · ${onay ? deger.tutar + " TL" : nedenler.join(" ")}`);
+      return { basarili: true, onay, nedenler, rez: kayit };
+    });
+  }
+
+  async dekontGetir(kayitNo) {
+    return (await this.st.get(`d:${String(kayitNo || "").trim().toUpperCase()}`)) || null;
   }
 
   async iptal({ kayitNo, telefon: tel }) {
@@ -822,6 +876,7 @@ export class RezervasyonDeposu extends DurableObject {
       for (const [anahtar, r] of eskiRez) {
         if ((r.isletmeGunu || isletmeGunu(r.tarih, r.saat)) >= sinir) continue; // bu haftanın gece maçı
         silinecek.push(anahtar, `k:${r.kayitNo}`);
+        if (r.dekont) silinecek.push(`d:${r.kayitNo}`);
         if (!r.telefon) continue;
         const o = ozet.get(r.telefon) || { mac: 0, iptal: 0, ilk: null, son: null, ad: "" };
         if (iptalMi(r.durum)) o.iptal++;
@@ -844,6 +899,8 @@ export class RezervasyonDeposu extends DurableObject {
       const atla = await this.st.list({ start: "x:", end: `x:${sinir}` });
       silinecek.push(...atla.keys());
       // süresi dolmuş oturum ve şifre bağlantıları
+      // 90 günden eski dekont özetleri
+      for (const [k, v] of await this.st.list({ prefix: "dh:" })) if (!v.tarih || v.tarih < gunEkle(sinir, -90)) silinecek.push(k);
       for (const onek of ["o:", "s:", "t:"]) {
         for (const [k, v] of await this.st.list({ prefix: onek })) if (!v.bitis || v.bitis < Date.now()) silinecek.push(k);
       }

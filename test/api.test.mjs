@@ -244,3 +244,33 @@ test("Fotoğraf: statik dosya yoksa eski siteden bir kez indirilip saklanır; es
   assert.equal(y.headers.get("location"), "https://site.test/#konum");
   assert.equal((await worker.fetch(new Request("https://site.test/blog/6/kapali-hali-saha-hizmeti"), env, ctx)).headers.get("location"), "https://site.test/");
 });
+
+test("Dekont: doğru IBAN/alıcı/tutar → otomatik onay; yanlış IBAN → kontrol; aynı dosya ikinci rezervasyonda kullanılamaz", async () => {
+  const okunacak = { alici_iban: "TR70 0015 7000 0000 0154 8342 35", alici_ad: "AHMET AYSU", tutar: "1.200,00", tarih: "2026-10-21" };
+  const AI = { run: async () => ({ response: JSON.stringify(okunacak) }), toMarkdown: async () => [{ data: "" }] };
+  const { istek } = await kur({ AI, RESEND_API_KEY: "re_test" });
+  const r1 = (await istek("/api/rezervasyon", REZ)).veri;
+  const resim = btoa(String.fromCharCode(...new Uint8Array(300).map((_, i) => i % 251)));
+  const yukle = (kayitNo, telefon = REZ.telefon, dosya = resim) => istek("/api/dekont", { kayitNo, telefon, tur: "image/jpeg", ad: "d.jpg", dosya });
+
+  assert.equal((await yukle(r1.kayitNo, "05329999999")).durum, 400, "telefon eşleşmeli");
+  const y1 = await yukle(r1.kayitNo);
+  assert.equal(y1.durum, 200, JSON.stringify(y1.veri));
+  assert.equal(y1.veri.onay, true);
+  const ep = epostalar.at(-1);
+  assert.match(ep.subject, /Dekont onaylandı \(otomatik\)/);
+  assert.equal(ep.attachments.length, 1);
+
+  // Aynı dosya başka rezervasyon için → otomatik onay yok
+  const r2 = (await istek("/api/rezervasyon", { ...REZ, saat: "23:00" })).veri;
+  const y2 = await yukle(r2.kayitNo);
+  assert.equal(y2.veri.onay, false);
+  assert.match(epostalar.at(-1).text, /daha önce/);
+
+  // Yanlış IBAN
+  okunacak.alici_iban = "TR11 0000 0000 0000 0000 0000 00";
+  const r3 = (await istek("/api/rezervasyon", { ...REZ, saat: "19:00", telefon: "0532 444 55 66" })).veri;
+  const y3 = await istek("/api/dekont", { kayitNo: r3.kayitNo, telefon: "0532 444 55 66", tur: "image/jpeg", ad: "d.jpg", dosya: btoa("x".repeat(300)) });
+  assert.equal(y3.veri.onay, false);
+  assert.match(epostalar.at(-1).text, /IBAN eşleşmiyor/);
+});

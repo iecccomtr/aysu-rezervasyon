@@ -20,6 +20,9 @@
 
   "observability": { "enabled": true },
 
+  // Dekont otomatik kontrolü (IBAN, alıcı, tutar, tarih okuma) — Cloudflare Workers AI
+  "ai": { "binding": "AI" },
+
   // Pazartesi 03:00 (Türkiye, UTC 00:00): Pazar gecesi bitince geçen haftanın rezervasyon listesi silinir, aboneler kalır.
   "triggers": { "crons": ["0 0 * * 1"] },
 

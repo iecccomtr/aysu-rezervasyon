@@ -360,3 +360,15 @@ test("İçe aktarma: aboneler, gelmiyor işaretleri ve rezervasyonlar; ikinci ke
   assert.equal(ikinci.rez, 0);
   assert.equal((await d.aboneListe()).length, 2);
 });
+
+test("Dekont değerlendirme kuralları", async () => {
+  const { dekontDegerlendir } = await import("../src/dekont-kontrol.js");
+  const k = { iban: "TR70 0015 7000 0000 0154 8342 35", alici: "Ahmet Aysu", kapora: 1200, rezTarihi: "2026-10-21", bugun: "2026-10-22" };
+  const iyi = { alici_iban: "TR700015700000000154834235", alici_ad: "AHMET AYSU", tutar: 1200, tarih: "21.10.2026" };
+  assert.equal(dekontDegerlendir(iyi, k).onay, true);
+  assert.equal(dekontDegerlendir({ ...iyi, alici_ad: "Ahmet Aysu" }, k).onay, true, "büyük/küçük harf fark etmez");
+  assert.match(dekontDegerlendir({ ...iyi, tutar: "1.000,00" }, k).nedenler.join(), /kaporadan az/);
+  assert.match(dekontDegerlendir({ ...iyi, alici_ad: "MEHMET YILMAZ" }, k).nedenler.join(), /adı/);
+  assert.match(dekontDegerlendir({ ...iyi, tarih: "2026-09-01" }, k).nedenler.join(), /önce/);
+  assert.equal(dekontDegerlendir({ hata: "okunamadı" }, k).onay, false);
+});

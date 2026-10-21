@@ -13,13 +13,19 @@ const VARSAYILAN_GONDEREN = "Aysu Halı Saha <onboarding@resend.dev>";
 
 const kacis = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
+const ikiliB64 = (veri) => {
+  let s = "";
+  for (let i = 0; i < veri.length; i += 0x8000) s += String.fromCharCode(...veri.subarray(i, i + 0x8000));
+  return btoa(s);
+};
+
 export const epostaKurulu = (env) => Boolean((env.GMAIL_ADRES && env.GMAIL_UYGULAMA_SIFRESI) || env.RESEND_API_KEY);
 
 /**
  * Herhangi bir alıcıya e-posta. E-posta kurulu değilse sessizce atlar (false döner).
  * dugme: { yazi, link } verilirse e-postada büyük bir düğme olarak gösterilir.
  */
-export async function epostaYolla(env, { kime, konu, satirlar = [], alt = "", dugme = null }) {
+export async function epostaYolla(env, { kime, konu, satirlar = [], alt = "", dugme = null, ekler = [] }) {
   if (!epostaKurulu(env) || !kime?.length) return false;
   const html = `<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.5;color:#13261b;max-width:560px">
     <h2 style="margin:0 0 12px;color:#0067a4">${kacis(konu)}</h2>
@@ -36,14 +42,17 @@ export async function epostaYolla(env, { kime, konu, satirlar = [], alt = "", du
     if (env.GMAIL_ADRES && env.GMAIL_UYGULAMA_SIFRESI) {
       await smtpGonder({
         kullanici: env.GMAIL_ADRES, sifre: String(env.GMAIL_UYGULAMA_SIFRESI).replace(/\s+/g, ""),
-        kimden: env.GMAIL_ADRES, kimdenAd: "Aysu Halı Saha", kime, konu, html, metin, baglan: env.__smtpBaglan,
+        kimden: env.GMAIL_ADRES, kimdenAd: "Aysu Halı Saha", kime, konu, html, metin, ekler, baglan: env.__smtpBaglan,
       });
       return true;
     }
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { authorization: `Bearer ${env.RESEND_API_KEY}`, "content-type": "application/json" },
-      body: JSON.stringify({ from: env.GONDEREN_EPOSTA || VARSAYILAN_GONDEREN, to: kime, subject: konu, html, text: metin }),
+      body: JSON.stringify({
+        from: env.GONDEREN_EPOSTA || VARSAYILAN_GONDEREN, to: kime, subject: konu, html, text: metin,
+        ...(ekler.length ? { attachments: ekler.map((e) => ({ filename: e.ad, content: ikiliB64(e.veri) })) } : {}),
+      }),
     });
     if (!res.ok) { console.error("E-posta gönderilemedi", res.status, await res.text()); return false; }
     return true;
@@ -69,6 +78,7 @@ async function telegramGonder(env, metin) {
  */
 export async function bildir(env, bildirim) {
   const metin = `${bildirim.konu}\n${bildirim.satirlar.map(([k, v]) => `${k}: ${v}`).join("\n")}`;
+  // Telegram'a ek gönderilmez, sadece metin
   const sonuclar = await Promise.allSettled([
     epostaYolla(env, { kime: [env.BILDIRIM_EPOSTA || VARSAYILAN_ALICI], ...bildirim, alt: "Ayrıntılar yönetim panelinde: /panel" }),
     telegramGonder(env, metin),

@@ -641,7 +641,7 @@
       <button type="button" class="bekleyen" data-kayit="${kacis(r.kayitNo)}">
         <span class="z"><small>${KISA[gunNo(r.isletmeGunu || r.tarih)]} ${Number((r.isletmeGunu || r.tarih).slice(8))} ${AYLAR[Number((r.isletmeGunu || r.tarih).slice(5, 7)) - 1].slice(0, 3)}</small><b>${r.saat}</b></span>
         <span class="k"><b>${kacis(r.ad)}</b><small class="soluk" style="white-space:nowrap">${telYazi(r.telefon)}</small></span>
-        <span class="rozet r-bekliyor">Bekliyor</span>
+        <span class="rozet r-bekliyor">${r.dekont ? "Dekont var" : "Bekliyor"}</span>
       </button>`).join("")}</div>` : "";
     $("bekleyenler").querySelectorAll("[data-kayit]").forEach((el) => el.addEventListener("click", () => {
       const r = b.find((x) => x.kayitNo === el.dataset.kayit);
@@ -840,6 +840,10 @@
         <div><span>Telefon</span>${r.telefon ? `<a href="tel:${r.telefon}">${telYazi(r.telefon)}</a>` : "—"}</div>
         <div><span>Kayıt no</span><b>${kacis(r.kayitNo)}</b></div>
         <div><span>Kaynak</span>${kacis(r.kaynak || "")} · ${kacis(r.olusturma || "")}</div>
+        ${r.dekont ? `<div><span>Dekont</span><a href="/api/panel/dekont?k=${encodeURIComponent(r.kayitNo)}" target="_blank" rel="noopener"><b>Dekontu aç</b></a> · ${kacis(r.dekont.zaman)}
+          ${r.dekont.kontrol ? (r.dekont.kontrol.onay
+            ? `<br><span style="color:#14532d">✓ Otomatik doğrulandı (${kacis(r.dekont.kontrol.tutar)} TL). Banka hesabından da kontrol edin.</span>`
+            : `<br><span style="color:#b42318">Kontrol gerekiyor: ${kacis(r.dekont.kontrol.nedenler.join(" "))}</span>`) : ""}</div>` : ""}
       </div>
       ${r.telefon ? `<div class="eylemler">
         <a class="dugme ikincil kucuk" href="tel:${r.telefon}">Ara</a>

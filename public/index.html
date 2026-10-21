@@ -226,7 +226,7 @@
 
 <main>
   <section class="giris" aria-labelledby="baslik">
-    <img class="arka" src="/galeri/saha-genis.jpg" data-yedek="https://www.aysuhalisaha.com/app/dn_content/5d873a9f2a848.jpg"
+    <img class="arka" src="/galeri/saha-genis.jpg"
          alt="Aysu Halı Saha'nın kırmızı-beyaz balon çatılı kapalı sahası" fetchpriority="high">
     <div class="kap">
       <h1 id="baslik">Aysu Halı Saha</h1>
@@ -282,27 +282,27 @@
       </div>
       <div class="izgara">
         <figure class="f1">
-          <img src="/galeri/saha.jpg" data-yedek="https://www.aysuhalisaha.com/app/dn_content/5d873c9ebd44f.jpg" alt="Balon çatılı kapalı saha, içeriden" loading="lazy">
+          <img src="/galeri/saha.jpg" alt="Balon çatılı kapalı saha, içeriden" loading="lazy">
           <figcaption>Saha</figcaption>
         </figure>
         <figure class="f2">
-          <img src="/galeri/soyunma.jpg" data-yedek="https://www.aysuhalisaha.com/app/dn_content/5d873bd02d43a.jpg" alt="Banklar ve dolaplarla soyunma alanı" loading="lazy">
+          <img src="/galeri/soyunma.jpg" alt="Banklar ve dolaplarla soyunma alanı" loading="lazy">
           <figcaption>Soyunma odası</figcaption>
         </figure>
         <figure class="f3">
-          <img src="/galeri/dus.jpg" data-yedek="https://www.aysuhalisaha.com/app/dn_content/5d873b63a6a22.jpg" alt="Duş kabinleri ve lavabo" loading="lazy">
+          <img src="/galeri/dus.jpg" alt="Duş kabinleri ve lavabo" loading="lazy">
           <figcaption>Duşlar</figcaption>
         </figure>
         <figure class="f4">
-          <img src="/galeri/kafeterya.jpg" data-yedek="https://www.aysuhalisaha.com/app/dn_content/5d873aefaf71a.jpg" alt="Koltuklu ve televizyonlu kafeterya" loading="lazy">
+          <img src="/galeri/kafeterya.jpg" alt="Koltuklu ve televizyonlu kafeterya" loading="lazy">
           <figcaption>Kafeterya</figcaption>
         </figure>
         <figure class="f5">
-          <img src="/galeri/korner.jpg" data-yedek="https://www.aysuhalisaha.com/app/dn_content/5d873a2fcd7d4.jpg" alt="Sahanın köşe çizgisi, yakın plan" loading="lazy">
+          <img src="/galeri/korner.jpg" alt="Sahanın köşe çizgisi, yakın plan" loading="lazy">
           <figcaption>Yapay çim</figcaption>
         </figure>
         <figure class="f6">
-          <img src="/galeri/giris.jpg" data-yedek="https://www.aysuhalisaha.com/app/dn_content/5d8739b039a02.jpg" alt="Tesis girişi ve önündeki otopark" loading="lazy">
+          <img src="/galeri/giris.jpg" alt="Tesis girişi ve önündeki otopark" loading="lazy">
           <figcaption>Giriş ve otopark</figcaption>
         </figure>
       </div>
@@ -375,12 +375,6 @@
 (() => {
   document.getElementById("yil").textContent = new Date().getFullYear();
 
-  // Fotoğraf yeni sitede yoksa eski siteden yükle.
-  document.querySelectorAll("img[data-yedek]").forEach((img) => {
-    const yedek = () => { if (img.src !== img.dataset.yedek) img.src = img.dataset.yedek; };
-    img.addEventListener("error", yedek, { once: true });
-    if (img.complete && img.naturalWidth === 0) yedek();
-  });
 
   // Mobil sabit düğme: sadece giriş düğmeleri ve tabela ekrandan çıkınca görünür.
   const sabit = document.getElementById("sabit");

@@ -127,6 +127,50 @@
   .satir.t-rez.bekliyor { box-shadow: inset 4px 0 0 var(--isik); }
   .satir.t-abone { box-shadow: inset 4px 0 0 var(--mavi); }
 
+  /* ---------- Görünüm seçici ---------- */
+  .gorunum-satir { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .gorunum-satir #bugune { margin-left: auto; }
+  .gorunum-sec { display: inline-flex; background: var(--kart); border: 1px solid var(--cizgi); border-radius: 999px; padding: 3px; }
+  .gorunum-sec button { border: 0; background: none; border-radius: 999px; padding: 7px 12px; font-weight: 600; font-size: 14px; cursor: pointer; color: var(--gri); }
+  .gorunum-sec button[aria-pressed="true"] { background: var(--cim); color: #fff; }
+
+  /* ---------- Hafta tablosu ---------- */
+  .tablo-kap { overflow: auto; max-height: calc(100dvh - 190px); -webkit-overflow-scrolling: touch; }
+  .hafta-tablo { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 620px; table-layout: fixed; font-size: 13px; }
+  .hafta-tablo th, .hafta-tablo td { border-right: 1px solid var(--cizgi); border-bottom: 1px solid var(--cizgi); padding: 0; }
+  .hafta-tablo thead th { position: sticky; top: 0; z-index: 2; background: var(--cim-koyu); color: #fff; padding: 6px 2px; font-weight: 600; line-height: 1.15; }
+  .hafta-tablo thead th b { display: block; font: 700 18px/1 "Barlow Condensed", sans-serif; }
+  .hafta-tablo thead th.bugun { background: var(--kirmizi); color: var(--cim-koyu); }
+  .hafta-tablo th.saat-b { position: sticky; left: 0; z-index: 1; width: 52px; background: #f5f7fa; font: 700 16px/1 "Barlow Condensed", sans-serif; color: var(--murekkep); text-align: center; }
+  .hafta-tablo thead th.saat-b { z-index: 3; background: var(--cim-koyu); color: #fff; font: 600 13px/1 "Barlow", sans-serif; }
+  .hafta-tablo tr.ayrac th { position: sticky; left: 0; background: #e6ebf1; color: var(--gri); text-align: left; padding: 4px 8px; font: 600 12px/1.2 "Barlow", sans-serif; }
+  .h { display: block; width: 100%; height: 38px; border: 0; padding: 2px 5px; cursor: pointer; text-align: left; background: #fff;
+       overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: 600; font-size: 13px; line-height: 34px; }
+  .h:hover { outline: 2px solid var(--cim); outline-offset: -2px; }
+  .h.h-bos { color: transparent; }
+  .h.h-bos:hover { color: var(--cim); }
+  .h.h-onayli { background: #d9f0e1; color: #14532d; }
+  .h.h-bekliyor { background: #fff3b0; color: #6b5900; }
+  .h.h-abone { background: #dbe8ff; color: #1d3f9e; }
+  .h.h-gelmiyor { background: repeating-linear-gradient(135deg, #fff 0 6px, #eef1f4 6px 12px); color: #8a96a3; text-decoration: line-through; font-weight: 500; }
+  .h.gecmis { opacity: .45; }
+  td.bugun-s .h.h-bos { background: #fff8ee; }
+  /* Telefonda tüm hafta tek ekranda: dar sütunlar, kısaltılmış isimler (tam bilgi dokununca) */
+  @media (max-width: 640px) {
+    .hafta-tablo { min-width: 0; font-size: 11px; }
+    .hafta-tablo th.saat-b { width: 42px; font-size: 14px; }
+    .hafta-tablo thead th { font-size: 11px; padding: 5px 1px; }
+    .hafta-tablo thead th b { font-size: 16px; }
+    .h { font-size: 11px; padding: 2px 3px; height: 34px; line-height: 30px; text-overflow: clip; }
+    .tablo-kap { max-height: none; overflow: visible; }
+    .hafta-tablo thead th { top: var(--ust-yuk, 56px); }
+  }
+  .lejant { list-style: none; padding: 0; margin: 10px 0 0; display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; color: var(--gri); }
+  .lejant li { display: flex; align-items: center; gap: 5px; }
+  .lejant i { width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--cizgi); display: inline-block; }
+  .l-bos { background: #fff; } .l-onayli { background: #d9f0e1; } .l-bekliyor { background: #fff3b0; } .l-abone { background: #dbe8ff; }
+  .l-gelmiyor { background: repeating-linear-gradient(135deg, #fff 0 3px, #dfe4ea 3px 6px); }
+
   /* ---------- Aboneler ---------- */
   .abone-gun h3 { font-size: 18px; padding: 10px 14px 6px; color: var(--gri); }
   .abone-gun + .abone-gun { border-top: 1px solid var(--cizgi); }
@@ -203,12 +247,30 @@
         <div class="ay" id="hafta-baslik"></div>
         <button class="ok" type="button" id="sonraki" aria-label="Sonraki hafta">›</button>
       </div>
-      <div class="gunler" id="gunler"></div>
-      <div class="baslik-satir">
-        <h2 id="gun-baslik"></h2>
-        <button class="dugme ikincil kucuk sag" type="button" id="bugune">Bugün</button>
+      <div class="gorunum-satir">
+        <div class="gorunum-sec" role="group" aria-label="Görünüm">
+          <button type="button" data-gorunum-tur="tablo">Hafta tablosu</button>
+          <button type="button" data-gorunum-tur="liste">Gün listesi</button>
+        </div>
+        <button class="dugme ikincil kucuk" type="button" id="bugune">Bugün</button>
       </div>
-      <div class="kutu saatler" id="saatler"></div>
+
+      <div id="tablo-gorunum">
+        <div class="tablo-kap kutu" id="tablo-kap"></div>
+        <ul class="lejant" aria-label="Renklerin anlamı">
+          <li><i class="l-bos"></i>Boş</li>
+          <li><i class="l-onayli"></i>Onaylı</li>
+          <li><i class="l-bekliyor"></i>Kapora bekleniyor</li>
+          <li><i class="l-abone"></i>Abone</li>
+          <li><i class="l-gelmiyor"></i>Abone gelmiyor (boş)</li>
+        </ul>
+      </div>
+
+      <div id="liste-gorunum">
+        <div class="gunler" id="gunler"></div>
+        <div class="baslik-satir"><h2 id="gun-baslik"></h2></div>
+        <div class="kutu saatler" id="saatler"></div>
+      </div>
     </section>
 
     <!-- Aboneler -->
@@ -376,6 +438,7 @@
 
   function uygulamaGoster() {
     $("giris").hidden = true; $("uygulama").hidden = false;
+    document.documentElement.style.setProperty("--ust-yuk", document.querySelector(".ust").offsetHeight + "px");
     sekmeAc(sekme);
   }
 
@@ -451,7 +514,58 @@
       else if (s.tur === "abone") aboneSlot(g, s);
       else rezEkle(g, s);
     }));
+    tabloCiz();
   }
+
+  // ---------- Hafta tablosu ----------
+  const kisaAd = (ad) => String(ad || "").trim();
+  function hucreTiklandi(gun, saat) {
+    const g = hafta.gunler.find((x) => x.tarih === gun);
+    const s = g.saatler.find((x) => x.saat === saat);
+    if (s.tur === "rez") rezDetay(s.rez);
+    else if (s.tur === "abone") aboneSlot(g, s);
+    else rezEkle(g, s);
+  }
+
+  function tabloCiz() {
+    const hucre = (g, saat) => {
+      const s = g.saatler.find((x) => x.saat === saat);
+      let sinif = "h h-bos", yazi = "+", baslik = `${g.gun} ${saat}: boş`;
+      if (s.tur === "rez") {
+        const bek = s.rez.durum === "Kapora bekleniyor";
+        sinif = `h ${bek ? "h-bekliyor" : "h-onayli"}`;
+        yazi = kacis(kisaAd(s.rez.ad));
+        baslik = `${g.gun} ${saat}: ${s.rez.ad}${s.rez.telefon ? " " + telYazi(s.rez.telefon) : ""} (${s.rez.durum})`;
+      } else if (s.tur === "abone") {
+        sinif = "h h-abone"; yazi = kacis(kisaAd(s.abone.ad)); baslik = `${g.gun} ${saat}: abone ${s.abone.ad}`;
+      } else if (s.tur === "abone-gelmiyor") {
+        sinif = "h h-gelmiyor"; yazi = kacis(kisaAd(s.abone.ad)); baslik = `${g.gun} ${saat}: boş (${s.abone.ad} bu hafta gelmiyor)`;
+      }
+      if (s.gecmis) sinif += " gecmis";
+      return `<td class="${g.tarih === hafta.bugun ? "bugun-s" : ""}"><button type="button" class="${sinif}" data-g="${g.tarih}" data-s="${saat}" title="${kacis(baslik)}" aria-label="${kacis(baslik)}">${yazi}</button></td>`;
+    };
+    const satir = (saat) => `<tr><th class="saat-b" scope="row">${saat}</th>${hafta.gunler.map((g) => hucre(g, saat)).join("")}</tr>`;
+    const bas = `<thead><tr><th class="saat-b">Saat</th>${hafta.gunler.map((g, i) =>
+      `<th class="${g.tarih === hafta.bugun ? "bugun" : ""}" scope="col">${KISA[i]}<b>${Number(g.tarih.slice(8))}</b></th>`).join("")}</tr></thead>`;
+    const gunduz = SAATLER.filter((x) => !gece(x)), geceler = SAATLER.filter(gece);
+    $("tablo-kap").innerHTML = `<table class="hafta-tablo">${bas}<tbody>${gunduz.map(satir).join("")}
+      <tr class="ayrac"><th colspan="8">Gece yarısından sonra (sütundaki günün gecesi)</th></tr>
+      ${geceler.map(satir).join("")}</tbody></table>`;
+    $("tablo-kap").querySelectorAll("[data-g]").forEach((el) => el.addEventListener("click", () => hucreTiklandi(el.dataset.g, el.dataset.s)));
+  }
+
+  // Görünüm: tablo / liste (bu cihazda hatırlanır)
+  let gorunum = "tablo";
+  try { gorunum = localStorage.getItem("aysu-panel-gorunum") || "tablo"; } catch {}
+  function gorunumAyarla(tur) {
+    gorunum = tur;
+    try { localStorage.setItem("aysu-panel-gorunum", tur); } catch {}
+    document.querySelectorAll("[data-gorunum-tur]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.gorunumTur === tur)));
+    $("tablo-gorunum").hidden = tur !== "tablo";
+    $("liste-gorunum").hidden = tur !== "liste";
+  }
+  document.querySelectorAll("[data-gorunum-tur]").forEach((b) => b.addEventListener("click", () => gorunumAyarla(b.dataset.gorunumTur)));
+  gorunumAyarla(gorunum);
 
   $("onceki").addEventListener("click", () => { haftaBas = gunEkle(haftaBas, -7); seciliGun = haftaBas; haftaYukle(); });
   $("sonraki").addEventListener("click", () => { haftaBas = gunEkle(haftaBas, 7); seciliGun = haftaBas; haftaYukle(); });

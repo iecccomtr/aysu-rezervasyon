@@ -151,3 +151,30 @@ test("Ana sayfa tabelası, sağlık, eski uçlar kaldırıldı", async () => {
   assert.deepEqual((await istek("/api/saglik")).veri, { tamam: true, depo: "cloudflare" });
   assert.equal((await istek("/api/sohbet", {})).durum, 404);
 });
+
+test("Fotoğraf: statik dosya yoksa eski siteden bir kez indirilip saklanır; eski adresler yönlenir", async () => {
+  const { depo } = await kur();
+  let indirme = 0;
+  globalThis.fetch = async (url) => {
+    assert.match(String(url), /aysuhalisaha\.com\/app\/dn_content\/5d873c9ebd44f\.jpg$/);
+    indirme++;
+    return new Response(new Uint8Array([255, 216, 255, 1, 2, 3]), { headers: { "content-type": "image/jpeg" } });
+  };
+  const env = {
+    REZERVASYON_DEPOSU: { idFromName: () => "aysu", get: () => depo },
+    ASSETS: { fetch: async () => new Response("yok", { status: 404 }) },
+  };
+  const ctx = { waitUntil() {} };
+  for (let i = 0; i < 2; i++) {
+    const r = await worker.fetch(new Request("https://site.test/galeri/saha.jpg"), env, ctx);
+    assert.equal(r.status, 200);
+    assert.equal(r.headers.get("content-type"), "image/jpeg");
+    assert.equal((await r.arrayBuffer()).byteLength, 6);
+  }
+  assert.equal(indirme, 1, "ikinci istekte veritabanından gelmeli");
+  assert.equal((await worker.fetch(new Request("https://site.test/galeri/bilinmeyen.jpg"), env, ctx)).status, 404);
+  const y = await worker.fetch(new Request("https://site.test/hakkimizda.php"), env, ctx);
+  assert.equal(y.status, 301);
+  assert.equal(y.headers.get("location"), "https://site.test/#konum");
+  assert.equal((await worker.fetch(new Request("https://site.test/blog/6/kapali-hali-saha-hizmeti"), env, ctx)).headers.get("location"), "https://site.test/");
+});

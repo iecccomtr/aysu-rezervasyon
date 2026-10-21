@@ -8,6 +8,27 @@ export { RezervasyonDeposu } from "./store.js";
 
 const OTURUM_CEREZ = "aysu_panel";
 
+// Tesis fotoğrafları: public/galeri/ içinde yoksa eski siteden BİR KEZ indirilip veritabanında saklanır.
+// (Alan adı Cloudflare'e geçmeden önce her fotoğrafın en az bir kez açılmış olması gerekir.)
+const ESKI = "https://www.aysuhalisaha.com/app/dn_content/";
+const FOTOLAR = {
+  "saha-genis.jpg": ESKI + "5d873a9f2a848.jpg",
+  "saha.jpg": ESKI + "5d873c9ebd44f.jpg",
+  "soyunma.jpg": ESKI + "5d873bd02d43a.jpg",
+  "dus.jpg": ESKI + "5d873b63a6a22.jpg",
+  "kafeterya.jpg": ESKI + "5d873aefaf71a.jpg",
+  "korner.jpg": ESKI + "5d873a2fcd7d4.jpg",
+  "giris.jpg": ESKI + "5d8739b039a02.jpg",
+  "dis.jpg": ESKI + "5d87395a455d7.jpg",
+};
+
+// Eski sitenin adresleri → yeni sayfalar (Google'daki eski linkler boşa düşmesin)
+const ESKI_ADRESLER = {
+  "/index.php": "/", "/hakkimizda.php": "/#konum", "/iletisim.php": "/#konum",
+  "/foto-galeri.php": "/#tesis", "/galeri.php": "/#tesis", "/randevu.php": "/rezervasyon/",
+  "/hizmetler.php": "/", "/blog.php": "/",
+};
+
 const json = (veri, durum = 200, ek = {}) => new Response(JSON.stringify(veri), {
   status: durum,
   headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", ...ek },
@@ -243,6 +264,22 @@ export default {
 
     if (yol.startsWith("/api/")) return json({ hata: "Bulunamadı" }, 404);
     if (yol === "/panel") return Response.redirect(url.origin + "/panel/", 301);
-    return env.ASSETS.fetch(request);
+    if (ESKI_ADRESLER[yol]) return Response.redirect(url.origin + ESKI_ADRESLER[yol], 301);
+    if (yol.startsWith("/blog/") || yol.startsWith("/form/")) return Response.redirect(url.origin + "/", 301);
+    if (yol === "/rezervasyon") return Response.redirect(url.origin + "/rezervasyon/", 301);
+
+    const statik = await env.ASSETS.fetch(request);
+    const fotoAd = yol.startsWith("/galeri/") ? yol.slice("/galeri/".length) : null;
+    if (statik.status === 404 && fotoAd && FOTOLAR[fotoAd]) {
+      try {
+        const f = await depo(env).foto(fotoAd, FOTOLAR[fotoAd]);
+        if (f) {
+          return new Response(f.veri, { headers: { "content-type": f.tur, "cache-control": "public, max-age=604800" } });
+        }
+      } catch (e) {
+        console.error("Fotoğraf alınamadı", fotoAd, e);
+      }
+    }
+    return statik;
   },
 };

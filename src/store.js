@@ -9,6 +9,7 @@
 //   a:<id>                       abone (her hafta aynı gün/saat)
 //   x:<isletmeGunu>:<saat>:<id>  abone o hafta gelmiyor ("bu hafta gelmiyor")
 //   m:<telefon>                  müşteri notu / etiketi (CRM)
+//   f:<dosya>                    eski siteden kopyalanan fotoğraf
 //   panel:ayar, o:<token>        panel şifresi ve oturumlar
 
 import { DurableObject } from "cloudflare:workers";
@@ -411,6 +412,23 @@ export class RezervasyonDeposu extends DurableObject {
       }
       return { basarili: true };
     });
+  }
+
+  // ================= Fotoğraflar (eski siteden bir kez kopyalanır) =================
+
+  /** `f:<ad>` altında saklı fotoğrafı döndürür; yoksa `kaynak` adresinden indirip saklar. */
+  async foto(ad, kaynak) {
+    const kayit = await this.st.get(`f:${ad}`);
+    if (kayit) return kayit;
+    if (!kaynak) return null;
+    const res = await fetch(kaynak);
+    const tur = res.headers.get("content-type") || "";
+    if (!res.ok || !tur.startsWith("image/")) return null;
+    const veri = new Uint8Array(await res.arrayBuffer());
+    if (veri.byteLength > 1_900_000) return null; // depolama sınırı (2 MB)
+    const yeni = { tur, veri, alindi: simdiYazi() };
+    await this.st.put(`f:${ad}`, yeni);
+    return yeni;
   }
 
   // ================= Panel: müşteriler (CRM) =================

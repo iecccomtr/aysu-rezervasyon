@@ -244,6 +244,45 @@ test("Abone numarası: nottan okunur, boşsa ilk boş numara, çakışma reddedi
   assert.deepEqual((await d.aboneListe()).map((a) => a.no).sort((x, y) => x - y), [1, 2, 17]);
 });
 
+test("Özel saat: panel 05:00'e maç yazar, müşteri yazamaz; haftada ve mesaide görünür", async () => {
+  const d = demoDepo();
+  assert.ok((await d.olustur({ gunTarihi: "2026-10-23", saat: "05:00", ...ALI })).hata);
+  const r = await d.panelRezEkle({ gunTarihi: "2026-10-23", saat: "05:00", ad: "Sabahçılar", telefon: "" });
+  assert.ok(r.basarili, JSON.stringify(r));
+  assert.equal(r.tarih, "2026-10-24", "05:00 seçilen günün gecesi: ertesi takvim günü");
+  const h = await d.panelHafta("2026-10-19");
+  const cuma = h.gunler.find((g) => g.tarih === "2026-10-23");
+  assert.deepEqual(cuma.saatler.slice(-2).map((x) => x.saat), ["02:00", "05:00"]);
+  assert.equal(cuma.saatler.at(-1).tur, "rez");
+  assert.equal(cuma.saatler.at(-1).ozel, true);
+  assert.equal(h.gunler[0].saatler.length, cuma.saatler.length, "tüm günler aynı satırlara sahip");
+  assert.match((await d.panelRezEkle({ gunTarihi: "2026-10-23", saat: "05:00", ad: "İkinci", telefon: "" })).hata, /dolu/);
+  assert.equal((await d.mesaiPlani("2026-10-23")).son, "05:00");
+  assert.ok((await d.panelRezEkle({ gunTarihi: "2026-10-23", saat: "06:00", ad: "Erkenci", telefon: "" })).basarili);
+  assert.equal((await d.panelHafta("2026-10-19")).gunler[4].saatler[0].saat, "06:00");
+});
+
+test("Haftalık temizlik: eski hafta rezervasyonları ve 'gelmiyor' silinir, aboneler ve müşteri sayıları kalır", async () => {
+  const d = demoDepo();
+  const ab = await d.aboneKaydet({ ad: "Abone Takım", telefon: "05330000001", gun: 0, saat: "21:00", baslangic: "2026-10-19" });
+  await d.panelRezEkle({ gunTarihi: "2026-10-20", saat: "20:00", ad: "Ali Veli", telefon: "0532 111 22 33" });
+  await d.panelRezEkle({ gunTarihi: "2026-10-25", saat: "01:00", ad: "Pazar Gecesi", telefon: "" }); // Pazar gecesi (takvim 26'sı)
+  await d.aboneAtla({ id: ab.abone.id, gun: "2026-10-19", saat: "21:00", gelmiyor: true });
+  saatiAyarla("2026-10-26T03:00"); // Pazartesi 03:00
+  await d.panelRezEkle({ gunTarihi: "2026-10-27", saat: "20:00", ad: "Ali Veli", telefon: "0532 111 22 33" });
+  const r = await d.haftaTemizle();
+  assert.equal(r.sinir, "2026-10-26");
+  assert.equal(r.rezervasyon, 2);
+  assert.equal(r.gelmiyor, 1);
+  assert.equal((await d.panelHafta("2026-10-19")).gunler[1].saatler.find((x) => x.saat === "20:00").tur, "bos");
+  assert.equal((await d.panelHafta("2026-10-26")).gunler[1].saatler.find((x) => x.saat === "20:00").tur, "rez", "bu hafta kalır");
+  assert.equal((await d.panelHafta("2026-10-26")).gunler[0].saatler.find((x) => x.saat === "21:00").tur, "abone", "abone kalır");
+  const ali = (await d.musteriler()).find((m) => m.telefon === "05321112233");
+  assert.equal(ali.mac, 1, "silinen maç sayıda kalır");
+  assert.equal(ali.gelecek.tarih, "2026-10-27");
+  assert.equal((await d.musteriDetay("05321112233")).arsiv.mac, 1);
+});
+
 test("Şifremi unuttum: tek kullanımlık, 1 saatlik bağlantı", async () => {
   const d = demoDepo({ PANEL_KURULUM_KODU: "kod123" });
   const m = await d.panelKur({ kurulumKodu: "kod123", eposta: "mudur@aysu.com", sifre: "aysu-2026!" });

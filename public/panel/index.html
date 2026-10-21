@@ -45,6 +45,10 @@
   .mesai-kutu { padding: 14px; }
   .mesai-kutu .buyuk { font: 700 30px/1 "Barlow Condensed", sans-serif; color: var(--cim); }
   .salt-okur .arti, .salt-okur .h-bos { pointer-events: none; }
+  .ozel-satir th.saat-b { color: var(--turuncu, #ef7f1a); }
+  .ozel-satir th.saat-b small { display: block; font-size: 10px; font-weight: 600; }
+  #ozel-saat { margin-left: auto; }
+  #ozel-saat + #bugune { margin-left: 0; }
   .salt-okur .arti { display: none; }
   .ben { color: #b8d3e8; font-size: 13px; text-align: right; line-height: 1.2; }
 
@@ -277,6 +281,7 @@
           <button type="button" data-gorunum-tur="tablo">Hafta tablosu</button>
           <button type="button" data-gorunum-tur="liste">Gün listesi</button>
         </div>
+        <button class="dugme ikincil kucuk" type="button" id="ozel-saat" data-yonetici>+ Özel saat</button>
         <button class="dugme ikincil kucuk" type="button" id="bugune">Bugün</button>
       </div>
 
@@ -683,10 +688,11 @@
       if (s.gecmis) sinif += " gecmis";
       return `<td class="${g.tarih === hafta.bugun ? "bugun-s" : ""}"><button type="button" class="${sinif}" data-g="${g.tarih}" data-s="${saat}" title="${kacis(baslik)}" aria-label="${kacis(baslik)}">${yazi}</button></td>`;
     };
-    const satir = (saat) => `<tr><th class="saat-b" scope="row">${saat}</th>${hafta.gunler.map((g) => hucre(g, saat)).join("")}</tr>`;
+    const satir = (saat) => `<tr${SAATLER.includes(saat) ? "" : ' class="ozel-satir"'}><th class="saat-b" scope="row">${saat}${SAATLER.includes(saat) ? "" : "<small> özel</small>"}</th>${hafta.gunler.map((g) => hucre(g, saat)).join("")}</tr>`;
     const bas = `<thead><tr><th class="saat-b">Saat</th>${hafta.gunler.map((g, i) =>
       `<th class="${g.tarih === hafta.bugun ? "bugun" : ""}" scope="col">${KISA[i]}<b>${Number(g.tarih.slice(8))}</b></th>`).join("")}</tr></thead>`;
-    const gunduz = SAATLER.filter((x) => !gece(x)), geceler = SAATLER.filter(gece);
+    const liste = hafta.gunler[0].saatler.map((x) => x.saat); // standart + bu haftaki özel saatler
+    const gunduz = liste.filter((x) => !gece(x)), geceler = liste.filter(gece);
     $("tablo-kap").innerHTML = `<table class="hafta-tablo">${bas}<tbody>${gunduz.map(satir).join("")}
       <tr class="ayrac"><th colspan="8">Gece yarısından sonra (sütundaki günün gecesi)</th></tr>
       ${geceler.map(satir).join("")}</tbody></table>`;
@@ -709,6 +715,36 @@
   $("onceki").addEventListener("click", () => { haftaBas = gunEkle(haftaBas, -7); seciliGun = haftaBas; haftaYukle(); });
   $("sonraki").addEventListener("click", () => { haftaBas = gunEkle(haftaBas, 7); seciliGun = haftaBas; haftaYukle(); });
   $("bugune").addEventListener("click", () => { haftaBas = null; seciliGun = null; haftaYukle(); });
+
+  // Standart saatler dışında (ör. sabah 05:00) maç: gün + saat seçilir, sonra normal rezervasyon formu açılır
+  $("ozel-saat").addEventListener("click", () => {
+    const saatler = Array.from({ length: 24 }, (_, i) => String((i + 3) % 24).padStart(2, "0") + ":00"); // 03:00 … 02:00
+    const varsayilanGun = hafta.gunler.some((g) => g.tarih === seciliGun) ? seciliGun : hafta.gunler[0].tarih;
+    const ic = ac("Özel saat ekle", `
+      <p class="soluk" style="margin-bottom:12px">Tabloda olmayan bir saate maç yazmak için (ör. sabah 05:00). Bu saat sadece panelde görünür, sitede müşteriye açılmaz.</p>
+      <div class="iki-alan">
+        <div class="alan"><label for="o-gun">Gün</label><select id="o-gun">${hafta.gunler.map((g) =>
+          `<option value="${g.tarih}"${g.tarih === varsayilanGun ? " selected" : ""}>${KISA[gunNo(g.tarih)]} ${tarihYazi(g.tarih)}</option>`).join("")}</select></div>
+        <div class="alan"><label for="o-saat">Saat</label><select id="o-saat">${saatler.map((x) =>
+          `<option${x === "05:00" ? " selected" : ""}>${x}</option>`).join("")}</select></div>
+      </div>
+      <p class="soluk" id="o-not" style="font-size:14px;margin:-4px 0 12px"></p>
+      <button class="dugme tam" type="button" id="o-devam">Devam</button>`);
+    const notGuncelle = () => {
+      const s = $("o-saat").value, g = $("o-gun").value;
+      $("o-not").textContent = gece(s) ? `${s} = ${GUNLER[gunNo(g)]} gecesi (${GUNLER[(gunNo(g) + 1) % 7]} sabahına karşı). Tabloda ${KISA[gunNo(g)]} sütununun gece bölümünde görünür.` : "";
+    };
+    ic.querySelector("#o-gun").addEventListener("change", notGuncelle);
+    ic.querySelector("#o-saat").addEventListener("change", notGuncelle);
+    notGuncelle();
+    ic.querySelector("#o-devam").addEventListener("click", () => {
+      const g = hafta.gunler.find((x) => x.tarih === $("o-gun").value);
+      const saat = $("o-saat").value;
+      const mevcut = g.saatler.find((x) => x.saat === saat);
+      if (mevcut && (mevcut.tur === "rez" || mevcut.tur === "abone")) return dlgUyari("Bu saat dolu.");
+      rezEkle(g, mevcut || { saat, tur: "bos", tarih: g.tarih });
+    });
+  });
 
   function durumSecici(secili) {
     return `<div class="durum-sec" role="group" aria-label="Durum">${DURUMLAR.map((d) =>
@@ -984,7 +1020,7 @@
     ac(m.ad || telYazi(m.telefon), `
       <div class="satirlar">
         <div><span>Telefon</span><a href="tel:${m.telefon}">${telYazi(m.telefon)}</a></div>
-        <div><span>Maçlar</span>${aktif.length} rezervasyon${m.rezervasyonlar.length - aktif.length ? `, ${m.rezervasyonlar.length - aktif.length} iptal` : ""}</div>
+        <div><span>Maçlar</span>${aktif.length + (m.arsiv?.mac || 0)} rezervasyon${m.rezervasyonlar.length - aktif.length + (m.arsiv?.iptal || 0) ? `, ${m.rezervasyonlar.length - aktif.length + (m.arsiv?.iptal || 0)} iptal` : ""}${m.arsiv ? `<small class="soluk" style="display:block">${m.arsiv.mac} eski maç arşivde (liste haftalık temizlenir)</small>` : ""}</div>
         ${m.abone.length ? `<div><span>Abonelik</span>${m.abone.map((a) => kacis(slotOzet(a.slotlar || []))).join(" / ")}</div>` : ""}
       </div>
       <div class="eylemler">

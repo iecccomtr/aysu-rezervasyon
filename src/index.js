@@ -146,7 +146,7 @@ function haftaSaltOkur(h) {
     gunler: h.gunler.map((g) => ({
       ...g,
       saatler: g.saatler.map((s) => ({
-        saat: s.saat, tarih: s.tarih, gecmis: s.gecmis, tur: s.tur,
+        saat: s.saat, tarih: s.tarih, gecmis: s.gecmis, tur: s.tur, ...(s.ozel ? { ozel: true } : {}),
         ...(s.rez ? { rez: { ad: s.rez.ad, durum: s.rez.durum, kaynak: s.rez.kaynak } } : {}),
         ...(s.abone ? { abone: { no: s.abone.no } } : {}),
       })),
@@ -436,6 +436,11 @@ export default {
 
   // Her akşam (wrangler.jsonc → triggers.crons) ertesi günün çalışma saatini personele gönderir.
   async scheduled(event, env, ctx) {
+    // Pazartesi 03:00 (Türkiye): geçen haftanın listesini temizle (aboneler kalır)
+    if (event && event.cron === "0 0 * * 1") {
+      ctx.waitUntil(depo(env).haftaTemizle().then((r) => console.log("Haftalık temizlik", JSON.stringify(r))));
+      return;
+    }
     const n = simdi();
     const yarin = gunEkle(isletmeGunu(n.tarih, n.saat), 1);
     ctx.waitUntil(mesaiGonder(env, depo(env), yarin).then((r) => { if (r.hata) console.log("Mesai e-postası:", r.hata); }));

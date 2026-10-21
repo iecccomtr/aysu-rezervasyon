@@ -123,6 +123,16 @@ export class RezervasyonDeposu extends DurableObject {
     return { rezMap, abone, atla };
   }
 
+  /** Standart saatler + aralıktaki (iptal olmayan) özel saatli rezervasyonların saatleri, işletme günü sırasıyla. */
+  saatListesi(durum, ilkGun, sonGun) {
+    const ekstra = new Set();
+    for (const r of durum.rezMap.values()) {
+      const g = r.isletmeGunu || isletmeGunu(r.tarih, r.saat);
+      if (g >= ilkGun && g <= sonGun && !SAATLER.includes(r.saat)) ekstra.add(r.saat);
+    }
+    return [...SAATLER, ...ekstra].sort((a, b) => SAAT_SIRA(a) - SAAT_SIRA(b));
+  }
+
   /** İşletme günü + saat için slotun durumu. */
   slot(durum, gun, saat) {
     const tarih = takvimTarihi(gun, saat);
@@ -176,7 +186,8 @@ export class RezervasyonDeposu extends DurableObject {
     const saat = saatNormalize(s);
     const telefon = telefonNormalize(tel);
     if (!gun) return { hata: "Geçersiz tarih." };
-    if (!saat || !gecerliSaat(saat)) return { hata: `Geçersiz saat. Maç saatleri: ${SAATLER.join(", ")}` };
+    // Panel özel durumlarda standart dışı saate de (ör. 05:00) maç yazabilir; müşteri sadece standart saatlere
+    if (!saat || !(gecerliSaat(saat) || (panel && saat.endsWith(":00")))) return { hata: `Geçersiz saat. Maç saatleri: ${SAATLER.join(", ")}` };
     if (!kirp(ad, 60) || kirp(ad, 60).length < (panel ? 2 : 3)) return { hata: "Ad soyad gerekli." };
     if (!telefon && !(panel && !kirp(tel, 20))) {
       return { hata: "Geçersiz telefon. 05XX XXX XX XX biçiminde bir cep telefonu gerekli." };
@@ -475,7 +486,7 @@ export class RezervasyonDeposu extends DurableObject {
       const gun = tarihNormalize(gunGirdi);
       if (!gun) return { hata: "Geçersiz tarih." };
       const d = await this.durumYukle(gun, gun);
-      const maclar = SAATLER.map((saat) => ({ saat, s: this.slot(d, gun, saat) }))
+      const maclar = this.saatListesi(d, gun, gun).map((saat) => ({ saat, s: this.slot(d, gun, saat) }))
         .filter((x) => x.s.tur === "rez" || x.s.tur === "abone")
         .map((x) => ({ saat: x.saat, ad: x.s.tur === "rez" ? x.s.rez.ad : x.s.abone.ad, abone: x.s.tur === "abone" }));
       const alicilar = (await this.kullaniciListesi())
@@ -498,16 +509,18 @@ export class RezervasyonDeposu extends DurableObject {
       const bas = haftaBasi(tarihNormalize(baslangicGirdi) || isletmeGunu(n.tarih, n.saat));
       const son = gunEkle(bas, 6);
       const d = await this.durumYukle(bas, son);
+      const haftaSaatleri = this.saatListesi(d, bas, son);
       const gunler = [];
       for (let i = 0; i < 7; i++) {
         const gun = gunEkle(bas, i);
         gunler.push({
           tarih: gun, gun: gunAdi(gun),
-          saatler: SAATLER.map((saat) => {
+          saatler: haftaSaatleri.map((saat) => {
             const s = this.slot(d, gun, saat);
             const tarih = takvimTarihi(gun, saat);
             return {
               saat, tarih, gecmis: macZamani(tarih, saat) < Date.now() - 3600_000, tur: s.tur,
+              ...(SAATLER.includes(saat) ? {} : { ozel: true }),
               ...(s.rez ? { rez: s.rez } : {}),
               ...(s.abone ? { abone: { id: s.abone.id, no: aboneNo(s.abone), ad: s.abone.ad, telefon: s.abone.telefon, not: s.abone.not, slotlar: slotlarOf(s.abone) } } : {}),
             };
@@ -743,9 +756,61 @@ export class RezervasyonDeposu extends DurableObject {
         const k = kisi(anahtar.slice(2), v.ad || "");
         k.not = v.not || "";
         k.etiket = v.etiket || "";
+        if (v.arsiv) { // haftalık temizlikte silinmiş eski maçlar
+          k.mac += v.arsiv.mac; k.iptal += v.arsiv.iptal;
+          if (v.arsiv.ilk && (!k.ilk || v.arsiv.ilk < k.ilk)) k.ilk = v.arsiv.ilk;
+          if (v.arsiv.son && (!k.son || v.arsiv.son > k.son)) k.son = v.arsiv.son;
+        }
       }
       return [...kisiler.values()].sort((a, b) =>
         (b.son || b.gelecek?.tarih || "").localeCompare(a.son || a.gelecek?.tarih || "") || a.ad.localeCompare(b.ad, "tr"));
+    });
+  }
+
+  /**
+   * Haftalık temizlik (her Pazar gecesi bittikten sonra, Pazartesi 03:00):
+   * bu haftadan önceki tek seferlik rezervasyonlar ve "gelmiyor" işaretleri silinir. Aboneler kalır.
+   * Müşteri kartındaki sayılar kaybolmasın diye silinen maçlar m:<telefon>.arsiv içine özetlenir.
+   */
+  async haftaTemizle() {
+    return this.kilitli(async () => {
+      const n = simdi();
+      const sinir = haftaBasi(n.tarih); // takvime göre bu haftanın pazartesisi (Pazar gecesi maçları bitmiş olur)
+      const eskiRez = await this.st.list({ start: "r:", end: `r:${gunEkle(sinir, 1)}` });
+      const silinecek = [];
+      const ozet = new Map();
+      for (const [anahtar, r] of eskiRez) {
+        if ((r.isletmeGunu || isletmeGunu(r.tarih, r.saat)) >= sinir) continue; // bu haftanın gece maçı
+        silinecek.push(anahtar, `k:${r.kayitNo}`);
+        if (!r.telefon) continue;
+        const o = ozet.get(r.telefon) || { mac: 0, iptal: 0, ilk: null, son: null, ad: "" };
+        if (iptalMi(r.durum)) o.iptal++;
+        else { o.mac++; o.ilk = !o.ilk || r.tarih < o.ilk ? r.tarih : o.ilk; o.son = !o.son || r.tarih > o.son ? r.tarih : o.son; }
+        o.ad = r.ad || o.ad;
+        ozet.set(r.telefon, o);
+      }
+      for (const [tel, o] of ozet) {
+        const m = (await this.st.get(`m:${tel}`)) || {};
+        const a = m.arsiv || { mac: 0, iptal: 0, ilk: null, son: null };
+        await this.st.put(`m:${tel}`, {
+          ...m, ad: m.ad || o.ad,
+          arsiv: {
+            mac: a.mac + o.mac, iptal: a.iptal + o.iptal,
+            ilk: [a.ilk, o.ilk].filter(Boolean).sort()[0] || null,
+            son: [a.son, o.son].filter(Boolean).sort().at(-1) || null,
+          },
+        });
+      }
+      const atla = await this.st.list({ start: "x:", end: `x:${sinir}` });
+      silinecek.push(...atla.keys());
+      // süresi dolmuş oturum ve şifre bağlantıları
+      for (const onek of ["o:", "s:"]) {
+        for (const [k, v] of await this.st.list({ prefix: onek })) if (!v.bitis || v.bitis < Date.now()) silinecek.push(k);
+      }
+      for (let i = 0; i < silinecek.length; i += 128) await this.st.delete(silinecek.slice(i, i + 128));
+      const rezSayi = silinecek.filter((k) => k.startsWith("r:")).length;
+      await this.kayitTut(null, "Haftalık temizlik", `${sinir} öncesi ${rezSayi} rezervasyon ve ${atla.size} "gelmiyor" işareti silindi; aboneler korundu`);
+      return { basarili: true, sinir, rezervasyon: rezSayi, gelmiyor: atla.size };
     });
   }
 
@@ -757,7 +822,7 @@ export class RezervasyonDeposu extends DurableObject {
       .sort((a, b) => (b.tarih + b.saat).localeCompare(a.tarih + a.saat));
     const m = (await this.st.get(`m:${telefon}`)) || {};
     const abone = (await this.aboneler()).filter((a) => a.telefon === telefon).map((a) => ({ ...a, slotlar: slotSirala(slotlarOf(a)) }));
-    return { telefon, ad: tum[0]?.ad || abone[0]?.ad || m.ad || "", not: m.not || "", etiket: m.etiket || "", rezervasyonlar: tum.slice(0, 100), abone };
+    return { telefon, ad: tum[0]?.ad || abone[0]?.ad || m.ad || "", not: m.not || "", etiket: m.etiket || "", rezervasyonlar: tum.slice(0, 100), abone, arsiv: m.arsiv || null };
   }
 
   async musteriNot({ telefon: tel, not, etiket, ad }) {

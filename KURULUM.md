@@ -54,7 +54,9 @@ Her akşam **20:00**'de ertesi günün çalışma saati, rolü Temizlik Şefi ve
 - **Telefonla gelen rezervasyon:** Boş saate dokunun, ad ve telefonu yazıp kaydedin. Durum varsayılan olarak "Onaylı" gelir. Kapora alındıysa tutarını yazın. Site o saati anında dolu gösterir.
 - **Kapora bekleyenler:** Online rezervasyonlar üstte sarı kutuda listelenir. Dokunun, **Onaylı**'yı seçin ve ödenen tutarı yazın (ör. `1000 + 200`).
 - **İptal:** Rezervasyona dokunun, **İptal**'i seçip kaydedin. Saat yeniden boşa çıkar.
-- Panel açıkken takvim her dakika kendini yeniler.
+- Panel açıkken takvim her dakika kendini yeniler. Başka bir haftaya geçip 2 dakika dokunmazsanız bu haftaya döner.
+- **Özel saat:** Standart saatler dışında maç gelirse (ör. sabah 05:00) **+ Özel saat** → gün ve saat seçin → normal rezervasyon formu. Bu saat o hafta tabloda turuncu "özel" satır olarak görünür, sitede müşteriye açılmaz. 03:00–05:00 seçilen günün gecesidir.
+- **Haftalık temizlik:** Her Pazar gecesi bitince (Pazartesi 03:00) geçen haftanın rezervasyonları ve "gelmiyor" işaretleri silinir; aboneler kalır. Müşteri kartlarındaki maç/iptal sayıları özet olarak korunur. Temizlik İşlem kaydına yazılır.
 
 ### Aboneler
 - **+ Abone ekle** ile ad, telefon, gün ve saat girin. Abone her hafta o saatte otomatik dolu görünür.

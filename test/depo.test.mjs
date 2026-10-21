@@ -241,7 +241,7 @@ test("Abone numarası: nottan okunur, boşsa ilk boş numara, çakışma reddedi
   assert.equal((await d.aboneKaydet({ ad: "Elle", gun: 1, saat: "20:00", no: 17 })).abone.no, 17);
   const h = await d.panelHafta("2026-10-19");
   assert.equal(h.gunler[5].saatler.find((x) => x.saat === "08:00").abone.no, 1);
-  assert.deepEqual((await d.aboneListe()).map((a) => a.no).sort((x, y) => x - y), [1, 2, 17]);
+  assert.deepEqual((await d.aboneListe()).map((a) => a.no), [1, 2, 17], "liste abone numarasına göre sıralı");
 });
 
 test("Özel saat: panel 05:00'e maç yazar, müşteri yazamaz; haftada ve mesaide görünür", async () => {

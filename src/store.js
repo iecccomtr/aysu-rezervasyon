@@ -575,7 +575,9 @@ export class RezervasyonDeposu extends DurableObject {
   async aboneListe() {
     const liste = (await this.aboneler()).map((a) => ({ ...a, no: aboneNo(a), slotlar: slotSirala(slotlarOf(a)) }));
     const ilk = (a) => a.slotlar[0] || { gun: 9, saat: "00:00" };
-    return liste.sort((a, b) => ilk(a).gun - ilk(b).gun || SAAT_SIRA(ilk(a).saat) - SAAT_SIRA(ilk(b).saat) || a.ad.localeCompare(b.ad, "tr"));
+    // Abone numarasına göre (numarasızlar en sonda), sonra ilk gün/saat
+    return liste.sort((a, b) => (a.no || 1e9) - (b.no || 1e9)
+      || ilk(a).gun - ilk(b).gun || SAAT_SIRA(ilk(a).saat) - SAAT_SIRA(ilk(b).saat) || a.ad.localeCompare(b.ad, "tr"));
   }
 
   /** slotlar: [{gun, saat}] — ya da eski biçimde tek gun + saat */

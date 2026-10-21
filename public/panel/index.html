@@ -43,6 +43,9 @@
   .rozet.r-onay { background: #fff1d6; color: #8a5a00; }
   .rozet.r-pasif { background: #eee; color: #666; }
   .salt-okur .arti, .salt-okur .h-bos { pointer-events: none; }
+  /* Temizlik Şefi / Personel: metin seçilemez, kopyalanamaz, yazdırılamaz */
+  body.salt-okur #uygulama { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  @media print { body.salt-okur #uygulama { display: none !important; } body.salt-okur::after { content: "Bu sayfa yazdırılamaz."; } }
   .ozel-satir th.saat-b { color: var(--turuncu, #ef7f1a); }
   .ozel-satir th.saat-b small { display: block; font-size: 10px; font-weight: 600; }
   #ozel-saat { margin-left: auto; }
@@ -564,6 +567,14 @@
     if (ad === "kullanicilar") kullaniciYukle();
     window.scrollTo({ top: 0 });
   }
+
+  // Salt-okur rollerde sağ tık, kopyalama, sürükleme ve kısayollar (Ctrl+C/A/S/P/U) kapalı
+  const saltOkurMu = () => document.body.classList.contains("salt-okur") && !$("uygulama").hidden;
+  ["contextmenu", "copy", "cut", "dragstart", "selectstart"].forEach((t) =>
+    document.addEventListener(t, (e) => { if (saltOkurMu()) e.preventDefault(); }));
+  document.addEventListener("keydown", (e) => {
+    if (saltOkurMu() && (e.ctrlKey || e.metaKey) && ["c", "x", "a", "s", "p", "u"].includes(e.key.toLowerCase())) e.preventDefault();
+  });
 
   function uygulamaGoster() {
     $("giris").hidden = true; $("uygulama").hidden = false;

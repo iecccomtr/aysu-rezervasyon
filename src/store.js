@@ -975,6 +975,32 @@ export class RezervasyonDeposu extends DurableObject {
     });
   }
 
+  /**
+   * Veri yedeği: bütün kayıtlar (rezervasyon, abone, müşteri, kasa, ürün, puantaj, ayarlar…) tek JSON.
+   * Güvenlik için oturumlar, şifre sıfırlama / onay bağlantıları ve şifre özetleri yedeğe girmez;
+   * dekont / fotoğraf dosyaları (büyük ikili veri) da girmez.
+   */
+  async yedek() {
+    const HARIC = ["o:", "s:", "t:", "d:", "f:"];
+    const veri = {};
+    const sayac = {};
+    let start;
+    for (;;) {
+      const m = await this.st.list({ start, limit: 1000 });
+      if (!m.size) break;
+      for (const [k, v] of m) {
+        start = k + "\0";
+        if (HARIC.some((h) => k.startsWith(h))) continue;
+        if (v instanceof ArrayBuffer || ArrayBuffer.isView(v)) continue;
+        const on = k.split(":")[0];
+        sayac[on] = (sayac[on] || 0) + 1;
+        veri[k] = k.startsWith("u:") && v && typeof v === "object" ? (({ hash, tuz, ...u }) => u)(v) : v;
+      }
+      if (m.size < 1000) break;
+    }
+    return { surum: 1, olusturma: simdiYazi(), anahtarSayisi: Object.keys(veri).length, sayac, veri };
+  }
+
   /** Tek seferlik bayrak: yoksa koyar ve true döner */
   async birKez(anahtar) {
     return this.kilitli(async () => {

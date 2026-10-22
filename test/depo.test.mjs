@@ -999,3 +999,15 @@ test("Hafta içi 17:00 öncesi maçlar abone ücretinden", async () => {
   const r = await d.olustur({ gunTarihi: "2026-10-21", saat: "15:00", ad: "Gündüz Ekibi", telefon: "05330000011" });
   assert.equal((await d.kayitBul(r.kayitNo)).kayit.ucret, 3200);
 });
+
+test("Yedek: kayıtlar gelir, oturum / şifre / dekont dosyası gelmez", async () => {
+  const d = demoDepo({ PANEL_KURULUM_KODU: "k" });
+  await d.panelKur({ kurulumKodu: "k", eposta: "admin@aysu.com", ad: "Admin", sifre: "aysu-2026!" });
+  await d.aboneKaydet({ ad: "Ekip", telefon: "0545 123 01 23", gun: 3, saat: "20:00" });
+  await d.st.put("d:AY-X", new Uint8Array([1, 2, 3]));
+  const y = await d.yedek();
+  assert.ok(Object.keys(y.veri).some((k) => k.startsWith("a:")));
+  assert.ok(!Object.keys(y.veri).some((k) => k.startsWith("o:") || k.startsWith("d:")));
+  assert.equal(y.veri["u:admin@aysu.com"].hash, undefined);
+  assert.equal(y.veri["u:admin@aysu.com"].ad, "Admin");
+});

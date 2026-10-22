@@ -457,6 +457,12 @@ async function panel(request, env, ctx, yol) {
       if (r.ilkOnay) ctx.waitUntil(kurallarGonder(env, [r.kullanici.eposta], r.kullanici.ad, r.kullanici.rolAd, url.origin));
       return sonuc(r);
     }
+    case "POST yedek": {
+      if (ben.rol !== "admin") return json({ hata: "Sadece Admin." }, 403);
+      const ok = await yedekGonder(env, d, [ben.eposta], "İsteğiniz üzerine alındı.");
+      if (ok) await d.kayitTut(ben, "Veri yedeği aldı (e-posta)");
+      return ok ? json({ basarili: true }) : json({ hata: "E-posta gönderilemedi." }, 500);
+    }
     case "POST kurallar/gonder": {
       if (ben.rol !== "admin") return json({ hata: "Sadece Admin." }, 403);
       const ok = await kurallarGonder(env, [ben.eposta], ben.ad, ben.rolAd || "Admin", url.origin, true);
@@ -625,6 +631,23 @@ function islemDetayi(yol, g, r) {
 }
 
 /** Tesis kuralları ve görevler e-postası (yeni onaylanan çalışana; örnek = Admin'e deneme) */
+/** Veri yedeğini (JSON) e-postayla gönderir */
+async function yedekGonder(env, d, kime, neden = "") {
+  const y = await d.yedek();
+  const json = new TextEncoder().encode(JSON.stringify(y, null, 1));
+  const tarih = y.olusturma.slice(0, 10);
+  const ADLAR = { r: "Rezervasyon", a: "Abone", m: "Müşteri notu", kasa: "Kasa günü", urun: "Kantin ürünü", tu: "Temizlik ürünü", p: "Puantaj günü", av: "Avans", vr: "Veresiye", u: "Kullanıcı", l: "İşlem kaydı", gv: "Görev onayı", ayar: "Ayar" };
+  return epostaYolla(env, {
+    kime, konu: `Aysu Halı Saha yedeği — ${y.olusturma}`,
+    giris: `${neden ? neden + " " : ""}Sitedeki bütün kayıtların yedeği ektedir (aysu-yedek-${tarih}.json). Bu dosyayı güvenli bir yerde saklayın; kişisel veri içerir.`,
+    satirlar: [["Toplam kayıt", String(y.anahtarSayisi)], ["Boyut", `${Math.round(json.length / 1024)} KB`],
+      ...Object.entries(y.sayac).filter(([k]) => ADLAR[k]).map(([k, n]) => [ADLAR[k], String(n)]),
+      ["Kod", "Sitenin kodu GitHub'da: github.com/iecccomtr/aysu-rezervasyon"]],
+    alt: "Güvenlik için oturumlar, şifreler ve dekont / fotoğraf dosyaları yedeğe konmadı. Yedek her Pazartesi otomatik gelir.",
+    ekler: [{ ad: `aysu-yedek-${tarih}.json`, tur: "application/json", veri: json }],
+  });
+}
+
 function kurallarGonder(env, kime, ad, rolAd, koken = "https://aysuhalisaha.com", ornek = false) {
   return epostaYolla(env, {
     kime, konu: `${ornek ? "[Örnek] " : ""}Aysu Halı Saha'ya hoş geldiniz — tesis kuralları ve görevler`,
@@ -850,7 +873,12 @@ export default {
   async scheduled(event, env, ctx) {
     // Pazartesi 03:00 (Türkiye): geçen haftanın listesini temizle (aboneler kalır)
     if (event?.cron === "0 0 * * 1") {
-      ctx.waitUntil(depo(env).haftaTemizle().then((r) => console.log("Haftalık temizlik", JSON.stringify(r))));
+      // Önce yedek (temizlikten önceki hâl), sonra temizlik
+      ctx.waitUntil((async () => {
+        const d = depo(env);
+        await yedekGonder(env, d, await d.rolEpostalari(["admin"]), "Haftalık otomatik yedek.").catch((e) => console.error("Yedek", e));
+        console.log("Haftalık temizlik", JSON.stringify(await d.haftaTemizle()));
+      })());
       return;
     }
     // 5 dakikada bir: dekontu gelmeyen online opsiyonları düşür, işletmeye haber ver
@@ -860,6 +888,7 @@ export default {
       const d = depo(env);
       const kime = await d.rolEpostalari(["admin"]);
       if (kime.length && epostaKurulu(env) && (await d.birKez("ayar:kurallarOrnek"))) await kurallarGonder(env, kime, "Admin", "Admin", "https://aysuhalisaha.com", true);
+      if (kime.length && epostaKurulu(env) && (await d.birKez("ayar:yedekIlk"))) await yedekGonder(env, d, kime, "İlk yedek.");
     })().catch(() => {}));
     // Gizli IBAN kontrolü: sistemdeki IBAN + sitenin sayfalarında yazan IBAN'lar onaylı IBAN mı?
     if (new Date().getUTCMinutes() < 5) ctx.waitUntil((async () => {

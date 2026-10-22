@@ -1212,7 +1212,11 @@
     if ($("uygulama").hidden || sekme !== "takvim" || dlg.open || !baskaHaftada()) return;
     if (Date.now() - sonHareket >= 120_000) { haftaBas = null; seciliGun = null; haftaYukle(); bildir("Bu haftaya dönüldü"); }
   }, 10_000);
-  setInterval(() => { if (!$("uygulama").hidden && sekme === "takvim" && !dlg.open && document.visibilityState === "visible") haftaYukle(); }, 60_000);
+  // Takvim 15 sn'de bir ve panele geri dönülünce hemen tazelenir (yeni rezervasyon / iptal görünür).
+  // Açık bir pencere (rezervasyon formu vb.) varken tazelenmez, yazdıklarınız kaybolmasın.
+  const takvimTazele = () => { if (!$("uygulama").hidden && sekme === "takvim" && !dlg.open && document.visibilityState === "visible") haftaYukle(); };
+  setInterval(takvimTazele, 15_000);
+  document.addEventListener("visibilitychange", takvimTazele);
 
   basla();
 })();

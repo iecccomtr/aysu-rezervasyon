@@ -58,6 +58,13 @@ const opsiyonBilgisi = (r, simdiMs = Date.now()) => {
   if (!r || r.kaynak !== "Online" || r.durum !== DURUM.bekliyor || !r.opsiyonBitis) return null;
   return { dk: Math.max(1, Math.ceil((r.opsiyonBitis - simdiMs) / 60000)) };
 };
+/** Ad soyad karşılaştırma: büyük/küçük harf, Türkçe karakter ve boşluk farkı önemsiz; yazılan her kelime kayıtta geçmeli. */
+const adSade = (s) => String(s || "").toLocaleLowerCase("tr").replace(/ı/g, "i").replace(/ş/g, "s").replace(/ğ/g, "g")
+  .replace(/ü/g, "u").replace(/ö/g, "o").replace(/ç/g, "c").replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+export const adEslesir = (yazilan, kayitli) => {
+  const y = adSade(yazilan).split(" ").filter((x) => x.length > 1), k = adSade(kayitli).split(" ");
+  return y.length > 0 && y.every((w) => k.includes(w));
+};
 const iptalMi = (durum) => String(durum || "").toLocaleLowerCase("tr").includes("iptal");
 const geceSaati = (saat) => Number(saat.slice(0, 2)) < 6;
 /** İşletme günü + saat → maçın takvim tarihi */
@@ -389,14 +396,17 @@ export class RezervasyonDeposu extends DurableObject {
   }
 
   /** Müşteri iptali: kayıt no ile ya da seçtiği gün + saat ile (telefon eşleşmeli). */
-  async iptal({ kayitNo, tarih: gunGirdi, saat: s, telefon: tel }) {
+  async iptal({ kayitNo, tarih: gunGirdi, saat: s, telefon: tel, ad }) {
     return this.kilitli(async () => {
       const telefon = telefonNormalize(tel);
       if (!telefon) return { hata: "Geçersiz telefon." };
       if (!kayitNo && gunGirdi && s) {
         const gun = tarihNormalize(gunGirdi), saat = saatNormalize(s);
         const sl = gun && saat ? this.slot(await this.durumYukle(gun, gun), gun, saat) : null;
-        if (!sl || sl.tur !== "rez" || sl.rez.telefon !== telefon) return { hata: "Seçtiğiniz gün ve saatte bu numaraya ait rezervasyon bulunamadı." };
+        // Telefon + rezervasyondaki ad soyad birlikte eşleşmeli
+        if (!sl || sl.tur !== "rez" || sl.rez.telefon !== telefon || !adEslesir(ad, sl.rez.ad)) {
+          return { hata: "Seçtiğiniz gün ve saatte bu telefon ve ad soyad ile rezervasyon bulunamadı." };
+        }
         kayitNo = sl.rez.kayitNo;
       }
       const b = await this.kayitBul(kayitNo);

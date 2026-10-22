@@ -376,7 +376,8 @@ test("Rezervasyon iptali: Müdür ve Müdür Yardımcısı'na e-posta (siteden v
   const t2 = (await istek("/api/panel/rez", { gun: "2026-10-25", saat: "20:00", ad: "Ali", telefon: "0532 111 22 33", kapora: "1200" })).veri;
   cerezSil();
   const m = epostalar.length;
-  assert.equal((await istek("/api/iptal", { tarih: "2026-10-25", saat: "20:00", telefon: "0532 111 22 33" })).durum, 200);
+  assert.equal((await istek("/api/iptal", { tarih: "2026-10-25", saat: "20:00", telefon: "0532 111 22 33", ad: "Veli" })).durum, 409, "ad eşleşmeli");
+  assert.equal((await istek("/api/iptal", { tarih: "2026-10-25", saat: "20:00", telefon: "0532 111 22 33", ad: "ali" })).durum, 200);
   e = epostalar.slice(m).find((x) => /iptal edildi/.test(x.subject));
   assert.match(e.text, /Müşteri \(siteden\)/); assert.ok(t2.kayitNo);
 });

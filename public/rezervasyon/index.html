@@ -234,7 +234,7 @@
     <!-- ===== Rezervasyon adımları ===== -->
     <div class="iptal-baslik" id="iptal-baslik" hidden>
       <h2>Rezervasyon iptali</h2>
-      <p>İptal etmek istediğiniz rezervasyonun <b>gününü ve saatini</b> aşağıdan seçin, ardından telefon numaranızı yazın. <b>Kaporaların iadesi yoktur.</b></p>
+      <p>İptal etmek istediğiniz rezervasyonun <b>gününü ve saatini</b> aşağıdan seçin, ardından rezervasyondaki <b>ad soyad</b> ve <b>telefon numarasını</b> yazın. <b>Kaporaların iadesi yoktur.</b></p>
       <a href="/rezervasyon/">← Yeni rezervasyon yap</a>
     </div>
     <div id="secim">
@@ -684,17 +684,19 @@
   }
   function iptalSor(g, saat) {
     const u = $("ops-uyari");
-    u.innerHTML = `<p><b>${g.gun} ${tarihYazi(g.tarih)}, ${saat}</b> rezervasyonunu iptal etmek için telefonunuzu yazın:</p>
-      <form class="ops-devam" novalidate><input type="tel" inputmode="tel" placeholder="05XX XXX XX XX" autocomplete="off" aria-label="Cep telefonu">
+    u.innerHTML = `<p><b>${g.gun} ${tarihYazi(g.tarih)}, ${saat}</b> rezervasyonunu iptal etmek için rezervasyondaki bilgileri yazın:</p>
+      <form class="ops-devam" novalidate><input type="text" name="ad" placeholder="Rezervasyondaki ad soyad" autocomplete="off" aria-label="Ad soyad">
+      <input type="tel" name="tel" inputmode="tel" placeholder="Rezervasyondaki telefon 05XX XXX XX XX" autocomplete="off" aria-label="Cep telefonu">
       <button class="dugme kucuk" type="submit">İptal et</button></form><p class="ops-hata" role="alert"></p>
       <p style="margin-top:6px;font-size:14px">Kaporaların iadesi yoktur. Onaylı maça 3 saatten az kaldıysa arayın: 0 555 510 26 26</p>`;
     u.hidden = false;
     u.querySelector("input").focus();
     u.querySelector("form").addEventListener("submit", async (e) => {
       e.preventDefault();
-      const telefon = u.querySelector("input").value.trim();
+      const ad = u.querySelector("[name=ad]").value.trim(), telefon = u.querySelector("[name=tel]").value.trim();
+      if (ad.length < 2 || telefon.replace(/\D/g, "").length < 10) { u.querySelector(".ops-hata").textContent = "Ad soyad ve telefonu yazın."; return; }
       const r = await fetch("/api/iptal", { method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ tarih: g.tarih, saat, telefon }) }).catch(() => null);
+        body: JSON.stringify({ tarih: g.tarih, saat, telefon, ad }) }).catch(() => null);
       const v = r ? await r.json().catch(() => ({})) : {};
       if (!r || !r.ok) { u.querySelector(".ops-hata").textContent = v.hata || "İptal yapılamadı."; return; }
       await yukle();

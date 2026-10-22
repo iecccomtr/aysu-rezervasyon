@@ -1806,22 +1806,23 @@
       const v = document.querySelector(`[data-mv="${i}"]`); if (v) v.textContent = m.veresiye ? `· ${para(m.veresiye)}${kk.maclar[i].veresiyeKim ? " · " + kk.maclar[i].veresiyeKim : ""}` : "";
     });
     const yaz = (ad, v) => { const e = document.querySelector(`[data-top="${ad}"]`); if (e) e.textContent = v; };
-    yaz("maclar", para(o.ciro)); yaz("girisler", para(o.giris)); yaz("cikislar", para(o.cikis)); yaz("veresiye", para(o.veresiye));
+    yaz("maclar", para(o.ciro - o.onOdeme)); yaz("girisler", para(o.giris)); yaz("cikislar", para(o.cikis)); yaz("veresiye", para(o.veresiye));
     yaz("ikram", o.ikramDeger ? `toplam ikram ${para(o.ikramDeger)}` : "");
     yaz("personel", o.personelKantin ? para(o.personelKantin) : "");
     yaz("avans", o.avans ? "− " + para(o.avans) : "");
     const sat = (a, v, s = "") => `<tr class="${s}"><td>${a}</td><td>${v}</td></tr>`;
     $("k-ozet").innerHTML =
-      sat("Maç ücretleri", para(o.mac)) + (o.vip ? sat("VIP hizmet", para(o.vip)) : "") +
+      sat(`Maç ücretleri${o.onOdeme ? ` <small class="soluk">(${para(o.onOdeme)} kapora düşülmüş)</small>` : ""}`, para(o.mac - o.onOdeme)) +
+      (o.vip ? sat("VIP hizmet", para(o.vip)) : "") +
       sat("Kantin", para(o.kantin)) + sat(`Krampon (${o.kramponAdet} adet)`, para(o.krampon)) + sat(`Eldiven (${o.eldivenAdet} adet)`, para(o.eldiven)) +
-      sat("Günlük ciro", para(o.ciro), "buyuk") +
-      (o.onOdeme ? sat("Önceki günlerde alınan kaporalar (bugünkü maçlar)", "− " + para(o.onOdeme), "eksi") : "") +
+      sat("Bugün tahsil edilen", para(o.ciro - o.onOdeme), "buyuk") +
       sat("Bugün gelen kaporalar (ileri tarihli maçlar)", para(o.gelenKapora)) +
       sat("Diğer kasa girişi", para(o.giris)) + (o.personelKantin ? sat("Personel kantini (maaştan düşülür)", para(o.personelKantin)) : "") + sat("Kasa toplamı", para(o.kasaToplam), "kalin") +
       sat("Kasa çıkışı", "− " + para(o.cikis), "eksi") + (o.avans ? sat("Çalışan ödeme / avans", "− " + para(o.avans), "eksi") : "") + (o.veresiye ? sat("Veresiye", "− " + para(o.veresiye), "eksi") : "") +
       (o.ikramDeger ? sat('<span class="soluk">İkram (ücretsiz, kasaya girmedi)</span>', `<span class="soluk">${para(o.ikramDeger)}</span>`) : "") +
       (o.veresiyeKantin ? sat('<span class="soluk">Veresiye kantin (kasaya girmedi)</span>', `<span class="soluk">${para(o.veresiyeKantin)}</span>`) : "") +
       sat("Kasada olması gereken", para(o.olmasiGereken), "buyuk") +
+      sat('<span class="soluk">Günlük ciro (kaporalar dahil)</span>', `<span class="soluk">${para(o.ciro)}</span>`) +
       (o.odenmemis ? sat('<span style="color:#b42318;font-weight:700">Henüz alınmayan kantin (maç sonunda)</span>', `<span style="color:#b42318">${para(o.odenmemis)}</span>`) : "") +
       `<tr><td><label for="k-sayilan">Sayılan kasa</label></td><td><input id="k-sayilan" data-yol="sayilan" inputmode="numeric" value="${kk.sayilan ?? ""}" placeholder="Sayın"></td></tr>` +
       (o.fark !== null ? sat(o.fark === 0 ? "Fark" : o.fark > 0 ? "Fazla" : "Eksik", para(Math.abs(o.fark)), o.fark < 0 ? "eksi" : "") : "") +

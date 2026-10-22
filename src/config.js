@@ -47,9 +47,9 @@ export const KURALLAR = {
   enFazlaGunSonra: 27,          // en fazla kaç gün sonrasına rezervasyon alınır (bugün + 27 gün = 4 hafta)
   // Dekont tarihi kontrolü (eski dekontla onay engeli). ŞİMDİLİK KAPALI: denemeler eski dekontla yapılıyor.
   // Canlı kullanıma geçerken true yapın.
-  dekontTarihKontrol: false,
+  dekontTarihKontrol: true,
   // Aynı dekontun ikinci bir rezervasyonda kullanılmasını engelle. ŞİMDİLİK KAPALI (deneme dönemi). Canlıda true.
-  dekontTekrarKontrol: false,
+  dekontTekrarKontrol: true,
   personelIndirim: 0.40,        // personel kantin indirimi; indirimli birim fiyat 5 TL'nin katına yukarı yuvarlanır
   puantajYolSaat: 0.5,          // tamamlanan her iş gününe yol parası olarak eklenen saat
   puantajCikisEk: 30,           // beklenen çıkış: son maçın bitişinden bu kadar dakika sonra

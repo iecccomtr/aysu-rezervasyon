@@ -1,7 +1,7 @@
 // Aysu Halı Saha — telefon uygulaması (PWA) için hizmet çalışanı.
 // Her şey her zaman internetten gelir (rezervasyonlar hep güncel olsun); internet yoksa
 // sayfa açılışlarında "bağlantı yok" ekranı gösterilir. /api/ istekleri hiç önbelleğe alınmaz.
-const ONBELLEK = "aysu-v1";
+const ONBELLEK = "aysu-v2"; // sürüm değişince eski önbellek silinir
 const DOSYALAR = ["/cevrimdisi.html", "/img/aysu-logo.svg", "/img/ikon-192.png"];
 
 self.addEventListener("install", (e) => {

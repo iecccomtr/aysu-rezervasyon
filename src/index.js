@@ -443,7 +443,9 @@ async function puantajOzetGonder(env, d, ben, r) {
     kime: [ben.eposta], konu: `Çalışma özeti ${r.gun.split("-").reverse().join(".")}: ${sa(gunK.saat)}`,
     satirlar: [
       ["Geldim", gunK.giris], ["Çıktım", gunK.cikis], ["Çalışılan", sa(calisilan)], ["Yol", sa(KURALLAR.puantajYolSaat)],
-      ["Toplam", sa(gunK.saat)], ...(kisi.saatlikUcret ? [["Ücret", tl(gunK.saat * kisi.saatlikUcret)]] : []),
+      ["Toplam", sa(gunK.saat)],
+      ...(gunK.kesinti ? [["Kantin (ücretten düşülür)", "−" + tl(gunK.kesinti)]] : []),
+      ...(kisi.saatlikUcret ? [["Ücret", tl(gunK.saat * kisi.saatlikUcret - (gunK.kesinti || 0))]] : []),
       ["Bu ay toplam", `${sa(kisi.saat)}${kisi.saatlikUcret ? " · " + tl(kisi.ucret) : ""}`],
     ],
     alt: "Saatlerde hata varsa yöneticinize bildirin. — Aysu Halı Saha",

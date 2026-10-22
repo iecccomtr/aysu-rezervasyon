@@ -99,8 +99,8 @@ export function kasaPdf(k) {
   if ((k.veresiye || []).length) { baslik("Veresiye", "−" + para(o.veresiye)); for (const x of k.veresiye) satir(x.aciklama || "—", "−" + para(x.tutar)); }
   const ikram = Object.entries(k.ikram || {}).filter(([, v]) => Object.keys(v).length);
   if (ikram.length) {
-    baslik("Personel / ücretsiz ikram", `değeri ${para(o.ikramDeger)}`);
-    for (const [kim, v] of ikram) satir(kim, para(Object.entries(v).reduce((t, [id, a]) => t + a * (b[id]?.satis || 0), 0)), { alt: urunListe(v) });
+    baslik("Personel kantini ve ücretsiz ikram", `personel ${para(o.personelKantin)} · ikram ${para(o.ikramDeger)}`);
+    for (const [kim, v] of ikram) satir(kim.startsWith("p:") ? `${k.ikramAdlari?.[kim] || kim.slice(2)} (ücretinden düşülür)` : kim, para(Object.entries(v).reduce((t, [id, a]) => t + a * (b[id]?.satis || 0), 0)), { alt: urunListe(v) });
   }
 
   // ---- Gün sonu ----
@@ -113,6 +113,7 @@ export function kasaPdf(k) {
   satir("GÜNLÜK CİRO", para(o.ciro), { kalin: true, renk: MAVI });
   if (o.onOdeme) satir("Alınan kaporalar (bugünkü maçlar)", "−" + para(o.onOdeme), { renk: KIRMIZI });
   satir("Diğer kasa girişi", para(o.giris));
+  if (o.personelKantin) satir("Personel kantini (maaştan düşülür)", para(o.personelKantin));
   satir("Kasa toplamı", para(o.kasaToplam), { kalin: true });
   satir("Kasa çıkışı", "−" + para(o.cikis), { renk: KIRMIZI });
   if (o.veresiye) satir("Veresiye", "−" + para(o.veresiye), { renk: KIRMIZI });

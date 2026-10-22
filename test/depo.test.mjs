@@ -664,3 +664,23 @@ test("Abone maçını bu hafta başka gün/saate taşır: asıl saat boşalır, 
   assert.deepEqual(k.kayit.maclar.map((m) => [m.saat, m.tur, m.ad, m.ucret]), [["22:00", "abone", "Abone 13 · Ekip", 3200]]);
   assert.match((await d.aboneTasi({ id: a.abone.id, gun: "2026-10-29", saat: "20:00", yeniGun: "2026-10-23", yeniSaat: "22:00" })).hata, /dolu/);
 });
+
+test("Personel kantini ücretinden düşülür; stok bitince satış durur", async () => {
+  const d = demoDepo({ PANEL_KURULUM_KODU: "k" });
+  const admin = await d.oturum((await d.panelKur({ kurulumKodu: "k", eposta: "admin@aysu.com", ad: "Admin", sifre: "aysu-2026!" })).token);
+  await d.kayitOl({ eposta: "p@aysu.com", ad: "Personel Bir", sifre: "personel-1", rol: "personel" });
+  await d.kullaniciGuncelle({ eposta: "p@aysu.com", rol: "personel", durum: "aktif", saatlikUcret: "150" }, admin);
+  const p = await d.oturum((await d.panelGiris({ eposta: "p@aysu.com", sifre: "personel-1" })).token);
+  saatiAyarla("2026-10-19T18:00"); await d.puantajGiris(p);
+  saatiAyarla("2026-10-19T23:30"); await d.puantajCikis(p); // 5,5 + 0,5 = 6 saat → 900 TL
+  const k = await d.kasaGetir("2026-10-19", admin);
+  const su = k.urunler[22], biskrem = k.urunler[0];
+  assert.equal(biskrem.stok, 0);
+  const r = await d.kasaKaydet({ ...k.kayit, ikram: { "p:p@aysu.com": { [su.id]: 2 } } }, admin);
+  assert.ok(r.basarili, JSON.stringify(r));
+  assert.equal(r.kayit.ozet.personelKantin, 2 * su.satis);
+  const ay = await d.puantajAy("2026-10");
+  assert.equal(ay.kisiler[0].brut, 900); assert.equal(ay.kisiler[0].kesinti, 50); assert.equal(ay.kisiler[0].ucret, 850);
+  assert.equal((await d.kasaGetir("2026-10-19", admin)).calisanlar[0].ucret, 850);
+  assert.match((await d.kasaKaydet({ ...r.kayit, ikram: { "VIP / ücretsiz ikram": { [biskrem.id]: 1 } } }, admin)).hata, /stokta yok/);
+});

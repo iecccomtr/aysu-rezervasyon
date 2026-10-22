@@ -175,6 +175,7 @@
   .urun-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; max-height: 60vh; overflow: auto; }
   .urun { border: 1px solid var(--cizgi); border-radius: 10px; padding: 6px 8px; font-size: 13px; line-height: 1.2; }
   .urun.var { border-color: var(--cim); background: var(--cim-acik); }
+  .urun.yok { opacity: .45; }
   .urun b { display: block; font-size: 13px; min-height: 2.4em; }
   .urun .adim { margin-top: 4px; width: 100%; justify-content: space-between; }
   .urun .adim span { min-width: 0; font-weight: 700; font-size: 16px; }
@@ -1494,9 +1495,9 @@
   function puantajDetay(k) {
     const duzeltir = ["admin", "mudur"].includes(ben.rol);
     const ic = ac(`${k.ad} · puantaj`, `
-      <p class="soluk" style="margin-bottom:10px">${saatSayi(k.saat)} saat × ${saatSayi(k.saatlikUcret)} ₺ = <b>${para(k.ucret)}</b></p>
-      <table class="stok-t"><thead><tr><th>Gün</th><th>Giriş</th><th>Çıkış</th><th>Saat</th></tr></thead><tbody>
-      ${k.gunler.map((g, i) => `<tr data-g="${i}"${g.acik ? ' class="az"' : ""}><td>${tarihYazi(g.gun)} ${KISA[gunNo(g.gun)]}${g.duzelten ? ` <small class="soluk">(düzelten: ${kacis(g.duzelten)})</small>` : ""}</td><td>${g.giris || "—"}</td><td>${g.cikis || (g.acik ? "açık" : "—")}</td><td>${saatSayi(g.saat)}</td></tr>`).join("")}
+      <p class="soluk" style="margin-bottom:10px">${saatSayi(k.saat)} saat × ${saatSayi(k.saatlikUcret)} ₺ = ${para(k.brut)}${k.kesinti ? ` − kantin ${para(k.kesinti)}` : ""} = <b>${para(k.ucret)}</b></p>
+      <table class="stok-t"><thead><tr><th>Gün</th><th>Giriş</th><th>Çıkış</th><th>Saat</th><th>Kantin</th></tr></thead><tbody>
+      ${k.gunler.map((g, i) => `<tr data-g="${i}"${g.acik ? ' class="az"' : ""}><td>${tarihYazi(g.gun)} ${KISA[gunNo(g.gun)]}${g.duzelten ? ` <small class="soluk">(düzelten: ${kacis(g.duzelten)})</small>` : ""}</td><td>${g.giris || "—"}</td><td>${g.cikis || (g.acik ? "açık" : "—")}</td><td>${saatSayi(g.saat)}</td><td>${g.kesinti ? "−" + para(g.kesinti) : "—"}</td></tr>`).join("")}
       </tbody></table>
       ${duzeltir ? '<p class="soluk" style="font-size:13px;margin-top:8px">Düzeltmek için güne dokunun.</p>' : ""}`);
     if (!duzeltir) return;
@@ -1552,12 +1553,15 @@
       const toplam = sayi(m.ucret) + sayi(m.vip) + kantin + krampon + eldiven;
       o.maclar.push({ kantin, veresiye, ikram, toplam, kapora: sayi(m.onOdeme), kalan: toplam - sayi(m.onOdeme) });
     }
-    for (const v of Object.values(kk.ikram || {})) for (const [id, a] of Object.entries(v)) o.ikramDeger += a * birim(id).satis;
+    o.personelKantin = 0;
+    for (const [kim, v] of Object.entries(kk.ikram || {})) for (const [id, a] of Object.entries(v)) {
+      if (kim.startsWith("p:")) o.personelKantin += a * birim(id).satis; else o.ikramDeger += a * birim(id).satis;
+    }
     const top = (l) => l.reduce((t, x) => t + sayi(x.tutar), 0);
     o.ciro = o.mac + o.vip + o.kantin + o.krampon + o.eldiven;
     o.giris = top(kk.girisler); o.cikis = top(kk.cikislar); o.veresiye = top(kk.veresiye); o.devir = sayi(kk.devir);
     o.gelenKapora = (kk.gelenKaporalar || []).reduce((t, x) => t + (Number(x.tutar) || 0), 0);
-    o.kasaToplam = o.ciro - o.onOdeme + o.giris; // maçların alınan kaporası düşülür; o gün gelen kaporalar bilgi amaçlı (IBAN), devir katılmaz // kasa devri toplamlara katılmaz
+    o.kasaToplam = o.ciro - o.onOdeme + o.giris + o.personelKantin; // kapora düşülür, personel kantini (maaştan kesilir) eklenir
     o.olmasiGereken = o.kasaToplam - o.cikis - o.veresiye;
     const bosMu = (v) => v === null || v === undefined || v === "";
     o.fark = bosMu(kk.sayilan) ? null : sayi(kk.sayilan) - o.olmasiGereken;
@@ -1592,7 +1596,7 @@
     if (!kasaDegisti || !kk) return;
     const gonderilen = JSON.stringify(kk), gun = kasaGun;
     const r = await api("kasa", { ...kk, gun, otomatik: true }).catch(() => null);
-    if (!r || r.hata || gun !== kasaGun) { const d = $("kasa-degisti"); if (d && r?.hata) d.textContent = r.hata; return; }
+    if (!r || r.hata || gun !== kasaGun) { const d = $("kasa-degisti"); if (d && r?.hata) d.textContent = r.hata; if (r?.hata) bildir(r.hata); return; }
     kasa.kayit = r.kayit; kasa.kayitli = true; kk.birimler = r.kayit.birimler; kk.kira = r.kayit.kira;
     const u = await api("urunler").catch(() => null);
     if (Array.isArray(u)) kasa.urunler = u;
@@ -1642,7 +1646,7 @@
       <div class="kutu kasa-kart">
         <h3>Kantin<span class="sag soluk" id="ad-kantin-top"></span></h3>
         <input type="search" id="ad-ara" value="${kacis(adisyonAra)}" placeholder="Ürün ara" style="width:100%;border:1px solid #b5c3cf;border-radius:10px;padding:9px 12px;font-size:16px;margin-bottom:8px">
-        <div class="urun-grid" style="max-height:none">${urunler.map((u) => `<div class="urun${m.kantin?.[u.id] ? " var" : ""}" data-ad-urun="${u.id}" data-ad="${kacis(u.ad.toLocaleLowerCase("tr"))}"${q && !u.ad.toLocaleLowerCase("tr").includes(q) ? " hidden" : ""}>
+        <div class="urun-grid" style="max-height:none">${urunler.map((u) => `<div class="urun${m.kantin?.[u.id] ? " var" : ""}${u.stok <= 0 && !m.kantin?.[u.id] ? " yok" : ""}" data-ad-urun="${u.id}" data-ad="${kacis(u.ad.toLocaleLowerCase("tr"))}"${q && !u.ad.toLocaleLowerCase("tr").includes(q) ? " hidden" : ""}>
           <b>${kacis(u.ad)}</b><small class="soluk">${para(birim(u.id).satis)}${u.stok <= 5 ? ` · <span style="color:#b42318">stok ${u.stok}</span>` : ""}</small>
           <span class="adim"><button type="button" data-d="-1">−</button><span>${m.kantin?.[u.id] || 0}</span><button type="button" data-d="1">+</button></span></div>`).join("")}</div>
       </div>`;
@@ -1690,6 +1694,11 @@
     $("kasa-durum").textContent = kasa.kayitli ? `Son kayıt: ${kasa.kayit.guncelleyen} · ${kasa.kayit.guncelleme}` : (bugunMu ? "Bugünün kasası henüz kaydedilmedi" : "Bu gün için kasa kaydı yok");
     const kr = kira();
     const ikramSayi = (kim) => Object.values(kk.ikram?.[kim] || {}).reduce((t, a) => t + a, 0);
+    const ikramKisiler = () => {
+      const l = new Map(kasa.calisanlar.map((c) => [`p:${c.eposta}`, c.ad]));
+      for (const k of Object.keys(kk.ikram || {})) if (k.startsWith("p:") && !l.has(k)) l.set(k, kasa.kayit.ikramAdlari?.[k] || k.slice(2));
+      return [...l];
+    };
     $("kasa-ic").innerHTML = `
       <div class="kutu kasa-kart"><div class="k-sat" style="grid-template-columns:1fr 130px;margin:0">
         <b>Kasa devir${kasa.oncekiDevir && !kasa.kayitli ? ` <small class="soluk">(${tarihYazi(kasa.oncekiDevir.gun)} bırakılan)</small>` : ""}</b>
@@ -1733,9 +1742,13 @@
         ${kasa.acikVeresiyeler.map((v, i) => `<div class="k-sat" style="grid-template-columns:1fr auto auto"><span><b>${kacis(v.kim)}</b> <small class="soluk">${tarihYazi(v.gun)} ${v.saat} · ${kacis(v.urunler)}${v.aboneId ? " · abonenin sonraki maçında yöneticiye hatırlatılır" : ""}</small></span>
           <b>${para(v.tutar)}</b><button class="dugme ikincil kucuk" type="button" data-ode="${i}">Ödendi</button></div>`).join("")}</div>` : ""}
 
-      <div class="kutu kasa-kart"><h3>Personel / ücretsiz ikram<span class="sag soluk" data-top="ikram"></span></h3>
-        <p class="soluk" style="font-size:13px;margin-bottom:8px">Kasaya para girmez, stoktan düşer.</p>
-        <div class="k-alt" style="margin:0">${kasa.ikramKimler.map((kim) => `<button class="dugme ikincil kucuk" type="button" data-ikram="${kacis(kim)}">${kacis(kim)}${ikramSayi(kim) ? ` · ${ikramSayi(kim)}` : ""}</button>`).join("")}</div>
+      <div class="kutu kasa-kart"><h3>Personel kantini<span class="sag soluk" data-top="personel"></span></h3>
+        <p class="soluk" style="font-size:13px;margin-bottom:8px">Bugün GELDİM diyen çalışanlar. Aldıkları ürünler stoktan düşer, tutarı o günkü ücretinden otomatik kesilir.</p>
+        <div class="k-alt" style="margin:0">${ikramKisiler().map(([kim, ad]) => `<button class="dugme ikincil kucuk" type="button" data-ikram="${kacis(kim)}">${kacis(ad)}${ikramSayi(kim) ? ` · ${ikramSayi(kim)}` : ""}</button>`).join("") || '<span class="soluk">Bugün henüz GELDİM diyen yok.</span>'}</div>
+      </div>
+      <div class="kutu kasa-kart"><h3>Ücretsiz ikram<span class="sag soluk" data-top="ikram"></span></h3>
+        <p class="soluk" style="font-size:13px;margin-bottom:8px">Kasaya para girmez, stoktan düşer. Maça özel ikram için maç kutusundaki İkram düğmesini kullanın.</p>
+        <div class="k-alt" style="margin:0">${["VIP / ücretsiz ikram", ...Object.keys(kk.ikram || {}).filter((x) => !x.startsWith("p:") && x !== "VIP / ücretsiz ikram")].map((kim) => `<button class="dugme ikincil kucuk" type="button" data-ikram="${kacis(kim)}">${kacis(kim)}${ikramSayi(kim) ? ` · ${ikramSayi(kim)}` : ""}</button>`).join("")}</div>
       </div>
 
       <div class="kutu kasa-kart"><h3>Gün sonu</h3><table class="ozet-t" id="k-ozet"></table>
@@ -1760,13 +1773,14 @@
     const yaz = (ad, v) => { const e = document.querySelector(`[data-top="${ad}"]`); if (e) e.textContent = v; };
     yaz("maclar", para(o.ciro)); yaz("girisler", para(o.giris)); yaz("cikislar", para(o.cikis)); yaz("veresiye", para(o.veresiye));
     yaz("ikram", o.ikramDeger ? `toplam ikram ${para(o.ikramDeger)}` : "");
+    yaz("personel", o.personelKantin ? para(o.personelKantin) : "");
     const sat = (a, v, s = "") => `<tr class="${s}"><td>${a}</td><td>${v}</td></tr>`;
     $("k-ozet").innerHTML =
       sat("Maç ücretleri", para(o.mac)) + (o.vip ? sat("VIP hizmet", para(o.vip)) : "") +
       sat("Kantin", para(o.kantin)) + sat(`Krampon (${o.kramponAdet} adet)`, para(o.krampon)) + sat(`Eldiven (${o.eldivenAdet} adet)`, para(o.eldiven)) +
       sat("Günlük ciro", para(o.ciro), "buyuk") +
       (o.onOdeme ? sat("Alınan kaporalar (bugünkü maçlar)", "− " + para(o.onOdeme), "eksi") : "") +
-      sat("Diğer kasa girişi", para(o.giris)) + sat("Kasa toplamı", para(o.kasaToplam), "kalin") +
+      sat("Diğer kasa girişi", para(o.giris)) + (o.personelKantin ? sat("Personel kantini (maaştan düşülür)", para(o.personelKantin)) : "") + sat("Kasa toplamı", para(o.kasaToplam), "kalin") +
       sat("Kasa çıkışı", "− " + para(o.cikis), "eksi") + (o.veresiye ? sat("Veresiye", "− " + para(o.veresiye), "eksi") : "") +
       (o.ikramDeger ? sat('<span class="soluk">İkram (ücretsiz, kasaya girmedi)</span>', `<span class="soluk">${para(o.ikramDeger)}</span>`) : "") +
       (o.veresiyeKantin ? sat('<span class="soluk">Veresiye kantin (kasaya girmedi)</span>', `<span class="soluk">${para(o.veresiyeKantin)}</span>`) : "") +
@@ -1820,6 +1834,7 @@
     const kart = b.closest("[data-ad-urun]");
     if (kart && b.dataset.d) {
       const m = kk.maclar[adisyonMac], id = kart.dataset.adUrun;
+      if (Number(b.dataset.d) > 0 && (canliUrunler().find((u) => u.id === id)?.stok ?? 0) <= 0) return bildir("Stokta yok — satış yapılamaz");
       m.kantin = { ...(m.kantin || {}) };
       m.kantin[id] = Math.max(0, (m.kantin[id] || 0) + Number(b.dataset.d)); if (!m.kantin[id]) delete m.kantin[id];
       kart.querySelector(".adim span").textContent = m.kantin[id] || 0;
@@ -1867,7 +1882,8 @@
         { kim: m.veresiyeKim || m.ad || "", aciklama: "Veresiye: stoktan düşer, fiyat / ciro etkilenmez." });
     } else if (b.dataset.ikram) {
       const kim = b.dataset.ikram;
-      urunSec(`${kim} · ikram / tüketim`, kk.ikram?.[kim] || {}, (yeni) => { kk.ikram = { ...(kk.ikram || {}), [kim]: yeni }; degisti(); kasaCiz(); });
+      const kimAd = kim.startsWith("p:") ? (kasa.calisanlar.find((c) => `p:${c.eposta}` === kim)?.ad || kasa.kayit.ikramAdlari?.[kim] || kim.slice(2)) : kim;
+      urunSec(`${kimAd} · ${kim.startsWith("p:") ? "kantin (ücretinden düşülür)" : "ikram"}`, kk.ikram?.[kim] || {}, (yeni) => { kk.ikram = { ...(kk.ikram || {}), [kim]: yeni }; degisti(); kasaCiz(); });
     } else if (b.id === "k-mac-ekle") {
       kk.maclar.push({ saat: "", tur: "normal", ad: "", ucret: kasa.fiyat.mac, vip: 0, onOdeme: 0, krampon: 0, eldiven: 0, kantin: {} }); degisti(); kasaCiz();
     } else if (b.id === "k-takvim") {
@@ -1880,7 +1896,7 @@
     } else if (b.id === "k-maas") {
       const yeni = kasa.calisanlar.filter((c) => c.ucret > 0 && !kk.cikislar.some((x) => x.aciklama.startsWith(`Maaş · ${c.ad} ·`)));
       if (!yeni.length) return bildir(kasa.calisanlar.some((c) => c.acik) ? "Çıkışı onaylanmamış çalışan var" : "Eklenecek maaş yok (saatlik ücret girilmemiş olabilir)");
-      kk.cikislar.push(...yeni.map((c) => ({ aciklama: `Maaş · ${c.ad} · ${saatSayi(c.saat)} saat`, tutar: c.ucret })));
+      kk.cikislar.push(...yeni.map((c) => ({ aciklama: `Maaş · ${c.ad} · ${saatSayi(c.saat)} saat${c.kesinti ? ` − kantin ${para(c.kesinti)}` : ""}`, tutar: c.ucret })));
       degisti(); kasaCiz();
     } else if (b.id === "k-kaydet") kasaKaydet();
   });
@@ -1903,7 +1919,7 @@
       ${ek ? `<p class="bilgi" style="margin-bottom:8px">${kacis(ek.aciklama)}</p>
         ${ek.kim !== undefined ? `<div class="alan"><label for="us-kim">Kim (borçlu)</label><input id="us-kim" value="${kacis(ek.kim)}" placeholder="Ad soyad / takım"></div>` : ""}` : ""}
       <input type="search" id="us-ara" placeholder="Ürün ara" style="width:100%;border:1px solid #b5c3cf;border-radius:10px;padding:9px 12px;font-size:16px;margin-bottom:8px">
-      <div class="urun-grid">${aktif.map((u) => `<div class="urun${sec[u.id] ? " var" : ""}" data-u="${u.id}" data-ad="${kacis(u.ad.toLocaleLowerCase("tr"))}">
+      <div class="urun-grid">${aktif.map((u) => `<div class="urun${sec[u.id] ? " var" : ""}${u.stok <= 0 && !sec[u.id] ? " yok" : ""}" data-u="${u.id}" data-ad="${kacis(u.ad.toLocaleLowerCase("tr"))}">
         <b>${kacis(u.ad)}</b><small class="soluk">${para(birim(u.id).satis)} · stok ${u.stok}</small>
         <span class="adim"><button type="button" data-d="-1">−</button><span>${sec[u.id] || 0}</span><button type="button" data-d="1">+</button></span></div>`).join("")}</div>
       <div style="display:flex;align-items:center;gap:10px;margin-top:12px"><b id="us-top"></b><button class="dugme" type="button" id="us-tamam" style="margin-left:auto">Tamam</button></div>`);
@@ -1912,6 +1928,8 @@
     ic.querySelectorAll("[data-u]").forEach((el) => el.addEventListener("click", (e) => {
       const d = e.target.closest("button")?.dataset.d; if (!d) return;
       const id = el.dataset.u;
+      const kalan = (aktif.find((u) => u.id === id)?.stok ?? 0) - ((sec[id] || 0) - (mevcut[id] || 0));
+      if (Number(d) > 0 && kalan <= 0) return bildir("Stokta yok");
       sec[id] = Math.max(0, (sec[id] || 0) + Number(d)); if (!sec[id]) delete sec[id];
       el.querySelector(".adim span").textContent = sec[id] || 0;
       el.classList.toggle("var", Boolean(sec[id])); topCiz();

@@ -1902,7 +1902,7 @@
         for (const [id, a] of Object.entries(yeni)) od[id] = odendi ? a : Math.min(a, odSec?.[id] || 0);
         m.kantinOdenen = Object.fromEntries(Object.entries(od).filter(([, a]) => a > 0));
         degisti(); kasaCiz();
-      }, { odeme: true, odenen: m.kantinOdenen || {}, aciklama: "Adetleri seçin. Her ürünün altındaki düğmeyle o ürünün ödendiğini işaretleyin. Hepsi ödendiyse alttaki 'Ödendi'ye, sonra ödenecekse 'Maç sonunda alınacak'a basın." });
+      }, { odeme: true, odenen: m.kantinOdenen || {}, aciklama: "Adetleri seçin; ödenen ürünün altındaki düğmeye dokunup 'Ödendi' yapın, sonra Kaydet'e basın." });
     } else if (b.dataset.kaporaSil !== undefined) {
       const x = kk.gelenKaporalar[b.dataset.kaporaSil];
       if (!confirm(`${x.ad} — ${para(x.tutar)} kapora bugünkü kasadan silinsin mi? (Rezervasyon değişmez)`)) return;
@@ -1979,12 +1979,7 @@
         <b>${kacis(u.ad)}</b><small class="soluk">${ek?.personel ? `<s>${para(birim(u.id).satis)}</s> <b style="color:#1a7f37">${para(personelFiyat(birim(u.id).satis))}</b>` : para(birim(u.id).satis)} · stok ${u.stok}</small>
         <span class="adim"><button type="button" data-d="-1">−</button><span>${sec[u.id] || 0}</span><button type="button" data-d="1">+</button></span>
         ${ek?.odeme ? `<button type="button" class="od-dugme${(od[u.id] || 0) >= (sec[u.id] || 0) && sec[u.id] ? " tamam" : ""}" data-od ${sec[u.id] ? "" : "hidden"}>${odYazi(u.id)}</button>` : ""}</div>`).join("")}</div>
-      ${ek?.odeme ? `<div style="margin-top:12px"><div style="display:flex;align-items:center;gap:8px"><b id="us-top"></b>
-          <button class="dugme ikincil kucuk" type="button" id="us-kaydet" style="margin-left:auto" title="Adet düzeltmesi: ödeme durumu değişmez">Kaydet</button></div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
-          <button class="dugme" type="button" id="us-odendi" style="background:#1a7f37;font-size:17px;padding:13px">Ödendi</button>
-          <button class="dugme ikincil" type="button" id="us-tamam" style="font-size:15px">Maç sonunda alınacak</button>
-        </div></div>`
+      ${ek?.odeme ? `<div style="display:flex;align-items:center;gap:10px;margin-top:12px"><b id="us-top"></b><button class="dugme" type="button" id="us-kaydet" style="margin-left:auto">Kaydet</button></div>`
       : `<div style="display:flex;align-items:center;gap:10px;margin-top:12px"><b id="us-top"></b><button class="dugme" type="button" id="us-tamam" style="margin-left:auto">Tamam</button></div>`}`);
     const fiyatOf = (id) => (ek?.personel ? personelFiyat(birim(id).satis) : birim(id).satis);
     const topCiz = () => { $("us-top").textContent = `Toplam ${para(Object.entries(sec).reduce((t, [id, a]) => t + a * fiyatOf(id), 0))}${ek?.personel ? " (personel fiyatı)" : ""}`; };
@@ -2006,9 +2001,8 @@
       const q = e.target.value.trim().toLocaleLowerCase("tr");
       ic.querySelectorAll("[data-u]").forEach((el) => { el.hidden = q && !el.dataset.ad.includes(q); });
     });
-    $("us-tamam").addEventListener("click", () => { const kim = $("us-kim")?.value.trim() || ""; dlg.close(); bitti(sec, kim, false, od); });
-    $("us-odendi")?.addEventListener("click", () => { dlg.close(); bitti(sec, "", true, od); });
-    $("us-kaydet")?.addEventListener("click", () => { dlg.close(); bitti(sec, "", null, od); bildir("Kantin kaydedildi"); });
+    $("us-tamam")?.addEventListener("click", () => { const kim = $("us-kim")?.value.trim() || ""; dlg.close(); bitti(sec, kim, false, od); });
+    $("us-kaydet")?.addEventListener("click", () => { dlg.close(); bitti(sec, "", null, od); bildir("Kaydedildi"); });
   }
 
   // ---- Stok ----

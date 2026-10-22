@@ -84,6 +84,7 @@ const saatFark = (k) => (k?.giris && k?.cikis ? Math.round(((k.cikis - k.giris) 
 /** Ödenecek saat: geldim–çıktım arası + yol parası (tamamlanan günlerde) */
 const odenecekSaat = (k) => { const s = saatFark(k); return s ? Math.round((s + KURALLAR.puantajYolSaat) * 100) / 100 : 0; };
 const simdiYazi = () => new Date(Date.now() + 3 * 3600_000).toISOString().slice(0, 16).replace("T", " ");
+const bugunIsletme = () => { const n = simdi(); return isletmeGunu(n.tarih, n.saat); };
 const kirp = (s, n) => String(s ?? "").trim().slice(0, n);
 
 function rastgele(n, harf = "ABCDEFGHJKLMNPRSTUVYZ23456789") {
@@ -163,7 +164,7 @@ const IKRAM_KIMLER = ["VIP / ücretsiz ikram", "Müdür", "Müdür Yardımcısı
 export const kasaTuketim = (k) => {
   const t = {};
   const ekle = (o) => { for (const [id, a] of Object.entries(o || {})) t[id] = (t[id] || 0) + (Number(a) || 0); };
-  for (const m of k.maclar || []) ekle(m.kantin);
+  for (const m of k.maclar || []) { ekle(m.kantin); ekle(m.veresiyeKantin); }
   for (const o of Object.values(k.ikram || {})) ekle(o);
   return t;
 };
@@ -171,20 +172,25 @@ export const kasaTuketim = (k) => {
 export const kasaOzet = (k) => {
   const b = k.birimler || {}, kira = k.kira || { krampon: 0, eldiven: 0 };
   const top = (l) => (l || []).reduce((t, x) => t + (Number(x.tutar) || 0), 0);
-  const o = { mac: 0, vip: 0, kantin: 0, kantinKar: 0, kramponAdet: 0, eldivenAdet: 0, krampon: 0, eldiven: 0, onOdeme: 0, ikramDeger: 0 };
+  const o = { mac: 0, vip: 0, kantin: 0, kantinKar: 0, kramponAdet: 0, eldivenAdet: 0, krampon: 0, eldiven: 0, onOdeme: 0, ikramDeger: 0, veresiyeKantin: 0 };
   o.maclar = (k.maclar || []).map((m) => {
     let kantin = 0;
     for (const [id, a] of Object.entries(m.kantin || {})) { kantin += a * (b[id]?.satis || 0); o.kantinKar += a * ((b[id]?.satis || 0) - (b[id]?.alis || 0)); }
+    // Veresiye kantin: stoktan düşer, ciroya / kasaya girmez
+    let veresiye = 0;
+    for (const [id, a] of Object.entries(m.veresiyeKantin || {})) veresiye += a * (b[id]?.satis || 0);
+    o.veresiyeKantin += veresiye;
     const krampon = (m.krampon || 0) * kira.krampon, eldiven = (m.eldiven || 0) * kira.eldiven;
     o.mac += m.ucret || 0; o.vip += m.vip || 0; o.kantin += kantin; o.onOdeme += m.onOdeme || 0;
     o.kramponAdet += m.krampon || 0; o.eldivenAdet += m.eldiven || 0; o.krampon += krampon; o.eldiven += eldiven;
-    return { saat: m.saat, kantin, toplam: (m.ucret || 0) + (m.vip || 0) + kantin + krampon + eldiven };
+    return { saat: m.saat, kantin, veresiye, toplam: (m.ucret || 0) + (m.vip || 0) + kantin + krampon + eldiven };
   });
   for (const v of Object.values(k.ikram || {})) for (const [id, a] of Object.entries(v)) o.ikramDeger += a * (b[id]?.satis || 0);
   o.ciro = o.mac + o.vip + o.kantin + o.krampon + o.eldiven;
   o.giris = top(k.girisler); o.cikis = top(k.cikislar); o.veresiye = top(k.veresiye);
   o.devir = Number(k.devir) || 0;
-  o.kasaToplam = o.devir + o.ciro + o.giris;
+  o.gelenKapora = (k.gelenKaporalar || []).reduce((t, x) => t + (Number(x.tutar) || 0), 0);
+  o.kasaToplam = o.ciro + o.giris + o.gelenKapora; // kasa devri bilgi amaçlıdır, toplamlara katılmaz
   // Önceden alınan kapora ve veresiye kasaya bugün girmez
   o.olmasiGereken = o.kasaToplam - o.cikis - o.veresiye - o.onOdeme;
   o.fark = k.sayilan === null || k.sayilan === undefined ? null : k.sayilan - o.olmasiGereken;
@@ -347,6 +353,7 @@ export class RezervasyonDeposu extends DurableObject {
       kaynak: kaynak || "Online", olusturma: simdiYazi(),
       // VIP spiker / VIP hakem: ücrete eklenir
       ekstra: [...new Set(Array.isArray(ekstra) ? ekstra : [])].filter((x) => EKSTRALAR[x]),
+      ...(kirp(kapora, 60) ? { kaporaGunu: bugunIsletme() } : {}), // kasada "o gün gelen kaporalar"
       kaporaTutar: f.kapora, // o anki kapora tutarı (fiyat sonradan değişse de bu rezervasyon için geçerli)
       ...(!panel ? { opsiyonBitis: Date.now() + KURALLAR.opsiyonDakika * 60_000 } : {}),
     };
@@ -488,7 +495,9 @@ export class RezervasyonDeposu extends DurableObject {
       const tutarlar = parcalar.map((x) => x.kontrol.tutar).filter((x) => x != null);
       if (parcalar.length) {
         kayit.kapora = tutarlar.length ? tutarlar.join(" + ") : "dekontta okunamadı";
-        kayit.kaporaToplam = tutarlar.reduce((t, x) => t + x, 0);
+        const yeniToplam = tutarlar.reduce((t, x) => t + x, 0);
+        if (yeniToplam !== kayit.kaporaToplam) kayit.kaporaGunu = bugunIsletme();
+        kayit.kaporaToplam = yeniToplam;
         const gereken = kayit.kaporaTutar ?? (await this.fiyatAyar()).kapora;
         kayit.eksikKapora = tutarlar.length !== parcalar.length || kayit.kaporaToplam < gereken;
       }
@@ -1141,6 +1150,15 @@ export class RezervasyonDeposu extends DurableObject {
     return { maclar, degisenler };
   }
 
+  /** O gün alınan kaporalar (ileri tarihli maçlar için; iptal olsa da kapora iade edilmediği için sayılır) */
+  async gelenKaporalar(gun) {
+    const l = await this.rezervasyonlar(gunEkle(gun, -2), gunEkle(gun, KURALLAR.enFazlaGunSonra + 3));
+    return l.filter((r) => r.kaporaGunu === gun)
+      .map((r) => ({ kayitNo: r.kayitNo, mac: `${(r.isletmeGunu || r.tarih).split("-").reverse().slice(0, 2).join(".")} ${r.saat}`, ad: r.ad,
+        tutar: Number(r.kaporaToplam) || kaporaSayi(r.kapora), yol: r.kaynak === "Online" ? "IBAN (dekont)" : (r.kaynak || "Panel"), iptal: iptalMi(r.durum) }))
+      .filter((x) => x.tutar > 0);
+  }
+
   async kasaGetir(gunGirdi, yapan) {
     const n = simdi();
     const gun = tarihNormalize(gunGirdi) || isletmeGunu(n.tarih, n.saat);
@@ -1151,8 +1169,10 @@ export class RezervasyonDeposu extends DurableObject {
       const k = await this.st.get(`kasa:${gun}`);
       if (!k) return;
       const { maclar, degisenler } = this.kasaTakvimBirlestir(k, takvimSimdi);
+      const gk = await this.gelenKaporalar(gun);
+      if (JSON.stringify(gk) !== JSON.stringify(k.gelenKaporalar || [])) degisenler.push(`gelen kaporalar ${gk.reduce((t, x) => t + x.tutar, 0)} TL`);
       if (!degisenler.length) return;
-      const yeni = { ...k, maclar };
+      const yeni = { ...k, maclar, gelenKaporalar: gk };
       yeni.ozet = kasaOzet(yeni);
       await this.st.put(`kasa:${gun}`, yeni);
       await this.kayitTut(null, "Kasa takvimden güncellendi", `${gun} · ${degisenler.join(" · ")}`);
@@ -1171,7 +1191,7 @@ export class RezervasyonDeposu extends DurableObject {
     });
     return {
       gun, gunAd: gunAdi(gun), bugun: isletmeGunu(n.tarih, n.saat), kayitli: Boolean(kayit),
-      kayit: kayit || { gun, devir: oncekiKasa?.birakilan ?? 0, maclar: takvim.map((x) => ({ ...x, krampon: 0, eldiven: 0, kantin: {} })), girisler: [], cikislar: [], veresiye: [], ikram: {}, birakilan: null, sayilan: null, not: "" },
+      kayit: kayit || { gun, gelenKaporalar: await this.gelenKaporalar(gun), devir: oncekiKasa?.birakilan ?? 0, maclar: takvim.map((x) => ({ ...x, krampon: 0, eldiven: 0, kantin: {} })), girisler: [], cikislar: [], veresiye: [], ikram: {}, birakilan: null, sayilan: null, not: "" },
       oncekiDevir: oncekiKasa ? { gun: oncekiKasa.gun, tutar: oncekiKasa.birakilan ?? 0 } : null,
       takvim, urunler, fiyat, calisanlar, ikramKimler: IKRAM_KIMLER,
     };
@@ -1201,12 +1221,13 @@ export class RezervasyonDeposu extends DurableObject {
           ad: kirp(m?.ad, 40), ucret: tutar(m?.ucret), vip: tutar(m?.vip), onOdeme: tutar(m?.onOdeme),
           krampon: Math.min(50, Math.max(0, Math.round(Number(m?.krampon)) || 0)),
           eldiven: Math.min(50, Math.max(0, Math.round(Number(m?.eldiven)) || 0)),
-          kantin: kantinTemiz(m?.kantin), ...(m?.kayitNo ? { kayitNo: kirp(m.kayitNo, 20) } : {}),
+          kantin: kantinTemiz(m?.kantin), veresiyeKantin: kantinTemiz(m?.veresiyeKantin), veresiyeKim: kirp(m?.veresiyeKim, 60), ...(m?.kayitNo ? { kayitNo: kirp(m.kayitNo, 20) } : {}),
           ...(m?.kaynak === "takvim" ? { kaynak: "takvim", tkOn: tutar(m?.tkOn ?? m?.onOdeme) } : {}),
           ...(m?.depozito ? { depozito: kirp(m.depozito, 120) } : {}),
           ekstra: [...new Set(Array.isArray(m?.ekstra) ? m.ekstra : [])].filter((x) => EKSTRALAR[x]),
         })).sort((a, b) => SAAT_SIRA(a.saat || "00:00") - SAAT_SIRA(b.saat || "00:00")),
         girisler: satirlar(g.girisler), cikislar: satirlar(g.cikislar),
+        gelenKaporalar: await this.gelenKaporalar(gun),
         veresiye: (Array.isArray(g.veresiye) ? g.veresiye : []).slice(0, 40)
           .map((x) => ({ aciklama: kirp(x?.aciklama, 120), tutar: tutar(x?.tutar) })).filter((x) => x.aciklama || x.tutar),
         ikram: Object.fromEntries(IKRAM_KIMLER.map((k) => [k, kantinTemiz(g.ikram?.[k])]).filter(([, v]) => Object.keys(v).length)),
@@ -1235,7 +1256,7 @@ export class RezervasyonDeposu extends DurableObject {
       const o = kayit.ozet, para = (x) => `${Math.round(x).toLocaleString("tr-TR")} TL`;
       await this.kayitTut(yapan, eski ? "Kasa raporunu güncelledi" : "Kasa raporunu kaydetti",
         `${gun} · ciro ${para(o.ciro)} · giriş ${para(o.giris)} · çıkış ${para(o.cikis)} · kasada olması gereken ${para(o.olmasiGereken)}${kayit.sayilan !== null ? ` · sayılan ${para(kayit.sayilan)} (fark ${para(o.fark)})` : ""}`);
-      return { basarili: true, kayit };
+      return { basarili: true, kayit, ilkKayit: !eski };
     });
   }
 
@@ -1245,7 +1266,7 @@ export class RezervasyonDeposu extends DurableObject {
     const m = await this.st.list({ start: `kasa:${ay}-01`, end: `kasa:${ay}-31~` });
     const gunler = [...m.values()].map((k) => ({ gun: k.gun, gunAd: gunAdi(k.gun), ...k.ozet, guncelleyen: k.guncelleyen }));
     const toplam = {};
-    for (const a of ["mac", "vip", "kantin", "kantinKar", "krampon", "eldiven", "ciro", "giris", "cikis", "veresiye", "onOdeme", "ikramDeger"]) {
+    for (const a of ["mac", "vip", "kantin", "kantinKar", "krampon", "eldiven", "ciro", "giris", "gelenKapora", "cikis", "veresiye", "veresiyeKantin", "onOdeme", "ikramDeger"]) {
       toplam[a] = gunler.reduce((t, x) => t + (x[a] || 0), 0);
     }
     return { ay, gunler, toplam };
@@ -1321,7 +1342,10 @@ export class RezervasyonDeposu extends DurableObject {
         k.durum = durum;
         if (iptalMi(durum)) k.iptalEden = "Panel";
       }
-      if (kapora !== undefined) k.kapora = kirp(kapora, 60);
+      if (kapora !== undefined && kirp(kapora, 60) !== (k.kapora || "")) {
+        k.kapora = kirp(kapora, 60);
+        if (k.kapora) k.kaporaGunu = bugunIsletme();
+      }
       if (not !== undefined) k.not = kirp(not, 200);
       if (ad !== undefined && kirp(ad, 60)) k.ad = kirp(ad, 60);
       if (telefon !== undefined) {

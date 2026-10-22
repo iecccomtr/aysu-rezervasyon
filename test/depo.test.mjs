@@ -532,7 +532,9 @@ test("Kasa defteri: takvimden maçlar, kantin/krampon cirosu, stok farkı, yetki
   const o = r.kayit.ozet;
   assert.equal(o.maclar[1].toplam, 3700 + 100 + 11 * 25 + 25); // 4100 (Excel'deki gibi)
   assert.equal(o.ciro, 3200 + 4100);
-  assert.equal(o.olmasiGereken, 500 + 7300 + 960 - 1120 - 1200);
+  // Berat'ın kaporası aynı gün alındı: "o gün gelen kapora" (+1200) ve maçından düşülen kapora (−1200) birbirini götürür
+  assert.equal(o.gelenKapora, 1200);
+  assert.equal(o.olmasiGereken, 7300 + 960 - 1120, "devir toplama katılmaz");
   assert.equal((await d.urunler()).find((u) => u.id === su.id).stok, 294);
   // Aynı günü tekrar kaydetmek stoğu iki kez düşmez; adet azalınca stok geri gelir
   g.maclar[1].kantin[su.id] = 9;
@@ -580,7 +582,11 @@ test("Kasa: alınan kapora otomatik gelir, sonradan girilen kapora da güncellen
   await d.panelRezGuncelle({ kayitNo: r.kayitNo, kapora: "500 + 700" });
   const k2 = await d.kasaGetir("2026-10-19", admin);
   assert.equal(k2.kayit.maclar[0].onOdeme, 1200);
-  assert.equal(k2.kayit.ozet.olmasiGereken, 3700 - 1200);
+  assert.equal(k2.kayit.ozet.olmasiGereken, 3700, "kapora bugün alındı: +1200 gelen, −1200 maçtan");
+  saatiAyarla("2026-10-18T12:00"); // ertesi haftanın maçına bugün kapora
+  const r2 = await d.panelRezEkle({ gunTarihi: "2026-10-25", saat: "21:00", ad: "Fevzi", telefon: "", kapora: "960" });
+  assert.ok(r2.basarili);
+  assert.deepEqual((await d.kasaGetir("2026-10-18", admin)).kayit.gelenKaporalar.map((x) => [x.ad, x.tutar]), [["Fevzi", 960]]);
 });
 
 
@@ -599,4 +605,32 @@ test("Vardiya: Admin günün çalışanlarını ve saatini belirler; beklenen ç
   v = await d.vardiyaGetir("2026-10-19");
   assert.equal(v.baslama, "18:30"); assert.ok(v.calisanlar.find((x) => x.eposta === "p@aysu.com").secili);
   assert.equal((await d.puantajBugun(p)).baslama, "18:30");
+});
+
+test("Kasa: maçtaki veresiye kantin stoktan düşer, ciroya girmez", async () => {
+  const d = demoDepo({ PANEL_KURULUM_KODU: "k" });
+  const admin = await d.oturum((await d.panelKur({ kurulumKodu: "k", eposta: "admin@aysu.com", ad: "Admin", sifre: "aysu-2026!" })).token);
+  await d.panelRezEkle({ gunTarihi: "2026-10-19", saat: "20:00", ad: "Yusuf", telefon: "" });
+  const k = await d.kasaGetir("2026-10-19", admin);
+  const su = k.urunler[22];
+  k.kayit.maclar[0].kantin = { [su.id]: 2 };
+  k.kayit.maclar[0].veresiyeKantin = { [su.id]: 3 }; k.kayit.maclar[0].veresiyeKim = "Yusuf";
+  const r = await d.kasaKaydet({ ...k.kayit }, admin);
+  assert.equal(r.kayit.ozet.kantin, 2 * su.satis);
+  assert.equal(r.kayit.ozet.veresiyeKantin, 3 * su.satis);
+  assert.equal(r.kayit.ozet.ciro, 3700 + 2 * su.satis);
+  assert.equal((await d.urunler()).find((u) => u.id === su.id).stok, su.stok - 5);
+});
+
+test("Kasa PDF: Türkçe karakterli geçerli PDF üretir", async () => {
+  const { kasaPdf } = await import("../src/kasa-pdf.js");
+  const d = demoDepo({ PANEL_KURULUM_KODU: "k" });
+  const admin = await d.oturum((await d.panelKur({ kurulumKodu: "k", eposta: "admin@aysu.com", ad: "Admin", sifre: "aysu-2026!" })).token);
+  await d.panelRezEkle({ gunTarihi: "2026-10-19", saat: "20:00", ad: "Şükrü Işık", telefon: "" });
+  const k = await d.kasaGetir("2026-10-19", admin);
+  const r = await d.kasaKaydet({ ...k.kayit, not: "ğüşıöç" }, admin);
+  const b = kasaPdf(r.kayit);
+  assert.equal(new TextDecoder().decode(b.slice(0, 8)), "%PDF-1.4");
+  assert.match(new TextDecoder("latin1").decode(b.slice(-40)), /%%EOF/);
+  assert.ok(r.ilkKayit);
 });

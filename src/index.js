@@ -6,6 +6,7 @@ import { KURALLAR, FIYATLAR, IBAN, ISLETME, EKSTRALAR } from "./config.js";
 import { bildir, epostaYolla, epostaKurulu } from "./bildirim.js";
 import { dekontOku, dekontDegerlendir, ozet } from "./dekont-kontrol.js";
 import { ROLLER } from "./store.js";
+import { kasaPdf } from "./kasa-pdf.js";
 export { RezervasyonDeposu } from "./store.js";
 
 const OTURUM_CEREZ = "aysu_panel";
@@ -311,7 +312,12 @@ async function panel(request, env, ctx, yol) {
     case "GET vardiya": return json(await d.vardiyaGetir(url.searchParams.get("gun")));
     case "POST vardiya": return sonuc(await d.vardiyaKaydet(g, ben));
     case "GET kasa": { const r = await d.kasaGetir(url.searchParams.get("gun"), ben); return json(alisGizle(r, ben), r.hata ? 403 : 200); }
-    case "POST kasa": { const r = await d.kasaKaydet(g, ben); return json(alisGizle(r, ben), r.hata ? 400 : 200); }
+    case "POST kasa": {
+      const r = await d.kasaKaydet(g, ben);
+      // Her kayıtta günlük kasa raporu PDF olarak sadece Admin'e gider
+      if (r.basarili) ctx.waitUntil(kasaRaporuGonder(env, d, r.kayit, r.ilkKayit).catch((e) => console.error("Kasa PDF", e)));
+      return json(alisGizle(r, ben), r.hata ? 400 : 200);
+    }
     case "GET kasa/ay":
       if (ben.rol !== "admin") return json({ hata: "Aylık kasa özeti sadece Admin içindir." }, 403);
       return json(await d.kasaAy(url.searchParams.get("ay") || simdi().tarih.slice(0, 7)));
@@ -405,6 +411,21 @@ async function onayEpostalari(env, d, kullanici, koken) {
     dugme: { yazi: `${kullanici.ad} kullanıcısını onayla`, link: `${koken}/panel/#onay=${b.token}` },
     alt: "Bağlantı 7 gün geçerli ve tek kullanımlık. Açılan sayfada Onayla ya da Reddet'i seçin. Kişiyi tanımıyorsanız reddedin.",
   })));
+}
+
+async function kasaRaporuGonder(env, d, k, ilk) {
+  const kime = await d.rolEpostalari(["admin"]);
+  if (!kime.length) return;
+  const o = k.ozet;
+  const para = (n) => `${Math.round(Number(n) || 0).toLocaleString("tr-TR")} TL`;
+  const tarih = k.gun.split("-").reverse().join(".");
+  await epostaYolla(env, {
+    kime, konu: `Kasa raporu ${tarih}${ilk ? "" : " (güncellendi)"} — ciro ${para(o.ciro)}`,
+    satirlar: [["Gün", tarih], ["Kaydeden", `${k.guncelleyen} · ${k.guncelleme}`], ["Günlük ciro", para(o.ciro)],
+      ["Kasada olması gereken", para(o.olmasiGereken)], ...(k.sayilan !== null ? [["Sayılan / fark", `${para(k.sayilan)} / ${para(o.fark)}`]] : [])],
+    alt: "Ayrıntılı rapor ekteki PDF'te.",
+    ekler: [{ ad: `aysu-kasa-${k.gun}.pdf`, tur: "application/pdf", veri: kasaPdf(k) }],
+  });
 }
 
 /** Kantin alış fiyatı ve kâr sadece Admin'e gider. */
@@ -605,6 +626,8 @@ export default {
     if (ESKI_ADRESLER[yol]) return Response.redirect(url.origin + ESKI_ADRESLER[yol], 301);
     if (yol.startsWith("/blog/") || yol.startsWith("/form/")) return Response.redirect(url.origin + "/", 301);
     if (yol === "/rezervasyon") return Response.redirect(url.origin + "/rezervasyon/", 301);
+    // SMS için kısa bağlantı: aysuhalisaha.com/r
+    if (yol === "/r" || yol === "/r/") return Response.redirect(url.origin + "/rezervasyon/", 302);
     // Rezervasyon kontrol sayfası: temiz adres /rezervasyon/kontrol (eski ?kontrol / ?iptal adresleri yönlenir)
     if (yol === "/rezervasyon/" && (url.searchParams.has("kontrol") || url.searchParams.has("iptal"))) {
       return Response.redirect(url.origin + "/rezervasyon/kontrol", 301);

@@ -255,6 +255,23 @@ async function panel(request, env, ctx, yol) {
     return json(r, r.hata ? 400 : 200);
   }
 
+  // Görevler: herkes görür, bugünün görevini "yaptım" diye onaylar → yöneticilere e-posta
+  if (yol === "gorevler" && request.method === "GET") return json(await d.gorevHafta(url.searchParams.get("bas")));
+  if (yol === "gorev" && post) {
+    const g = (await govdeOku(request)) || {};
+    const r = await d.gorevYap(g.id, g.not, ben);
+    if (r.hata) return json(r, 400);
+    const kime = (await d.rolEpostalari(["admin", "mudur", "mudur_yrd"])).filter((e) => e !== ben.eposta);
+    ctx.waitUntil(epostaYolla(env, {
+      kime, konu: `✓ ${r.gorev.ad} yapıldı — ${r.kayit.ad}`,
+      satirlar: [["Görev", r.gorev.ad], ["Yapan", `${r.kayit.ad}${r.kayit.rol ? " (" + r.kayit.rol + ")" : ""}`],
+        ["Zaman", `${r.gun.split("-").reverse().join(".")} ${r.kayit.saat}`], ...(r.kayit.not ? [["Not", r.kayit.not]] : [])],
+      dugme: { yazi: "Görevler sayfası", link: `${url.origin}/panel/#gorevler` },
+      alt: "Aysu Halı Saha görev takibi",
+    }).catch(() => {}));
+    return json(r);
+  }
+
   if (!yonetici) return json({ hata: "Bu işlem için yetkiniz yok." }, 403);
 
   const g = post ? (await govdeOku(request)) || {} : null;
@@ -389,6 +406,8 @@ async function panel(request, env, ctx, yol) {
       if (ben.rol !== "admin") return json({ hata: "Sadece Admin." }, 403);
       return json(await d.kodlar());
     case "POST kod": { const r = await d.kodKaydet(g, ben); return json(r, r.hata ? 400 : 200); }
+    case "POST gorevler": { const r = await d.gorevlerKaydet(g.liste, ben); return json(r, r.hata ? 400 : 200); }
+    case "POST gorev/geri": { const r = await d.gorevGeriAl(g.gun, g.id, ben); return json(r, r.hata ? 400 : 200); }
     case "GET rehber": return json(await d.rehber());
     case "POST rehber": { const r = await d.rehberKaydet(g.liste, ben); return json(r, r.hata ? 400 : 200); }
     case "GET temizlik": return json(await d.temizlikUrunleri());

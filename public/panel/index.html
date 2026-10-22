@@ -84,6 +84,7 @@
   .sekmeler .ic { max-width: 900px; margin: 0 auto; display: grid; grid-template-columns: repeat(var(--sekme-sayi, 4), 1fr); }
   .sekmeler button { background: none; border: 0; padding: 10px 2px 12px; cursor: pointer; font-weight: 600; color: var(--gri); display: grid; justify-items: center; gap: 2px; font-size: 13px; min-width: 0; }
   .sekmeler svg { width: 24px; height: 24px; }
+  @media (max-width: 420px) { .sekmeler button { font-size: 10.5px; letter-spacing: -.2px; overflow: hidden; text-overflow: ellipsis; } .sekmeler svg { width: 22px; height: 22px; } }
   .sekmeler button[aria-current="page"] { color: var(--cim); }
   .sekmeler button[aria-current="page"] svg { stroke-width: 2.4; }
 
@@ -160,6 +161,7 @@
   .mac-top small { display: block; font: 500 13px/1.3 Inter, system-ui, sans-serif; color: var(--gri); margin-bottom: 2px; }
   .x-sil { border: 0; background: none; color: var(--hata); font-size: 22px; cursor: pointer; line-height: 1; }
   .k-sat { display: grid; grid-template-columns: 1fr 110px 32px; gap: 6px; align-items: center; margin-bottom: 6px; }
+  .k-sat select { width: 100%; border: 1px solid #b5c3cf; border-radius: 8px; padding: 8px; font-size: 15px; background: var(--kart); min-width: 0; }
   .k-sat input { width: 100%; border: 1px solid #b5c3cf; border-radius: 8px; padding: 8px; font-size: 16px; background: var(--kart); min-width: 0; }
   .ozet-t { width: 100%; border-collapse: collapse; font-size: 16px; }
   .ozet-t td { padding: 5px 0; border-bottom: 1px dashed var(--cizgi); }
@@ -174,6 +176,22 @@
   .urun { border: 1px solid var(--cizgi); border-radius: 10px; padding: 6px 8px; font-size: 13px; line-height: 1.2; }
   .urun.var { border-color: var(--cim); background: var(--cim-acik); }
   .urun.yok { opacity: .45; }
+  .gv-sat { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--cizgi); }
+  .gv-sat:last-child { border-bottom: 0; }
+  .gv-sat > span { flex: 1; min-width: 0; }
+  .gv-sat small { display: block; color: var(--gri); }
+  .gv-sat.tamam { background: #f1faf3; }
+  .gv-sat .gv-ok { color: #1a7f37; font-weight: 700; text-align: right; font-size: 14px; white-space: nowrap; }
+  .gv-tablo-kap { overflow-x: auto; }
+  .gv-tablo { border-collapse: collapse; font-size: 12px; min-width: 100%; }
+  .gv-tablo th, .gv-tablo td { border: 1px solid var(--cizgi); padding: 5px 4px; text-align: center; vertical-align: middle; }
+  .gv-tablo thead th { background: #062a45; color: #fff; font-weight: 700; min-width: 64px; }
+  .gv-tablo tbody th { text-align: left; white-space: nowrap; background: #f4f7fa; }
+  .gv-tablo tr.bugun th { background: #fff3e0; }
+  .gv-tablo td.ok { background: #e7f6ec; color: #1a7f37; font-weight: 700; }
+  .gv-tablo td.eksik { background: #fdecec; }
+  .gv-tablo td small { display: block; font-weight: 400; color: #3d5a45; }
+  .gv-tablo .x-sil { width: 20px; height: 20px; font-size: 13px; line-height: 1; margin-top: 2px; }
   .od-satir { display: flex; align-items: center; justify-content: space-between; margin-top: 4px; border: 1px solid #f2c4c4; background: #fde8e8; color: var(--hata); border-radius: 999px; overflow: hidden; }
   .od-satir span { font-weight: 700; font-size: 12px; }
   .od-satir button { border: 0; background: rgba(255,255,255,.6); color: inherit; width: 30px; height: 28px; font-size: 16px; cursor: pointer; }
@@ -453,6 +471,25 @@
       </div>
       <div class="kutu saatler" id="musteri-liste"></div>
     </section>
+    <section id="v-gorevler" data-gorunum hidden>
+      <div class="baslik-satir"><h2>Görevler</h2>
+        <span class="sag" style="display:flex;gap:6px;align-items:center">
+          <button type="button" class="dugme ikincil kucuk" id="gv-geri" aria-label="Önceki hafta">‹</button>
+          <span class="soluk" id="gv-aralik" style="font-size:14px;white-space:nowrap"></span>
+          <button type="button" class="dugme ikincil kucuk" id="gv-ileri" aria-label="Sonraki hafta">›</button></span></div>
+      <p class="soluk" style="margin-bottom:10px;font-size:14px">İşi bitirince <b>Yaptım</b>'a basın. Onay, saatiyle birlikte yöneticilere e-postayla gider.</p>
+      <div class="kutu" id="gv-bugun"></div>
+      <h3 style="margin:20px 0 8px">Haftalık tablo</h3>
+      <div class="kutu gv-tablo-kap"><table class="gv-tablo" id="gv-tablo"></table></div>
+      <div id="gv-duzen-alan" hidden>
+        <div class="baslik-satir" style="margin-top:22px"><h2>Görev listesi</h2><span class="soluk sag">Sadece Admin</span></div>
+        <form class="kutu" id="gv-form" style="padding:14px" novalidate>
+          <div id="gv-satirlar"></div>
+          <button type="button" class="dugme ikincil kucuk" id="gv-ekle">+ Görev ekle</button>
+          <button type="submit" class="dugme" style="width:100%;margin-top:12px">Görev listesini kaydet</button>
+        </form>
+      </div>
+    </section>
     <!-- Kullanıcılar (Müdür / Müdür Yardımcısı) -->
     <section id="v-kullanicilar" data-gorunum hidden>
       <div class="baslik-satir"><h2>Kullanıcılar</h2><span class="soluk sag" id="kullanici-sayi"></span></div>
@@ -549,6 +586,9 @@
       </button>
       <button type="button" data-sekme="musteriler" data-yonetici>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14.8c2 .7 3.2 2.4 3.6 5.2"/></svg>Müşteriler
+      </button>
+      <button type="button" data-sekme="gorevler">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="4" y="4" width="16" height="17" rx="2"/><path d="M9 3h6v3H9zM8 11l2 2 4-4M8 17h8"/></svg>Görevler
       </button>
       <button type="button" data-sekme="kullanicilar" data-yonetici>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/></svg>Kullanıcılar
@@ -800,6 +840,7 @@
     if (ad === "musteriler") musteriYukle();
     if (ad === "kullanicilar") kullaniciYukle();
     if (ad === "kasa") kasaYukle();
+    if (ad === "gorevler") gorevYukle();
     window.scrollTo({ top: 0 });
   }
 
@@ -816,10 +857,10 @@
     const y = yonetici();
     document.body.classList.toggle("salt-okur", !y);
     document.querySelectorAll("[data-yonetici]").forEach((el) => { el.hidden = !y; });
-    document.documentElement.style.setProperty("--sekme-sayi", y ? 5 : 1);
-    document.querySelector(".sekmeler").hidden = !y;
+    document.documentElement.style.setProperty("--sekme-sayi", y ? 6 : 2);
     $("ben").innerHTML = `${kacis(ben.ad)}<br><small>${kacis(ben.rolAd)}</small>`;
-    if (!y) sekme = "takvim";
+    if (!y && sekme !== "gorevler") sekme = "takvim";
+    if (location.hash === "#gorevler") { sekme = "gorevler"; history.replaceState(null, "", location.pathname); }
     document.documentElement.style.setProperty("--ust-yuk", document.querySelector(".ust").offsetHeight + "px");
     sekmeAc(sekme);
   }
@@ -1592,6 +1633,69 @@
   }
   $("islem-ara").addEventListener("input", islemCiz);
 
+
+  // ================= Görevler (iş takibi) =================
+  let gvBas = null, gv = null, gvListe = [];
+  const GV_ROL = { hepsi: "Herkes", temizlik: "Temizlik Şefi", personel: "Personel" };
+  async function gorevYukle(bas) {
+    const v = await api("gorevler" + (bas ? `?bas=${bas}` : "")).catch(() => null);
+    if (!v || v.hata) return bildir(v?.hata || "Görevler yüklenemedi");
+    gv = v; gvBas = v.bas;
+    gorevCiz();
+    if (ben.rol === "admin" && !bas) { gvListe = v.gorevler.map((x) => ({ ...x })); gvSatirCiz(); }
+    $("gv-duzen-alan").hidden = ben.rol !== "admin";
+  }
+  function gorevCiz() {
+    const tr = (t) => t.slice(8) + "." + t.slice(5, 7);
+    $("gv-aralik").textContent = `${tr(gv.gunler[0])} – ${tr(gv.gunler[6])}`;
+    const bugun = gv.yapilan[gv.bugun];
+    $("gv-bugun").innerHTML = bugun ? `<div class="gv-sat" style="background:#062a45;color:#fff"><b>Bugün · ${GUNLER[gv.gunler.indexOf(gv.bugun)]} ${tr(gv.bugun)}</b><span></span><b>${Object.keys(bugun).length}/${gv.gorevler.length}</b></div>` +
+      gv.gorevler.map((g) => { const y = bugun[g.id]; return `<div class="gv-sat${y ? " tamam" : ""}">
+        <span><b>${kacis(g.ad)}</b>${g.aciklama ? `<small>${kacis(g.aciklama)}</small>` : ""}${g.rol !== "hepsi" ? `<small>Sorumlu: ${GV_ROL[g.rol]}</small>` : ""}</span>
+        ${y ? `<span class="gv-ok" style="flex:none">✓ ${kacis(y.ad.split(" ")[0])}<small>${y.saat}</small></span>`
+            : `<button type="button" class="dugme kucuk" data-gv-yap="${kacis(g.id)}" style="flex:none">Yaptım ✓</button>`}</div>`; }).join("")
+      : '<p class="soluk" style="padding:14px">Bugünü görmek için bu haftaya dönün.</p>';
+    $("gv-bugun").querySelectorAll("[data-gv-yap]").forEach((b) => b.addEventListener("click", async () => {
+      const g = gv.gorevler.find((x) => x.id === b.dataset.gvYap);
+      if (!confirm(`"${g.ad}" yapıldı olarak onaylansın mı? Yöneticilere e-posta gider.`)) return;
+      b.disabled = true;
+      const r = await api("gorev", { id: g.id });
+      if (r.hata) { b.disabled = false; bildir(r.hata); return gorevYukle(gvBas); }
+      bildir(`${g.ad} onaylandı`); gorevYukle(gvBas);
+    }));
+    const y = yonetici();
+    $("gv-tablo").innerHTML = `<thead><tr><th>Gün</th>${gv.gorevler.map((g) => `<th>${kacis(g.ad)}</th>`).join("")}</tr></thead><tbody>${
+      gv.gunler.map((gun, i) => `<tr${gun === gv.bugun ? ' class="bugun"' : ""}><th>${KISA[i]} ${tr(gun)}</th>${gv.gorevler.map((g) => {
+        const x = gv.yapilan[gun]?.[g.id];
+        if (x) return `<td class="ok" title="${kacis(x.ad)} ${x.saat}">✓<small>${kacis(x.ad.split(" ")[0])} ${x.saat}</small>${y ? `<button type="button" class="x-sil" data-gv-geri="${gun}|${kacis(g.id)}" aria-label="Geri al">×</button>` : ""}</td>`;
+        return `<td class="${gun < gv.bugun ? "eksik" : ""}">${gun < gv.bugun ? "—" : ""}</td>`;
+      }).join("")}</tr>`).join("")}</tbody>`;
+    $("gv-tablo").querySelectorAll("[data-gv-geri]").forEach((b) => b.addEventListener("click", async () => {
+      const [gun, id] = b.dataset.gvGeri.split("|");
+      if (!confirm("Bu onay geri alınsın mı?")) return;
+      const r = await api("gorev/geri", { gun, id });
+      bildir(r.hata || "Geri alındı"); gorevYukle(gvBas);
+    }));
+  }
+  const gvKaydir = (n) => { const d = new Date(gvBas + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + 7 * n); gorevYukle(d.toISOString().slice(0, 10)); };
+  $("gv-geri").addEventListener("click", () => gvKaydir(-1));
+  $("gv-ileri").addEventListener("click", () => gvKaydir(1));
+  function gvSatirCiz() {
+    $("gv-satirlar").innerHTML = gvListe.map((x, i) => `<div class="kutu" style="padding:8px;margin-bottom:8px"><div class="k-sat" style="grid-template-columns:1fr 1fr 28px">
+      <input data-gv-ad="${i}" value="${kacis(x.ad)}" placeholder="Ör. WC">
+      <select data-gv-rol="${i}">${Object.entries(GV_ROL).map(([k, v]) => `<option value="${k}"${x.rol === k ? " selected" : ""}>${v}</option>`).join("")}</select>
+      <button class="x-sil" type="button" data-gv-sil="${i}" aria-label="Sil">×</button></div>
+      <input data-gv-ac="${i}" value="${kacis(x.aciklama || "")}" placeholder="Açıklama (isteğe bağlı)" style="width:100%;border:1px solid #b5c3cf;border-radius:8px;padding:8px;font-size:15px"></div>`).join("");
+    $("gv-satirlar").querySelectorAll("[data-gv-sil]").forEach((b) => b.addEventListener("click", () => { gvOku(); gvListe.splice(Number(b.dataset.gvSil), 1); gvSatirCiz(); }));
+  }
+  const gvOku = () => { gvListe = gvListe.map((x, i) => ({ id: x.id, ad: document.querySelector(`[data-gv-ad="${i}"]`).value, rol: document.querySelector(`[data-gv-rol="${i}"]`).value, aciklama: document.querySelector(`[data-gv-ac="${i}"]`).value })); };
+  $("gv-ekle").addEventListener("click", () => { gvOku(); gvListe.push({ ad: "", rol: "hepsi", aciklama: "" }); gvSatirCiz(); });
+  $("gv-form").addEventListener("submit", async (e) => {
+    e.preventDefault(); gvOku();
+    const r = await api("gorevler", { liste: gvListe });
+    if (r.hata) return bildir(r.hata);
+    bildir("Görev listesi kaydedildi"); gorevYukle();
+  });
 
   // ================= Puantaj (işe giriş / çıkış) =================
   const para = (n) => `${Math.round(Number(n) || 0).toLocaleString("tr-TR")} ₺`;

@@ -89,6 +89,18 @@ const yarimSaat = (s) => Math.round(s * 2) / 2;
 const odenecekSaat = (k) => { const s = saatFark(k); return s ? yarimSaat(s) + KURALLAR.puantajYolSaat : 0; };
 const simdiYazi = () => new Date(Date.now() + 3 * 3600_000).toISOString().slice(0, 16).replace("T", " ");
 const bugunIsletme = () => { const n = simdi(); return isletmeGunu(n.tarih, n.saat); };
+const VARSAYILAN_GOREVLER = [
+  { id: "wc", ad: "WC", aciklama: "Lavabo, klozet, ayna, zemin; sabun ve kâğıt kontrolü", rol: "hepsi" },
+  { id: "soyunma", ad: "Soyunma odaları", aciklama: "Her takımdan sonra hızlı toparlama; terlikler eşit sayıda", rol: "hepsi" },
+  { id: "kantin", ad: "Kantin", aciklama: "Tezgâh temizliği; çay 1,5 saatte bir taze demlenir", rol: "hepsi" },
+  { id: "saha", ad: "Saha / Tribün", aciklama: "Tribün ve saha çevresi; toplar gece sahada bırakılmaz", rol: "hepsi" },
+  { id: "cop", ad: "Çöp kovaları", aciklama: "Boşaltıldı, poşet değiştirildi", rol: "hepsi" },
+  { id: "krampon", ad: "Krampon", aciklama: "İadede dezenfekte edildi, yerine kondu", rol: "hepsi" },
+  { id: "yelek", ad: "Yelekler", aciklama: "Gece yıkandı", rol: "hepsi" },
+  { id: "otopark1", ad: "Otopark 1", aciklama: "", rol: "hepsi" },
+  { id: "otopark2", ad: "Otopark 2", aciklama: "", rol: "hepsi" },
+  { id: "sarf", ad: "T. kâğıdı / Z kâğıdı / peçete / köpük", aciklama: "Eksikler tamamlandı", rol: "hepsi" },
+];
 const kirp = (s, n) => String(s ?? "").trim().slice(0, n);
 
 function rastgele(n, harf = "ABCDEFGHJKLMNPRSTUVYZ23456789") {
@@ -1372,6 +1384,69 @@ export class RezervasyonDeposu extends DurableObject {
       await this.st.put("ayar:rehber", l);
       await this.kayitTut(yapan, "Tedarikçi rehberini güncelledi", l.map((x) => `${x.ad} ${x.tel}`).join(", "));
       return { basarili: true, rehber: l };
+    });
+  }
+
+  // ---- Görevler (temizlik şefi / personel iş takibi) ----
+  //   ayar:gorevler  [{ id, ad, aciklama, rol: "hepsi"|"temizlik"|"personel" }]
+  //   gv:<işletme günü>:<id>  { eposta, ad, rol, zaman, not }
+  async gorevler() {
+    const g = await this.st.get("ayar:gorevler");
+    return Array.isArray(g) ? g : VARSAYILAN_GOREVLER;
+  }
+
+  async gorevlerKaydet(liste, yapan) {
+    return this.kilitli(async () => {
+      if (yapan?.rol !== "admin") return { hata: "Görev listesini sadece Admin düzenler." };
+      const l = [], idler = new Set();
+      for (const x of Array.isArray(liste) ? liste.slice(0, 40) : []) {
+        const ad = kirp(x?.ad, 50);
+        if (!ad) continue;
+        let id = /^[a-z0-9-]{1,30}$/.test(x?.id || "") ? x.id : ad.toLocaleLowerCase("tr").replace(/ı/g, "i").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 24) || "g";
+        while (idler.has(id)) id += "x";
+        idler.add(id);
+        l.push({ id, ad, aciklama: kirp(x?.aciklama, 200), rol: ["temizlik", "personel"].includes(x?.rol) ? x.rol : "hepsi" });
+      }
+      await this.st.put("ayar:gorevler", l);
+      await this.kayitTut(yapan, "Görev listesini güncelledi", l.map((x) => x.ad).join(", "));
+      return { basarili: true, gorevler: l };
+    });
+  }
+
+  async gorevHafta(bas) {
+    const b = haftaBasi(/^\d{4}-\d{2}-\d{2}$/.test(bas || "") ? bas : bugunIsletme());
+    const gunler = Array.from({ length: 7 }, (_, i) => gunEkle(b, i));
+    const yapilan = {};
+    for (const gun of gunler) {
+      const m = await this.st.list({ prefix: `gv:${gun}:` });
+      yapilan[gun] = {};
+      for (const [k, v] of m) yapilan[gun][k.split(":")[2]] = { ...v, saat: zamanYazi(v.zaman) };
+    }
+    return { bas: b, bugun: bugunIsletme(), gunler, gorevler: await this.gorevler(), yapilan };
+  }
+
+  /** Bugünün görevini "yaptım" olarak işaretler (sadece bugün; geçmişi Admin/Müdür düzeltir). */
+  async gorevYap(id, not, yapan) {
+    return this.kilitli(async () => {
+      const g = (await this.gorevler()).find((x) => x.id === id);
+      if (!g) return { hata: "Görev bulunamadı." };
+      const gun = bugunIsletme(), k = `gv:${gun}:${id}`;
+      const onceki = await this.st.get(k);
+      if (onceki) return { hata: `${g.ad} bugün zaten ${onceki.ad} tarafından onaylandı (${zamanYazi(onceki.zaman)}).` };
+      const kayit = { eposta: yapan.eposta, ad: yapan.ad, rol: ROLLER[yapan.rol]?.ad || "", zaman: Date.now(), not: kirp(not, 200) };
+      await this.st.put(k, kayit);
+      return { basarili: true, gun, gorev: g, kayit: { ...kayit, saat: zamanYazi(kayit.zaman) } };
+    });
+  }
+
+  async gorevGeriAl(gun, id, yapan) {
+    return this.kilitli(async () => {
+      if (!["admin", "mudur", "mudur_yrd"].includes(yapan?.rol)) return { hata: "Sadece yöneticiler geri alabilir." };
+      const k = `gv:${gun}:${id}`, v = await this.st.get(k);
+      if (!v) return { hata: "Kayıt yok." };
+      await this.st.delete(k);
+      await this.kayitTut(yapan, "Görev onayını geri aldı", `${gun} ${id} (${v.ad})`);
+      return { basarili: true };
     });
   }
 

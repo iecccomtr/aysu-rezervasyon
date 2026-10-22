@@ -921,3 +921,23 @@ test("Abonelik sonlandırma: depozito karşılığı en yakın saatine ücretsiz
   assert.equal(rez.ucret, 0); assert.equal(rez.durum, "Onaylı"); assert.match(rez.not, /depozito/);
   assert.equal(await tur(d, "2026-10-29", "20:00"), "bos", "sonraki hafta abone yok");
 });
+
+test("Görevler: bugünün görevi bir kez onaylanır, Admin listeyi düzenler, yönetici geri alır", async () => {
+  const d = demoDepo();
+  saatiAyarla("2026-10-21T20:00");
+  const admin = { eposta: "a@a.com", ad: "Admin", rol: "admin" };
+  const temiz = { eposta: "t@a.com", ad: "Ayşe Temiz", rol: "temizlik" };
+  const h = await d.gorevHafta();
+  assert.equal(h.bas, "2026-10-19"); assert.equal(h.gunler.length, 7);
+  assert.ok(h.gorevler.some((g) => g.id === "wc"));
+  const r = await d.gorevYap("wc", "", temiz);
+  assert.ok(r.basarili); assert.equal(r.gun, "2026-10-21"); assert.equal(r.kayit.saat, "20:00");
+  assert.match((await d.gorevYap("wc", "", admin)).hata, /zaten/);
+  assert.match((await d.gorevYap("yok", "", temiz)).hata, /bulunamadı/);
+  assert.equal((await d.gorevHafta("2026-10-21")).yapilan["2026-10-21"].wc.ad, "Ayşe Temiz");
+  assert.match((await d.gorevGeriAl("2026-10-21", "wc", temiz)).hata, /yönetici/);
+  assert.ok((await d.gorevGeriAl("2026-10-21", "wc", admin)).basarili);
+  assert.match((await d.gorevlerKaydet([{ ad: "X" }], temiz)).hata, /Admin/);
+  const k = await d.gorevlerKaydet([{ ad: "Duşlar", aciklama: "Gider", rol: "temizlik" }, { ad: "" }], admin);
+  assert.equal(k.gorevler.length, 1); assert.equal(k.gorevler[0].id, "duslar");
+});

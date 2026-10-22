@@ -1100,7 +1100,7 @@ export class RezervasyonDeposu extends DurableObject {
       const s = this.slot(d, gun, saat);
       if (s.tur === "abone") {
         const no = aboneNo(s.abone);
-        satirlar.push({ saat, tur: "abone", ad: no ? `Abone ${no}` : s.abone.ad, ucret: tutar(s.abone.ucret) || f.abone, vip: 0, onOdeme: 0, kaynak: "takvim" });
+        satirlar.push({ saat, tur: "abone", ad: no ? `Abone ${no}` : s.abone.ad, ucret: tutar(s.abone.ucret) || f.abone, vip: 0, onOdeme: 0, kaynak: "takvim", ...(s.abone.depozito ? { depozito: s.abone.depozito } : {}) });
       } else if (s.tur === "rez" && s.rez.durum === DURUM.onayli) {
         const r = s.rez;
         const vip = (r.ekstra || []).reduce((t, x) => t + (f[x] ?? EKSTRALAR[x]?.ucret ?? 0), 0);
@@ -1203,6 +1203,7 @@ export class RezervasyonDeposu extends DurableObject {
           eldiven: Math.min(50, Math.max(0, Math.round(Number(m?.eldiven)) || 0)),
           kantin: kantinTemiz(m?.kantin), ...(m?.kayitNo ? { kayitNo: kirp(m.kayitNo, 20) } : {}),
           ...(m?.kaynak === "takvim" ? { kaynak: "takvim", tkOn: tutar(m?.tkOn ?? m?.onOdeme) } : {}),
+          ...(m?.depozito ? { depozito: kirp(m.depozito, 120) } : {}),
           ekstra: [...new Set(Array.isArray(m?.ekstra) ? m.ekstra : [])].filter((x) => EKSTRALAR[x]),
         })).sort((a, b) => SAAT_SIRA(a.saat || "00:00") - SAAT_SIRA(b.saat || "00:00")),
         girisler: satirlar(g.girisler), cikislar: satirlar(g.cikislar),
@@ -1289,7 +1290,7 @@ export class RezervasyonDeposu extends DurableObject {
               saat, tarih, gecmis: macZamani(tarih, saat) < Date.now() - 3600_000, tur: s.tur,
               ...(SAATLER.includes(saat) ? {} : { ozel: true }),
               ...(s.rez ? { rez: s.rez } : {}),
-              ...(s.abone ? { abone: { id: s.abone.id, no: aboneNo(s.abone), ad: s.abone.ad, telefon: s.abone.telefon, not: s.abone.not, slotlar: slotlarOf(s.abone) } } : {}),
+              ...(s.abone ? { abone: { id: s.abone.id, no: aboneNo(s.abone), ad: s.abone.ad, telefon: s.abone.telefon, not: s.abone.not, depozito: s.abone.depozito || "", slotlar: slotlarOf(s.abone) } } : {}),
             };
           }),
         });
@@ -1349,7 +1350,7 @@ export class RezervasyonDeposu extends DurableObject {
   }
 
   /** slotlar: [{gun, saat}] — ya da eski biçimde tek gun + saat */
-  async aboneKaydet({ id, ad, telefon, slotlar, gun, saat, baslangic, not = "", ucret = "", no }) {
+  async aboneKaydet({ id, ad, telefon, slotlar, gun, saat, baslangic, not = "", ucret = "", depozito, no }) {
     return this.kilitli(async () => {
       let liste = Array.isArray(slotlar) ? slotlar : [{ gun, saat }];
       liste = liste.map((x) => ({ gun: Number(x.gun), saat: saatNormalize(x.saat) }));
@@ -1382,7 +1383,8 @@ export class RezervasyonDeposu extends DurableObject {
         no: numara,
         id: eski?.id || rastgele(8, "abcdefghjkmnpqrstuvwxyz23456789"),
         ad: kirp(ad, 60), telefon: tel, slotlar: liste, baslangic: bas, bitis: null,
-        not: kirp(not, 200), ucret: kirp(ucret, 40), olusturma: eski?.olusturma || simdiYazi(),
+        not: kirp(not, 200), ucret: kirp(ucret, 40), depozito: depozito === undefined ? (eski?.depozito || "") : kirp(depozito, 120),
+        olusturma: eski?.olusturma || simdiYazi(),
       };
       await this.st.put(`a:${abone.id}`, abone);
       // Uyarı: abonenin saatlerine denk gelen ileri tarihli aktif rezervasyonlar

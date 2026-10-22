@@ -48,6 +48,8 @@ export const KURALLAR = {
   // Dekont tarihi kontrolü (eski dekontla onay engeli). ŞİMDİLİK KAPALI: denemeler eski dekontla yapılıyor.
   // Canlı kullanıma geçerken true yapın.
   dekontTarihKontrol: true,
+  // Dekonttaki tutar en az bu kadar olmalı (altı onaylanmaz; maçın tamamını ödeyen de kabul edilir)
+  dekontEnAzTutar: 500,
   // Aynı dekontun ikinci bir rezervasyonda kullanılmasını engelle. ŞİMDİLİK KAPALI (deneme dönemi). Canlıda true.
   dekontTekrarKontrol: true,
   personelIndirim: 0.40,        // personel kantin indirimi; indirimli birim fiyat 5 TL'nin katına yukarı yuvarlanır

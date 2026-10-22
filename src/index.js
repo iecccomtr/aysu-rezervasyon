@@ -421,7 +421,7 @@ async function dekontKontrolEt(env, d, rez, veri) {
   const kurallar = {
     iban: IBAN.no, alici: IBAN.alici, kapora: rez.kaporaTutar ?? FIYATLAR.kapora,
     rezTarihi: String(rez.olusturma || "").slice(0, 10) || null, bugun: simdi().tarih,
-    tarihKontrol: KURALLAR.dekontTarihKontrol,
+    tarihKontrol: KURALLAR.dekontTarihKontrol, enAzTutar: KURALLAR.dekontEnAzTutar || 0,
   };
   // Bir model IBAN'ı / adı okuyamazsa sıradaki model de denenir, okumalar birleştirilir
   const okunan = await dekontOku(env, { tur: rez.dekont.tur, veri }, { yeterli: (o) => dekontDegerlendir(o, kurallar).onay });

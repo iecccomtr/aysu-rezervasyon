@@ -802,3 +802,12 @@ test("Tedarikçi rehberi: varsayılan Elektrikçi ve PAKSU; sadece Admin değiş
   assert.equal((await d.rehber()).length, 3);
   assert.match((await d.rehberKaydet([{ ad: "X", tel: "123" }], admin)).hata, /Geçersiz/);
 });
+
+test("Dekont: 500 TL altı onaylanmaz, tutar okunamazsa onay yok, maçın tamamı kabul", async () => {
+  const { dekontDegerlendir } = await import("../src/dekont-kontrol.js");
+  const k = { iban: "TR70 0015 7000 0000 0154 8342 35", alici: "AHMET AYSU", kapora: 1200, tarihKontrol: false, enAzTutar: 500 };
+  const d = (tutar) => dekontDegerlendir({ alici_iban: "TR700015700000000154834235", alici_ad: "AHMET AYSU", tutar }, k);
+  assert.equal(d("300,00").onay, false); assert.match(d("300,00").nedenler[0], /en az 500/);
+  assert.equal(d(null).onay, false);
+  assert.ok(d("500").onay); assert.ok(d("3.700,00 TL").onay);
+});

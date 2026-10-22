@@ -208,7 +208,7 @@ function tarihNorm(v) {
  * Okunan dekontu kurallara göre değerlendirir.
  * @returns {{ onay: boolean, nedenler: string[], tutar: number|null, okunan: object }}
  */
-export function dekontDegerlendir(okunan, { iban, alici, kapora, rezTarihi, bugun, tarihKontrol = true }) {
+export function dekontDegerlendir(okunan, { iban, alici, kapora, rezTarihi, bugun, tarihKontrol = true, enAzTutar = 0 }) {
   const nedenler = [];
   if (!okunan || okunan.hata) return { onay: false, nedenler: [okunan?.hata || "Dekont okunamadı."], tutar: null, okunan };
   // IBAN: modelin okuduğu ya da PDF metninde geçen
@@ -231,6 +231,11 @@ export function dekontDegerlendir(okunan, { iban, alici, kapora, rezTarihi, bugu
   // Tutar onayı engellemez (kimi maçın tamamını, kimi 500 TL öder); kaporadan azsa yöneticiye bilgi gider
   const tutar = tutarSayi(okunan.tutar);
   const eksik = tutar == null || tutar < kapora;
+  // En az tutar (ör. 500 TL): altındaki ödeme kapora sayılmaz; tutar okunamazsa onay verilmez
+  if (enAzTutar) {
+    if (tutar == null) nedenler.push("Dekonttaki tutar okunamadı.");
+    else if (tutar < enAzTutar) nedenler.push(`Ödenen tutar (${tutar} TL) en az ${enAzTutar} TL olmalı.`);
+  }
   const tarih = tarihNorm(okunan.tarih);
   if (!tarihKontrol) { /* tarih kontrolü kapalı (config.js → KURALLAR.dekontTarihKontrol) */ }
   else if (!tarih) nedenler.push("Dekont tarihi okunamadı.");

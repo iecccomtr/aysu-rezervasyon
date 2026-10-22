@@ -2052,7 +2052,8 @@
       ${l.map((u, i) => `<tr data-s="${i}" class="${u.aktif !== false && u.stok <= 5 ? "az" : ""}"${u.aktif === false ? ' style="opacity:.5"' : ""}><td>${kacis(u.ad)}</td>${admin ? `<td>${para(u.alis)}</td>` : ""}<td>${para(u.satis)}</td><td>${u.stok}</td></tr>`).join("")}
       </tbody></table>
       ${duzenler ? '<div class="k-alt"><button class="dugme ikincil kucuk" type="button" id="s-ekle">+ Yeni ürün</button><span class="soluk" style="font-size:13px">Mal girişi, sayım ve fiyat için ürüne dokunun.</span></div>' : ""}
-    </details>` + siparis + temizlik + rehberKutu();
+    </details>` + `<div class="baslik-satir" style="margin-top:18px"><h2>KANTİN TEDARİKÇİ</h2><span class="soluk sag">Tespo · ${telYazi(siparisTel())}</span></div>` + siparis
+      + `<div class="baslik-satir" style="margin-top:18px"><h2>TEMİZLİK</h2></div>` + temizlik + rehberKutu();
     $("temizlik-det").addEventListener("toggle", (e) => { temizlikAcik = e.target.open; });
     $("kasa-stok-alan").querySelectorAll("[data-tsiparis]").forEach((el) => el.addEventListener("input", () => { temizlikAdet[el.dataset.tsiparis] = el.value; }));
     $("kasa-stok-alan").querySelectorAll("[data-tu]").forEach((el) => el.addEventListener("click", () => temizlikDuzenle(tl.find((u) => u.id === el.dataset.tu))));

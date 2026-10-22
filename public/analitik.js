@@ -39,6 +39,10 @@
       d.remove();
     });
     document.body.appendChild(d);
+    // Şerit sayfanın altındaki düğmeleri (ör. Dekontu yükle) örtmesin: sayfanın altına şerit kadar boşluk
+    const bosluk = () => { document.body.style.paddingBottom = d.isConnected ? `${d.offsetHeight + 24}px` : ""; };
+    bosluk(); window.addEventListener("resize", bosluk);
+    d.addEventListener("click", () => setTimeout(bosluk, 0));
   };
   if (document.body) goster(); else document.addEventListener("DOMContentLoaded", goster);
 })();

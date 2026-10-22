@@ -892,3 +892,32 @@ test("Ay sonu maaş raporu: ayın son günü 09:00'dan sonra o ay için bir kez"
   saatiAyarla("2026-10-31T09:05"); assert.equal(await d.maasRaporuZamani(), "2026-10");
   assert.equal(await d.maasRaporuZamani(), null);
 });
+
+test("Ücretsiz maç kodu: online rezervasyon ücretsiz ve kesinleşir, hak dolunca reddedilir; panelde sonradan uygulanır", async () => {
+  const d = demoDepo({ PANEL_KURULUM_KODU: "k" });
+  const admin = await d.oturum((await d.panelKur({ kurulumKodu: "k", eposta: "admin@aysu.com", ad: "Admin", sifre: "aysu-2026!" })).token);
+  assert.ok((await d.kodKaydet({ kod: "turnuva1", aciklama: "Turnuva ödülü", hak: 1 }, admin)).basarili);
+  assert.match((await d.kodKaydet({ kod: "X1", hak: 1 }, { rol: "mudur" })).hata, /Admin/);
+  assert.match((await d.olustur({ gunTarihi: "2026-10-21", saat: "21:00", ...ALI, kod: "YANLIS" })).hata, /geçersiz/);
+  const r = await d.olustur({ gunTarihi: "2026-10-21", saat: "21:00", ...ALI, kod: "Turnuva1" });
+  assert.ok(r.basarili, JSON.stringify(r));
+  assert.equal(r.durum, "Onaylı"); assert.equal(r.ucret, 0); assert.equal(r.ucretsiz.kod, "TURNUVA1");
+  assert.match((await d.olustur({ gunTarihi: "2026-10-21", saat: "22:00", ad: "Veli Can", telefon: "05330000009", kod: "TURNUVA1" })).hata, /hakkı dolmuş/);
+  await d.kodKaydet({ kod: "SINIRSIZ", hak: 0 }, admin);
+  const p = await d.panelRezEkle({ gunTarihi: "2026-10-21", saat: "23:00", ad: "Kerem", telefon: "" });
+  const u = await d.rezKodUygula({ kayitNo: p.kayitNo, kod: "sinirsiz" }, admin);
+  assert.ok(u.basarili); assert.equal(u.rez.ucret, 0);
+  saatiAyarla("2026-10-21T12:00");
+  const k = await d.kasaGetir("2026-10-21", admin);
+  assert.ok(k.kayit.maclar.every((m) => m.ucret === 0 && m.ucretsiz));
+});
+
+test("Abonelik sonlandırma: depozito karşılığı en yakın saatine ücretsiz son maç", async () => {
+  const d = demoDepo();
+  const a = await d.aboneKaydet({ ad: "Ekip", telefon: "0545 123 01 23", gun: 3, saat: "20:00", no: 7, depozito: "3200 TL" });
+  const r = await d.aboneSil(a.abone.id, { sonMacUcretsiz: true });
+  assert.ok(r.basarili); assert.equal(r.sonMac.g, "2026-10-22"); assert.equal(r.sonMac.saat, "20:00");
+  const rez = (await d.kayitBul(r.sonMac.kayitNo)).kayit;
+  assert.equal(rez.ucret, 0); assert.equal(rez.durum, "Onaylı"); assert.match(rez.not, /depozito/);
+  assert.equal(await tur(d, "2026-10-29", "20:00"), "bos", "sonraki hafta abone yok");
+});

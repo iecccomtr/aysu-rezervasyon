@@ -334,6 +334,10 @@
             <label for="not">Not <small>(isteğe bağlı)</small></label>
             <textarea id="not" name="not" maxlength="200" placeholder="Takım adı, özel istek…"></textarea>
           </div>
+          <div class="alan">
+            <label for="kod">Ücretsiz maç kodu <small>(varsa)</small></label>
+            <input id="kod" name="kod" maxlength="30" autocomplete="off" autocapitalize="characters" placeholder="Size verilen kod">
+          </div>
           <div class="tuzak" aria-hidden="true">
             <label for="web">Web sitesi</label>
             <input id="web" name="web" tabindex="-1" autocomplete="off">
@@ -661,7 +665,7 @@
       if (dogrulamaToken === "") return uyar(uyari, "Güvenlik doğrulamasını tamamlayın, ardından tekrar deneyin.");
       const r = await fetch("/api/rezervasyon", {
         method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ tarih: g.tarih, saat: secilenSaat, ad, telefon, not: $("not").value.trim(), kvkk: true, web: $("web").value, dogrulama: dogrulamaToken, ekstra: seciliEkstralar() }),
+        body: JSON.stringify({ tarih: g.tarih, saat: secilenSaat, ad, telefon, not: $("not").value.trim(), kvkk: true, web: $("web").value, dogrulama: dogrulamaToken, ekstra: seciliEkstralar(), kod: $("kod").value.trim() || undefined }),
       });
       dogrulamaYenile();
       const v = await r.json().catch(() => ({}));
@@ -670,7 +674,7 @@
         if (/dolu/i.test(v.hata || "")) { secilenSaat = null; await yukle(); }
         return;
       }
-      ["ad", "telefon", "telefon2", "not"].forEach((id) => { $(id).value = ""; }); $("kvkk").checked = false; telefonKontrol(); // formu sıfırla
+      ["ad", "telefon", "telefon2", "not", "kod"].forEach((id) => { $(id).value = ""; }); $("kvkk").checked = false; telefonKontrol(); // formu sıfırla
       document.querySelectorAll("[data-ekstra]").forEach((x) => { x.checked = false; });
       sonRez = { kayitNo: v.kayitNo, telefon };
       window.aysuOlay?.("generate_lead", { currency: "TRY", value: v.ucret || 0, saat: v.saat });
@@ -707,7 +711,13 @@
 
   async function dekontGonder(kayitNo, telefon, dosya, sonucEl) {
     sonucEl.className = sonucEl.className.replace(/ (iyi|bekle|kotu)/g, "");
-    sonucEl.textContent = "Dekont kontrol ediliyor, lütfen bekleyin (en fazla 45 saniye)…";
+    sonucEl.innerHTML = "Dekont kontrol ediliyor, lütfen bekleyin (en fazla 45 saniye)…<br><b>Lütfen sayfayı kapatmayın ve geri tuşuna basmayın.</b>";
+    // Kontrol sürerken sayfadan çıkmak istenirse tarayıcı uyarsın
+    const cikisUyari = (e) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", cikisUyari);
+    // Kontrol sürerken yükleme düğmesi gizlenir (ikinci kez basılmasın)
+    const yukleDugme = document.querySelector('label[for="t-dosya"]');
+    if (yukleDugme) yukleDugme.hidden = true;
     try {
       const f = await dosyaHazirla(dosya);
       const r = await fetch("/api/dekont", {
@@ -726,6 +736,9 @@
       }
     } catch (e) {
       sonucEl.classList.add("kotu"); sonucEl.textContent = e.message || "Dekont yüklenemedi.";
+    } finally {
+      window.removeEventListener("beforeunload", cikisUyari);
+      if (yukleDugme) yukleDugme.hidden = false; // onaylandıysa kesinlestiGoster yükleme alanını zaten kapatır
     }
   }
   $("t-dosya").addEventListener("change", (e) => {
@@ -906,6 +919,12 @@
     document.querySelector(".wp-yuzen").hidden = true;
     $("t-dekont-sonuc").textContent = "";
     window.scrollTo({ top: 0 });
+    // Ücretsiz maç koduyla: kapora yok, rezervasyon hemen kesinleşti
+    if (v.ucretsiz) {
+      kesinlestiGoster();
+      $("t-aciklama").textContent = v.ucret ? `Ücretsiz maç kodunuz uygulandı. VIP hizmet (${tl(v.ucret)}) maç günü sahada ödenir. İyi maçlar!` : "Ücretsiz maç kodunuz uygulandı, ödeme yok. İyi maçlar!";
+      $("t-kapora").innerHTML = '<h3>✓ Ücretsiz maç</h3>';
+    }
   }
 
   $("yeni").addEventListener("click", async () => {

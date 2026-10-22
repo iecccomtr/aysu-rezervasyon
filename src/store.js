@@ -383,7 +383,7 @@ export class RezervasyonDeposu extends DurableObject {
   }
 
   /** Ortak kayıt oluşturma. `panel` true ise müşteri sınırları uygulanmaz. */
-  async rezervasyonYaz({ gunTarihi, saat: s, ad, telefon: tel, not = "", durum, kaynak, kapora = "", ekstra = [] }, panel) {
+  async rezervasyonYaz({ gunTarihi, saat: s, ad, telefon: tel, not = "", durum, kaynak, kapora = "", ekstra = [], kod }, panel) {
     const gun = tarihNormalize(gunTarihi);
     const saat = saatNormalize(s);
     const telefon = telefonNormalize(tel);
@@ -414,7 +414,13 @@ export class RezervasyonDeposu extends DurableObject {
       }
       return { hata: "Bu saat dolu. Lütfen başka bir saat seçin." };
     }
-    if (!panel) {
+    // Ücretsiz maç kodu (Admin belirler): geçerliyse maç ücretsiz, kapora gerekmez, rezervasyon hemen kesinleşir
+    let kodBilgi = null;
+    if (kirp(kod, 30)) {
+      kodBilgi = await this.kodKontrol(kod);
+      if (kodBilgi.hata) return kodBilgi;
+    }
+    if (!panel && !kodBilgi) {
       const gelecek = (await this.rezervasyonlar(simdi().tarih, gunEkle(simdi().tarih, 60)))
         .filter((r) => r.telefon === telefon && !iptalMi(r.durum) && !opsiyonDustu(r) && macZamani(r.tarih, r.saat) > Date.now());
       // Kapora ödenmiş rezervasyonlarda sınır yok; aynı numarayla aynı anda sadece BİR ödemesi bekleyen opsiyon olabilir
@@ -438,6 +444,13 @@ export class RezervasyonDeposu extends DurableObject {
       ...(!panel ? { opsiyonBitis: Date.now() + KURALLAR.opsiyonDakika * 60_000 } : {}),
     };
     kayit.ucret = f.mac + kayit.ekstra.reduce((t, x) => t + (f[x] ?? EKSTRALAR[x].ucret), 0);
+    if (kodBilgi) {
+      await this.kodKullan(kodBilgi.kod, kayit.kayitNo);
+      Object.assign(kayit, {
+        ucret: kayit.ucret - f.mac, kaporaTutar: 0, durum: DURUM.onayli, opsiyonBitis: null,
+        ucretsiz: { kod: kodBilgi.kod, neden: kodBilgi.aciklama || "Ücretsiz maç kodu" },
+      });
+    }
     const anahtar = `r:${tarih}:${saat}:${kayit.kayitNo}`;
     await this.st.put({ [anahtar]: kayit, [`k:${kayit.kayitNo}`]: anahtar });
     return { basarili: true, ...kayit };
@@ -1247,6 +1260,61 @@ export class RezervasyonDeposu extends DurableObject {
     });
   }
 
+  // ---- Ücretsiz maç kodları (Admin belirler) ----
+  //   ayar:kodlar  [{ kod, aciklama, hak, kullanilan, aktif, kullanimlar[] }]
+  async kodlar() { return (await this.st.get("ayar:kodlar")) || []; }
+
+  async kodKontrol(kod) {
+    const k = kirp(kod, 30).toLocaleUpperCase("tr").replace(/İ/g, "I").replace(/\s/g, "");
+    const x = (await this.kodlar()).find((y) => y.kod === k);
+    if (!x || !x.aktif) return { hata: "Ücretsiz maç kodu geçersiz." };
+    if (x.hak && x.kullanilan >= x.hak) return { hata: "Bu kodun kullanım hakkı dolmuş." };
+    return x;
+  }
+
+  async kodKullan(kod, kayitNo) {
+    const l = await this.kodlar();
+    const x = l.find((y) => y.kod === kod);
+    if (!x) return;
+    x.kullanilan = (x.kullanilan || 0) + 1;
+    x.kullanimlar = [...(x.kullanimlar || []), { kayitNo, zaman: simdiYazi() }].slice(-50);
+    await this.st.put("ayar:kodlar", l);
+  }
+
+  async kodKaydet({ kod, aciklama, hak, aktif, sil }, yapan) {
+    return this.kilitli(async () => {
+      if (yapan?.rol !== "admin") return { hata: "Kodları sadece Admin düzenler." };
+      const k = kirp(kod, 30).toLocaleUpperCase("tr").replace(/İ/g, "I").replace(/\s/g, "");
+      if (!/^[A-Z0-9ÇĞÖŞÜ-]{3,30}$/.test(k)) return { hata: "Kod 3–30 harf/rakam olmalı." };
+      const l = await this.kodlar();
+      const i = l.findIndex((y) => y.kod === k);
+      if (sil) { if (i >= 0) l.splice(i, 1); }
+      else if (i >= 0) Object.assign(l[i], { aciklama: kirp(aciklama ?? l[i].aciklama, 80), hak: Math.max(0, Math.round(Number(hak ?? l[i].hak)) || 0), aktif: aktif ?? l[i].aktif });
+      else l.push({ kod: k, aciklama: kirp(aciklama, 80), hak: Math.max(0, Math.round(Number(hak)) || 0), kullanilan: 0, aktif: true, olusturma: simdiYazi() });
+      await this.st.put("ayar:kodlar", l);
+      await this.kayitTut(yapan, sil ? "Ücretsiz kodu sildi" : i >= 0 ? "Ücretsiz kodu güncelledi" : "Ücretsiz kod ekledi", `${k}${aciklama ? " · " + kirp(aciklama, 80) : ""}`);
+      return { basarili: true, kodlar: l };
+    });
+  }
+
+  /** Paneldeki rezervasyona sonradan ücretsiz kod uygula */
+  async rezKodUygula({ kayitNo, kod }, yapan) {
+    return this.kilitli(async () => {
+      const b = await this.kayitBul(kayitNo);
+      if (!b) return { hata: "Kayıt bulunamadı." };
+      if (b.kayit.ucretsiz) return { hata: "Bu rezervasyon zaten ücretsiz." };
+      const x = await this.kodKontrol(kod);
+      if (x.hata) return x;
+      const f = await this.fiyatAyar();
+      const vip = (b.kayit.ekstra || []).reduce((t, e) => t + (f[e] ?? EKSTRALAR[e]?.ucret ?? 0), 0);
+      const k = { ...b.kayit, ucret: vip, ucretsiz: { kod: x.kod, neden: x.aciklama || "Ücretsiz maç kodu" }, durum: DURUM.onayli, opsiyonBitis: null };
+      await this.kodKullan(x.kod, k.kayitNo);
+      await this.st.put(b.anahtar, k);
+      await this.kayitTut(yapan, "Ücretsiz kod uyguladı", `${k.kayitNo} · ${k.isletmeGunu || k.tarih} ${k.saat} · ${k.ad} · ${x.kod}`);
+      return { basarili: true, rez: k };
+    });
+  }
+
   // ---- Kapora IBAN'ı (sadece Admin, şifresiyle değiştirir; her değişiklik yöneticilere e-postayla bildirilir) ----
   //   ayar:iban  { no, alici, guncelleyen, zaman }
   async ibanAyar() {
@@ -1357,7 +1425,8 @@ export class RezervasyonDeposu extends DurableObject {
         const vip = (r.ekstra || []).reduce((t, x) => t + (f[x] ?? EKSTRALAR[x]?.ucret ?? 0), 0);
         // Kapora maç günü alındıysa ayrıca düşülmez: maçın toplamı bugün kasaya girer
         const onOdeme = r.kaporaGunu === gun ? 0 : kaporaTutari(r);
-        satirlar.push({ saat, tur: r.aboneId ? "abone" : "normal", ...(r.aboneId ? { aboneId: r.aboneId } : {}), ad: r.ad, ucret: Math.max(0, (Number(r.ucret) || f.mac) - vip), vip, ekstra: (r.ekstra || []).filter((x) => EKSTRALAR[x]), onOdeme, tkOn: onOdeme, kayitNo: r.kayitNo, kaynak: "takvim" });
+        satirlar.push({ saat, tur: r.aboneId ? "abone" : "normal", ...(r.aboneId ? { aboneId: r.aboneId } : {}), ad: r.ad, ucret: Math.max(0, (Number.isFinite(Number(r.ucret)) && r.ucret !== null && r.ucret !== undefined ? Number(r.ucret) : f.mac) - vip), vip, ekstra: (r.ekstra || []).filter((x) => EKSTRALAR[x]), onOdeme, tkOn: onOdeme, kayitNo: r.kayitNo, kaynak: "takvim",
+          ...(r.ucretsiz ? { ucretsiz: r.ucretsiz.neden || "Ücretsiz" } : {}) });
       }
     }
     return satirlar;
@@ -1378,6 +1447,11 @@ export class RezervasyonDeposu extends DurableObject {
       if (m.kaynak === "takvim" && !y && veriYok(m)) { degisenler.push(`${m.saat} kaldırıldı (${m.ad})`); continue; }
       if (m.kaynak === "takvim" && y && (y.ad !== m.ad || y.tur !== m.tur) && veriYok(m)) {
         maclar.push({ ...y, krampon: 0, eldiven: 0, kantin: {} }); degisenler.push(`${m.saat} ${m.ad} → ${y.ad}`); continue;
+      }
+      // Rezervasyona sonradan ücretsiz kod uygulandıysa kasadaki ücret de sıfırlanır
+      if (m.kaynak === "takvim" && y && y.ucretsiz && !m.ucretsiz) {
+        degisenler.push(`${m.saat} ${m.ad} ücretsiz (${y.ucretsiz})`);
+        maclar.push({ ...m, ucret: y.ucret, ucretsiz: y.ucretsiz }); continue;
       }
       // Rezervasyona sonradan kapora girildiyse / değiştiyse kasadaki kapora da güncellenir
       if (m.kaynak === "takvim" && y && y.ad === m.ad && (y.onOdeme || 0) !== (m.tkOn ?? m.onOdeme ?? 0)) {
@@ -1508,6 +1582,7 @@ export class RezervasyonDeposu extends DurableObject {
           ...(m?.kaynak === "takvim" ? { kaynak: "takvim", tkOn: tutar(m?.tkOn ?? m?.onOdeme) } : {}),
           ...(m?.depozito ? { depozito: kirp(m.depozito, 120) } : {}),
           ...(m?.aboneId ? { aboneId: kirp(m.aboneId, 20) } : {}),
+          ...(m?.ucretsiz ? { ucretsiz: kirp(m.ucretsiz, 80) } : {}),
           ekstra: [...new Set(Array.isArray(m?.ekstra) ? m.ekstra : [])].filter((x) => EKSTRALAR[x]),
         })).sort((a, b) => SAAT_SIRA(a.saat || "00:00") - SAAT_SIRA(b.saat || "00:00")),
         girisler: satirlar(g.girisler), cikislar: satirlar(g.cikislar),
@@ -1791,15 +1866,40 @@ export class RezervasyonDeposu extends DurableObject {
     });
   }
 
-  async aboneSil(id) {
+  async aboneSil(id, { sonMacUcretsiz = false } = {}) {
     return this.kilitli(async () => {
       const a = await this.st.get(`a:${id}`);
       if (!a) return { hata: "Abone bulunamadı." };
+      // Depozito karşılığı son maç: abonenin en yakın (gelecekteki) saatine ücretsiz, onaylı rezervasyon
+      let sonMac = null;
+      if (sonMacUcretsiz) {
+        const n = simdi();
+        const bugun = isletmeGunu(n.tarih, n.saat);
+        const adaylar = [];
+        for (let i = 0; i < 8; i++) {
+          const g = gunEkle(bugun, i);
+          for (const sl of slotlarOf(a)) if (sl.gun === gunNo(g) && macZamani(takvimTarihi(g, sl.saat), sl.saat) > Date.now()) adaylar.push({ g, saat: sl.saat });
+        }
+        adaylar.sort((x, y) => x.g.localeCompare(y.g) || SAAT_SIRA(x.saat) - SAAT_SIRA(y.saat));
+        sonMac = adaylar[0] || null;
+      }
       await this.st.delete(`a:${id}`);
       const atla = await this.st.list({ prefix: "x:" });
       const sil = [...atla.keys()].filter((k) => k.endsWith(`:${id}`));
       if (sil.length) await this.st.delete(sil);
-      return { basarili: true };
+      if (sonMac) {
+        const no = aboneNo(a);
+        const r = await this.rezervasyonYaz({
+          gunTarihi: sonMac.g, saat: sonMac.saat, ad: `${no ? `Abone ${no} · ` : ""}${a.ad}`, telefon: a.telefon || "",
+          durum: DURUM.onayli, kaynak: "Abone", not: `Son maç — depozito karşılığı ücretsiz${a.depozito ? ` (depozito: ${a.depozito})` : ""}`,
+        }, true);
+        if (r.basarili) {
+          const anahtar = `r:${r.tarih}:${r.saat}:${r.kayitNo}`;
+          await this.st.put(anahtar, { ...(await this.st.get(anahtar)), ucret: 0, kaporaTutar: 0, aboneId: a.id, ucretsiz: { kod: "DEPOZİTO", neden: "Abonelik bitişi — depozito karşılığı son maç" } });
+          sonMac = { ...sonMac, kayitNo: r.kayitNo };
+        } else sonMac = { ...sonMac, hata: r.hata };
+      }
+      return { basarili: true, sonMac };
     });
   }
 

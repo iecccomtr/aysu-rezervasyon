@@ -174,6 +174,11 @@
   .urun { border: 1px solid var(--cizgi); border-radius: 10px; padding: 6px 8px; font-size: 13px; line-height: 1.2; }
   .urun.var { border-color: var(--cim); background: var(--cim-acik); }
   .urun.yok { opacity: .45; }
+  .od-satir { display: flex; align-items: center; justify-content: space-between; margin-top: 4px; border: 1px solid #f2c4c4; background: #fde8e8; color: var(--hata); border-radius: 999px; overflow: hidden; }
+  .od-satir span { font-weight: 700; font-size: 12px; }
+  .od-satir button { border: 0; background: rgba(255,255,255,.6); color: inherit; width: 30px; height: 28px; font-size: 16px; cursor: pointer; }
+  .od-satir.kismi { border-color: #ecd97a; background: #fff6c2; color: #6b5900; }
+  .od-satir.tamam { border-color: #9fd3a8; background: #e7f6ec; color: #1a7f37; }
   .od-dugme { display: block; width: 100%; margin-top: 4px; border: 1px solid #f2c4c4; background: #fde8e8; color: var(--hata); border-radius: 999px; font: 700 12px/1 inherit; padding: 6px 4px; cursor: pointer; }
   .od-dugme.tamam { border-color: #9fd3a8; background: #e7f6ec; color: #1a7f37; }
   .urun b { display: block; font-size: 13px; min-height: 2.4em; }
@@ -481,6 +486,19 @@
           <p class="soluk" style="font-size:14px;margin:-4px 0 12px">Yeni fiyatlar kaydettiğiniz andan sonraki rezervasyonlarda geçerli olur; önceki rezervasyonların ücreti değişmez.</p>
           <button class="dugme" type="submit">Fiyatları kaydet</button>
         </form>
+      </div>
+      <div id="kod-alan" hidden>
+        <div class="baslik-satir" style="margin-top:22px"><h2>Ücretsiz maç kodları</h2><span class="soluk sag">Sadece Admin</span></div>
+        <div class="kutu" style="padding:14px">
+          <p class="soluk" style="font-size:14px;margin-bottom:10px">Müşteri online rezervasyonda ya da yönetici panelde bu kodu girerse maç ücretsiz olur, kapora istenmez. Kullanım hakkı 0 = sınırsız.</p>
+          <div id="kod-liste"></div>
+          <div class="k-sat" style="grid-template-columns:1fr 1fr 70px;margin-top:10px">
+            <input id="yk-kod" placeholder="KOD" autocapitalize="characters" autocomplete="off" style="border:1px solid #b5c3cf;border-radius:8px;padding:8px;font-size:16px">
+            <input id="yk-aciklama" placeholder="Açıklama (ör. turnuva ödülü)" style="border:1px solid #b5c3cf;border-radius:8px;padding:8px;font-size:16px">
+            <input id="yk-hak" inputmode="numeric" placeholder="Hak" value="1" style="border:1px solid #b5c3cf;border-radius:8px;padding:8px;font-size:16px">
+          </div>
+          <div class="k-alt"><button class="dugme ikincil kucuk" type="button" id="yk-rastgele">Rastgele kod</button><button class="dugme kucuk" type="button" id="yk-ekle">Kodu ekle</button></div>
+        </div>
       </div>
       <div id="iban-alan" hidden>
         <div class="baslik-satir" style="margin-top:22px"><h2>Kapora IBAN'ı</h2><span class="soluk sag">Sadece Admin</span></div>
@@ -1000,6 +1018,7 @@
           <div class="alan"><label for="d-kapora">Alınan kapora</label><input id="d-kapora" placeholder="ör. 1200"></div>
           <div class="alan"><label for="d-not">Not</label><input id="d-not"></div>
         </div>
+        <div class="alan"><label for="d-kod">Ücretsiz maç kodu <small class="soluk">(varsa — maç ücretsiz olur)</small></label><input id="d-kod" autocomplete="off" autocapitalize="characters"></div>
         <div style="display:flex;gap:18px;flex-wrap:wrap;margin:-2px 0 14px">
           <label style="display:flex;gap:6px;align-items:center;font-weight:600"><input type="checkbox" data-ekstra="spiker"> VIP spiker (+${Number(hafta.fiyat?.spiker ?? 1600).toLocaleString("tr-TR")} TL)</label>
           <label style="display:flex;gap:6px;align-items:center;font-weight:600"><input type="checkbox" data-ekstra="hakem"> VIP hakem (+${Number(hafta.fiyat?.hakem ?? 1000).toLocaleString("tr-TR")} TL)</label>
@@ -1018,7 +1037,7 @@
       e.preventDefault();
       const btn = e.submitter; btn.disabled = true;
       try {
-        const r = await api("rez", { gun: g.tarih, saat: s.saat, ad: $("d-ad").value, telefon: $("d-tel").value, kapora: $("d-kapora").value, not: $("d-not").value, durum: durumAl(),
+        const r = await api("rez", { gun: g.tarih, saat: s.saat, ad: $("d-ad").value, telefon: $("d-tel").value, kapora: $("d-kapora").value, not: $("d-not").value, durum: durumAl(), kod: $("d-kod").value.trim() || undefined,
           ekstra: [...$("dlg-ic").querySelectorAll("[data-ekstra]:checked")].map((x) => x.dataset.ekstra) });
         if (r.hata) return dlgUyari(r.hata);
         dlg.close(); bildir(`${s.saat} kaydedildi`); haftaYukle();
@@ -1049,6 +1068,9 @@
         <a class="dugme ikincil kucuk" target="_blank" rel="noopener" href="${wa(r.telefon)}?text=${encodeURIComponent(`Merhaba ${r.ad}, Aysu Halı Saha ${tarihYazi(gun)} ${r.saat} rezervasyonunuz hakkında yazıyoruz.`)}">WhatsApp</a>
         <button class="dugme ikincil kucuk" type="button" id="d-musteri">Müşteri kartı</button>
       </div>` : ""}
+      ${r.ucretsiz ? `<p class="bilgi" style="background:#e7f6ec;border-color:#9fd3a8;color:#11602a">✓ Ücretsiz maç: ${kacis(r.ucretsiz.neden)} (${kacis(r.ucretsiz.kod)})</p>`
+        : `<div class="k-sat" style="grid-template-columns:1fr auto;margin-bottom:12px"><input id="d-kod-uygula" placeholder="Ücretsiz maç kodu" autocomplete="off" style="border:1px solid #b5c3cf;border-radius:8px;padding:8px;font-size:16px">
+          <button class="dugme ikincil kucuk" type="button" id="d-kod-btn">Kodu uygula</button></div>`}
       <form id="d-form" novalidate>
         <label style="font-weight:600;display:block;margin-bottom:5px">Durum</label>
         ${durumSecici(r.durum)}
@@ -1064,6 +1086,14 @@
         <div class="alan"><label for="d-not">Not</label><textarea id="d-not">${kacis(r.not || "")}</textarea></div>
         <button class="dugme tam" type="submit">Kaydet</button>
       </form>`);
+    $("d-kod-btn")?.addEventListener("click", async () => {
+      const kod = $("d-kod-uygula").value.trim();
+      if (!kod) return dlgUyari("Kodu yazın.");
+      if (!confirm(`${r.ad} – ${r.saat} maçına "${kod}" kodu uygulansın mı? Maç ücretsiz olur.`)) return;
+      const v = await api("rez-kod", { kayitNo: r.kayitNo, kod });
+      if (v.hata) return dlgUyari(v.hata);
+      bildir("Kod uygulandı, maç ücretsiz"); haftaYukle(); rezDetay(v.rez);
+    });
     const durumAl = durumSeciciBagla(ic);
     // İptal seçilince açıklama kutusu açılır
     ic.querySelectorAll("[data-durum]").forEach((b) => b.addEventListener("click", () => {
@@ -1289,15 +1319,17 @@
     if (sil) sil.addEventListener("click", async () => {
       let alan = $("d-sil-neden");
       if (!alan) {
-        sil.insertAdjacentHTML("beforebegin", `<div class="alan" style="margin-top:10px;background:#fff1f1;border:1px solid #f2c4c4;border-radius:10px;padding:10px"><label for="d-sil-neden" style="color:#b42318">Sonlandırma açıklaması (zorunlu)</label><textarea id="d-sil-neden" placeholder="Ör. sezon bitti, takım dağıldı"></textarea></div>`);
+        sil.insertAdjacentHTML("beforebegin", `<div class="alan" style="margin-top:10px;background:#fff1f1;border:1px solid #f2c4c4;border-radius:10px;padding:10px"><label for="d-sil-neden" style="color:#b42318">Sonlandırma açıklaması (zorunlu)</label><textarea id="d-sil-neden" placeholder="Ör. sezon bitti, takım dağıldı"></textarea>
+          <label style="display:flex;gap:8px;align-items:center;font-weight:600;margin-top:8px"><input type="checkbox" id="d-son-mac" style="width:20px;height:20px"${a.depozito ? " checked" : ""}> Son maçı depozito karşılığı ücretsiz oynasın</label>
+          <small class="soluk">İşaretliyse abonenin en yakın saatine ücretsiz, onaylı son maç yazılır.${a.depozito ? ` Depozito: ${kacis(a.depozito)}` : ""}</small></div>`);
         $("d-sil-neden").focus(); sil.textContent = "Açıklamayla aboneliği sonlandır"; return;
       }
       const neden = alan.value;
       if (neden.trim().length < 3) { alan.focus(); return dlgUyari("Aboneliği sonlandırmak için açıklama yazın."); }
       if (!confirm(`${a.ad} aboneliği sonlandırılsın mı? (${slotOzet(a.slotlar || [])}) her hafta boşa çıkar.`)) return;
-      const r = await api("abone-sil", { id: a.id, neden: neden.trim() });
+      const r = await api("abone-sil", { id: a.id, neden: neden.trim(), sonMacUcretsiz: $("d-son-mac")?.checked || false });
       if (r.hata) return dlgUyari(r.hata);
-      dlg.close(); bildir("Abonelik sonlandırıldı"); aboneYukle();
+      dlg.close(); bildir(r.sonMac?.kayitNo ? `Abonelik sonlandırıldı · son maç ücretsiz: ${tarihYazi(r.sonMac.g)} ${r.sonMac.saat}` : r.sonMac?.hata ? `Abonelik sonlandırıldı · son maç yazılamadı: ${r.sonMac.hata}` : "Abonelik sonlandırıldı"); aboneYukle();
     });
   }
 
@@ -1395,6 +1427,7 @@
     $("kullanici-liste").querySelectorAll("[data-i]").forEach((el) => el.addEventListener("click", () => kullaniciDetay(kullanicilar[el.dataset.i])));
     islemYukle();
     fiyatYukle();
+    kodYukle();
     ibanYukle();
     puantajYukle();
   }
@@ -1459,6 +1492,37 @@
     const r = await api("fiyat", g);
     if (r.hata) return bildir(r.hata);
     bildir("Fiyatlar kaydedildi"); islemYukle();
+  });
+
+  async function kodYukle() {
+    $("kod-alan").hidden = ben.rol !== "admin";
+    if (ben.rol !== "admin") return;
+    const l = await api("kodlar").catch(() => null);
+    if (!Array.isArray(l)) return;
+    $("kod-liste").innerHTML = l.map((k, i) => `<div class="k-sat" style="grid-template-columns:1fr auto auto 32px">
+      <span><b style="font-family:monospace;font-size:16px">${kacis(k.kod)}</b>${k.aciklama ? ` <small class="soluk">${kacis(k.aciklama)}</small>` : ""}<br><small class="soluk">${k.kullanilan || 0} / ${k.hak || "∞"} kullanıldı</small></span>
+      <span class="rozet ${k.aktif && (!k.hak || k.kullanilan < k.hak) ? "r-onayli" : "r-pasif"}">${!k.aktif ? "Kapalı" : k.hak && k.kullanilan >= k.hak ? "Bitti" : "Aktif"}</span>
+      <button class="dugme ikincil kucuk" type="button" data-kod-ac="${i}">${k.aktif ? "Kapat" : "Aç"}</button>
+      <button class="x-sil" type="button" data-kod-sil="${i}" aria-label="Sil">×</button></div>`).join("") || '<p class="soluk">Henüz kod yok.</p>';
+    $("kod-liste").querySelectorAll("[data-kod-ac]").forEach((b) => b.addEventListener("click", async () => {
+      const k = l[b.dataset.kodAc]; const r = await api("kod", { kod: k.kod, aktif: !k.aktif });
+      if (r.hata) return bildir(r.hata); kodYukle();
+    }));
+    $("kod-liste").querySelectorAll("[data-kod-sil]").forEach((b) => b.addEventListener("click", async () => {
+      const k = l[b.dataset.kodSil]; if (!confirm(`${k.kod} kodu silinsin mi?`)) return;
+      const r = await api("kod", { kod: k.kod, sil: true }); if (r.hata) return bildir(r.hata); kodYukle();
+    }));
+  }
+  $("yk-rastgele").addEventListener("click", () => {
+    const h = "ABCDEFGHJKMNPRSTUVYZ23456789"; let k = "AYSU-";
+    for (const b of crypto.getRandomValues(new Uint8Array(6))) k += h[b % h.length];
+    $("yk-kod").value = k;
+  });
+  $("yk-ekle").addEventListener("click", async () => {
+    const r = await api("kod", { kod: $("yk-kod").value, aciklama: $("yk-aciklama").value, hak: $("yk-hak").value });
+    if (r.hata) return bildir(r.hata);
+    $("yk-kod").value = ""; $("yk-aciklama").value = ""; $("yk-hak").value = "1";
+    bildir("Kod eklendi"); kodYukle();
   });
 
   async function ibanYukle() {
@@ -1582,10 +1646,19 @@
     $("puantaj-liste").innerHTML = puantaj.kisiler.map((k, i) => `
       <button type="button" class="kullanici" data-p="${i}">
         <span><b>${kacis(k.ad)}</b><small>${kacis(k.rol)} · ${k.gunler.length} gün${k.gunler.some((g) => g.acik) ? " · açık giriş var" : ""}${k.saatlikUcret ? ` · ${saatSayi(k.saatlikUcret)} ₺/saat` : " · saatlik ücret yok"}</small></span>
-        <span style="text-align:right"><b>${saatSayi(k.saat)} saat</b><small>${para(k.ucret)}${k.avans ? ` · avans ${para(k.avans)} · <b>kalan ${para(k.kalan)}</b>` : ""}</small></span>
+        <span style="text-align:right"><b>${saatSayi(k.saat)} saat</b><small>${para(k.ucret)}${k.avans ? ` · avans ${para(k.avans)} · <b>kalan ${para(k.kalan)}</b>` : ""}</small>
+          ${ben.rol === "admin" ? `<span role="button" tabindex="0" class="dugme ikincil kucuk" data-p-eposta="${i}" style="margin-top:4px;padding:4px 10px;font-size:12px">✉ Maaşı e-postala</span>` : ""}</span>
       </button>`).join("") + (puantaj.kisiler.length ? `<div class="kullanici" style="cursor:default"><b>Toplam</b><b>${para(top)}</b></div>` : '<p class="soluk" style="padding:14px">Bu ay puantaj kaydı yok.</p>')
       + (["admin", "mudur"].includes(ben.rol) ? `<div style="padding:10px 14px;display:flex;gap:8px;flex-wrap:wrap"><button class="dugme ikincil kucuk" type="button" id="p-ekle">+ Elle kayıt ekle</button>${ben.rol === "admin" ? '<button class="dugme ikincil kucuk" type="button" id="p-avans">+ Avans / ödeme</button>' : ""}</div>` : "");
     $("puantaj-liste").querySelectorAll("[data-p]").forEach((el) => el.addEventListener("click", () => puantajDetay(puantaj.kisiler[el.dataset.p])));
+    $("puantaj-liste").querySelectorAll("[data-p-eposta]").forEach((b) => b.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const k = puantaj.kisiler[b.dataset.pEposta];
+      b.disabled = true;
+      const r = await api("puantaj/eposta", { eposta: k.eposta, ay: $("puantaj-ay").value });
+      b.disabled = false;
+      bildir(r.hata || `${k.ad} maaş dökümü e-postanıza gönderildi`);
+    }));
     $("p-ekle")?.addEventListener("click", () => puantajDuzeltAc(null, null));
     $("p-avans")?.addEventListener("click", async () => {
       const l = (await api("kullanicilar").catch(() => [])).filter((u) => u.durum === "aktif" && u.rol !== "admin");
@@ -1795,6 +1868,7 @@
             ${m.kaynak === "takvim" ? "" : `<button class="x-sil" type="button" data-sil="maclar.${i}" aria-label="Satırı sil">×</button>`}
           </div>
           ${m.depozito ? `<small class="depozito" style="margin:-2px 0 6px">Depozito: ${kacis(m.depozito)}</small>` : ""}
+          ${m.ucretsiz ? `<small class="depozito" style="color:#1a7f37;margin:-2px 0 6px">✓ Ücretsiz maç: ${kacis(m.ucretsiz)}</small>` : ""}
           <div class="k-ic">
             <div><label>Maç ücreti</label><input data-yol="maclar.${i}.ucret" value="${m.ucret || ""}" inputmode="numeric" placeholder="0"></div>
             <div><label title="Önceden alınan kapora">Alınan kapora</label><input data-yol="maclar.${i}.onOdeme" value="${m.onOdeme || ""}" inputmode="numeric" placeholder="0"></div>
@@ -1944,7 +2018,7 @@
         for (const [id, a] of Object.entries(yeni)) od[id] = odendi ? a : Math.min(a, odSec?.[id] || 0);
         m.kantinOdenen = Object.fromEntries(Object.entries(od).filter(([, a]) => a > 0));
         degisti(); kasaCiz();
-      }, { odeme: true, odenen: m.kantinOdenen || {}, aciklama: "Adetleri seçin; ödenen ürünün altındaki düğmeye dokunup 'Ödendi' yapın, sonra Kaydet'e basın." });
+      }, { odeme: true, odenen: m.kantinOdenen || {}, aciklama: "Adetleri seçin. Her ürünün altında kaç tanesinin ödendiğini − / + ile girin (ör. 3 çaydan 2'si ödendi), sonra Kaydet'e basın." });
     } else if (b.dataset.kaporaSil !== undefined) {
       const x = kk.gelenKaporalar[b.dataset.kaporaSil];
       if (!confirm(`${x.ad} — ${para(x.tutar)} kapora bugünkü kasadan silinsin mi? (Rezervasyon değişmez)`)) return;
@@ -2012,7 +2086,7 @@
     const sec = { ...mevcut };
     const od = { ...(ek?.odenen || {}) }; // ürün ürün ödenen adet (müşteri kantini)
     const aktif = canliUrunler().filter((u) => u.aktif !== false || sec[u.id]);
-    const odYazi = (id) => !sec[id] ? "" : (od[id] || 0) >= sec[id] ? "✓ Ödendi" : (od[id] ? `${od[id]}/${sec[id]} ödendi` : "Ödenmedi");
+    const odYazi = (id) => !sec[id] ? "" : (od[id] || 0) >= sec[id] ? `✓ ${sec[id]}/${sec[id]} ödendi` : `${od[id] || 0}/${sec[id]} ödendi`;
     const ic = ac(baslik, `
       ${ek ? `<p class="bilgi" style="margin-bottom:8px">${kacis(ek.aciklama)}</p>
         ${ek.kim !== undefined ? `<div class="alan"><label for="us-kim">Kim (borçlu)</label><input id="us-kim" value="${kacis(ek.kim)}" placeholder="Ad soyad / takım"></div>` : ""}` : ""}
@@ -2020,7 +2094,8 @@
       <div class="urun-grid">${aktif.map((u) => `<div class="urun${sec[u.id] ? " var" : ""}${u.stok <= 0 && !sec[u.id] ? " yok" : ""}" data-u="${u.id}" data-ad="${kacis(u.ad.toLocaleLowerCase("tr"))}">
         <b>${kacis(u.ad)}</b><small class="soluk">${ek?.personel ? `<s>${para(birim(u.id).satis)}</s> <b style="color:#1a7f37">${para(personelFiyat(birim(u.id).satis))}</b>` : para(birim(u.id).satis)} · stok ${u.stok}</small>
         <span class="adim"><button type="button" data-d="-1">−</button><span>${sec[u.id] || 0}</span><button type="button" data-d="1">+</button></span>
-        ${ek?.odeme ? `<button type="button" class="od-dugme${(od[u.id] || 0) >= (sec[u.id] || 0) && sec[u.id] ? " tamam" : ""}" data-od ${sec[u.id] ? "" : "hidden"}>${odYazi(u.id)}</button>` : ""}</div>`).join("")}</div>
+        ${ek?.odeme ? `<div class="od-satir${(od[u.id] || 0) >= (sec[u.id] || 0) && sec[u.id] ? " tamam" : od[u.id] ? " kismi" : ""}" ${sec[u.id] ? "" : "hidden"}>
+          <button type="button" data-od="-1" aria-label="Ödenen azalt">−</button><span>${odYazi(u.id)}</span><button type="button" data-od="1" aria-label="Ödenen artır">+</button></div>` : ""}</div>`).join("")}</div>
       ${ek?.odeme ? `<div style="display:flex;align-items:center;gap:10px;margin-top:12px"><b id="us-top"></b><button class="dugme" type="button" id="us-kaydet" style="margin-left:auto">Kaydet</button></div>`
       : `<div style="display:flex;align-items:center;gap:10px;margin-top:12px"><b id="us-top"></b><button class="dugme" type="button" id="us-tamam" style="margin-left:auto">Tamam</button></div>`}`);
     const fiyatOf = (id) => (ek?.personel ? personelFiyat(birim(id).satis) : birim(id).satis);
@@ -2029,8 +2104,13 @@
     ic.querySelectorAll("[data-u]").forEach((el) => el.addEventListener("click", (e) => {
       const btn = e.target.closest("button"); if (!btn) return;
       const id = el.dataset.u;
-      const odCiz = () => { const b = el.querySelector("[data-od]"); if (!b) return; b.hidden = !sec[id]; b.textContent = odYazi(id); b.classList.toggle("tamam", Boolean(sec[id]) && (od[id] || 0) >= sec[id]); };
-      if (btn.dataset.od !== undefined) { od[id] = (od[id] || 0) >= (sec[id] || 0) ? 0 : sec[id]; odCiz(); return; }
+      const odCiz = () => {
+        const b = el.querySelector(".od-satir"); if (!b) return;
+        b.hidden = !sec[id]; b.querySelector("span").textContent = odYazi(id);
+        b.classList.toggle("tamam", Boolean(sec[id]) && (od[id] || 0) >= sec[id]);
+        b.classList.toggle("kismi", Boolean(od[id]) && (od[id] || 0) < (sec[id] || 0));
+      };
+      if (btn.dataset.od !== undefined) { od[id] = Math.min(sec[id] || 0, Math.max(0, (od[id] || 0) + Number(btn.dataset.od))); odCiz(); return; }
       const d = btn.dataset.d; if (!d) return;
       const kalan = (aktif.find((u) => u.id === id)?.stok ?? 0) - ((sec[id] || 0) - (mevcut[id] || 0));
       if (Number(d) > 0 && kalan <= 0) return bildir("Stokta yok");

@@ -276,8 +276,9 @@ async function panel(request, env, ctx, yol) {
 
   switch (`${request.method} ${yol}`) {
     case "POST rez": return degisti(await d.panelRezEkle({
-      gunTarihi: g.gun, saat: g.saat, ad: g.ad, telefon: g.telefon, not: g.not, durum: g.durum, kapora: g.kapora, ekstra: g.ekstra,
+      gunTarihi: g.gun, saat: g.saat, ad: g.ad, telefon: g.telefon, not: g.not, durum: g.durum, kapora: g.kapora, ekstra: g.ekstra, kod: g.kod,
     }));
+    case "POST rez-kod": return degisti(await d.rezKodUygula(g, ben));
     case "POST rez-guncelle": {
       const r = await d.panelRezGuncelle(g);
       if (r.basarili && (r.degisen || []).some((x) => x.startsWith("Durum: Onaylı → İptal"))) {
@@ -290,7 +291,7 @@ async function panel(request, env, ctx, yol) {
     case "POST abone-sil": {
       if (String(g.neden || "").trim().length < 3) return json({ hata: "Aboneliği sonlandırmak için açıklama yazmanız gerekiyor." }, 400);
       const ab = (await d.aboneListe()).find((x) => x.id === g.id);
-      const r = await d.aboneSil(g.id);
+      const r = await d.aboneSil(g.id, { sonMacUcretsiz: Boolean(g.sonMacUcretsiz) });
       return degisti(r && r.basarili ? { ...r, ad: ab ? `${ab.no ? "Abone " + ab.no + " · " : ""}${ab.ad}` : g.id } : r);
     }
     case "POST abone-atla": return degisti(await d.aboneAtla(g));
@@ -345,6 +346,31 @@ async function panel(request, env, ctx, yol) {
     }
     case "POST kasa/kapora-sil": { const r = await d.gelenKaporaSil(g, ben); return json(r, r.hata ? 400 : 200); }
     case "POST veresiye-ode": return sonuc(await d.veresiyeOde(g, ben));
+    case "POST puantaj/eposta": {
+      // Admin: bir çalışanın aylık maaş dökümü Admin'in e-postasına
+      if (ben.rol !== "admin") return json({ hata: "Sadece Admin." }, 403);
+      const ay = /^\d{4}-\d{2}$/.test(g.ay || "") ? g.ay : simdi().tarih.slice(0, 7);
+      const k = (await d.puantajAy(ay, g.eposta)).kisiler?.[0];
+      if (!k) return json({ hata: "Bu ay için kayıt yok." }, 400);
+      const tl = (n) => `${Math.round(n || 0).toLocaleString("tr-TR")} TL`;
+      const sa = (n) => `${String(n).replace(".", ",")} saat`;
+      const tr = (t) => t.split("-").reverse().join(".");
+      const ok = await epostaYolla(env, {
+        kime: [ben.eposta], konu: `${k.ad} — ${ay} maaş dökümü: ödenecek ${tl(k.kalan)}`,
+        satirlar: [
+          ["Çalışan", `${k.ad} (${k.rol})`], ["Saatlik ücret", tl(k.saatlikUcret)],
+          ["Çalışılan", `${sa(k.saat)} (${k.gunler.length} gün, yarım saat yol dahil)`], ["Brüt", tl(k.brut)],
+          ...(k.kesinti ? [["Personel kantini", `−${tl(k.kesinti)}`]] : []),
+          ...(k.avans ? [["Avans / ödemeler", `−${tl(k.avans)}`]] : []),
+          ["ÖDENECEK", tl(k.kalan)],
+          ...k.gunler.map((x) => [tr(x.gun), `${x.giris || "—"} – ${x.cikis || "açık"} · ${sa(x.saat)}`]),
+          ...(k.kantinListe || []).map((x) => [`Kantin ${tr(x.gun)}`, `${tl(x.tutar)} · ${x.urunler || ""}`]),
+          ...(k.avansListe || []).map((x) => [`Avans ${tr(x.gun)}`, `${tl(x.tutar)}${x.not ? " · " + x.not : ""}`]),
+        ],
+        alt: "Aysu Halı Saha puantaj sistemi",
+      });
+      return ok ? json({ basarili: true }) : json({ hata: "E-posta gönderilemedi." }, 500);
+    }
     case "GET iban":
       if (ben.rol !== "admin") return json({ hata: "Sadece Admin." }, 403);
       return json({ ...(await d.ibanAyar()), gizliKontrol: Boolean(env.IBAN_PARMAK_IZI) });
@@ -359,6 +385,10 @@ async function panel(request, env, ctx, yol) {
       }))().catch((e) => console.error("IBAN e-postası", e)));
       return json({ basarili: true, iban: r.yeni, ozet: await ibanOzeti(r.yeni.no), gizliKontrol: Boolean(env.IBAN_PARMAK_IZI) });
     }
+    case "GET kodlar":
+      if (ben.rol !== "admin") return json({ hata: "Sadece Admin." }, 403);
+      return json(await d.kodlar());
+    case "POST kod": { const r = await d.kodKaydet(g, ben); return json(r, r.hata ? 400 : 200); }
     case "GET rehber": return json(await d.rehber());
     case "POST rehber": { const r = await d.rehberKaydet(g.liste, ben); return json(r, r.hata ? 400 : 200); }
     case "GET temizlik": return json(await d.temizlikUrunleri());
@@ -450,8 +480,8 @@ async function guvenliIban(env, d, ctx, nereden = "") {
 }
 
 const rezCevap = (r, ib) => ({
-  basarili: true, kayitNo: r.kayitNo, tarih: r.tarih, gun: r.gun, saat: r.saat, durum: r.durum,
-  ucret: r.ucret, kapora: r.kaporaTutar ?? FIYATLAR.kapora, kalan: r.ucret - (r.kaporaTutar ?? FIYATLAR.kapora),
+  basarili: true, kayitNo: r.kayitNo, tarih: r.tarih, gun: r.gun, saat: r.saat, durum: r.durum, ucretsiz: Boolean(r.ucretsiz),
+  ucret: r.ucret, kapora: r.ucretsiz ? 0 : r.kaporaTutar ?? FIYATLAR.kapora, kalan: r.ucret - (r.ucretsiz ? 0 : r.kaporaTutar ?? FIYATLAR.kapora),
   iban: ib?.no || null, alici: ib?.alici || null, opsiyonBitis: r.opsiyonBitis || null, dekont: Boolean(r.dekont),
   // Telefon saati yanlış olabilir: kalan süre sunucudan milisaniye olarak
   opsiyonKalan: r.opsiyonBitis ? Math.max(0, r.opsiyonBitis - Date.now()) : null,
@@ -547,7 +577,7 @@ function islemDetayi(yol, g, r) {
     case "rez": return `${g.gun} ${g.saat} · ${g.ad || ""}${g.telefon ? " · " + g.telefon : ""}${g.kapora ? " · kapora " + g.kapora : ""}${g.ekstra?.length ? " · VIP " + g.ekstra.join("+") : ""}`;
     case "rez-guncelle": return `${k.kayitNo || g.kayitNo} · ${k.isletmeGunu || k.tarih || ""} ${k.saat || ""} · ${k.ad || ""} · ${(r.degisen || []).join(" · ") || "değişiklik yok"}`;
     case "abone": return `${g.id ? "Düzenledi" : "Yeni"} · ${r.abone?.no ? "Abone " + r.abone.no + " · " : ""}${g.ad || ""} · ${(r.abone?.slotlar || []).map((x) => ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"][x.gun] + " " + x.saat).join(", ")}`;
-    case "abone-sil": return `${r.ad || g.id} · açıklama: ${String(g.neden || "").slice(0, 150)}`;
+    case "abone-sil": return `${r.ad || g.id} · açıklama: ${String(g.neden || "").slice(0, 150)}${r.sonMac?.kayitNo ? ` · son maç ücretsiz (depozito): ${r.sonMac.g} ${r.sonMac.saat}` : ""}`;
     case "abone-tasi": return `${r.ad || ""} · ${r.eski} → ${r.yeni} (kalıcı)`;
     case "abone-atla": return `${g.gun} ${g.saat || ""} · ${g.gelmiyor ? "gelmiyor" : "geliyor"} (${g.kapsam || "saat"})`;
     case "musteri-not": return `${g.telefon || ""} · etiket: ${g.etiket || "—"} · not: ${String(g.not || "—").slice(0, 80)}`;
@@ -613,9 +643,16 @@ export default {
       if (g.kvkk !== true) return json({ hata: "Devam etmek için aydınlatma metnini onaylayın." }, 400);
       if (!(await insanMi(env, request, g.dogrulama))) return robotHatasi();
       try {
-        const r = await depo(env).olustur({ gunTarihi: g.tarih, saat: g.saat, ad: g.ad, telefon: g.telefon, not: g.not || "", ekstra: g.ekstra });
+        const r = await depo(env).olustur({ gunTarihi: g.tarih, saat: g.saat, ad: g.ad, telefon: g.telefon, not: g.not || "", ekstra: g.ekstra, kod: g.kod });
         if (!r.basarili) return json(r, 409);
         onbellegiTemizle(request, ctx);
+        // Ücretsiz kodla yapılan rezervasyon hemen kesinleşir: yöneticilere bilgi
+        if (r.ucretsiz) ctx.waitUntil((async () => { const d2 = depo(env); await bildir(env, {
+          ekKime: await d2.rolEpostalari(["admin", "mudur", "mudur_yrd"]),
+          konu: `Yeni rezervasyon (ÜCRETSİZ KOD ${r.ucretsiz.kod}): ${r.gun} ${r.saat}`,
+          satirlar: [["Maç", `${r.gun}, ${r.tarih} saat ${r.saat}`], ["Ad soyad", r.ad], ["Telefon", r.telefon], ["Kayıt no", r.kayitNo],
+            ["Kod", `${r.ucretsiz.kod} — ${r.ucretsiz.neden}`], ["Ücret", r.ucret ? `${r.ucret} TL (VIP)` : "Ücretsiz"]],
+        }); })().catch((e) => console.error("Kod e-postası", e)));
         // E-posta gönderilmez: kapora (dekont) doğrulanınca "Yeni rezervasyon" e-postası gider
         return json(rezCevap(r, await guvenliIban(env, depo(env), ctx, "rezervasyon")));
       } catch (e) {

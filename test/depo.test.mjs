@@ -617,3 +617,29 @@ test("Kasa PDF: Türkçe karakterli geçerli PDF üretir", async () => {
   assert.match(new TextDecoder("latin1").decode(b.slice(-40)), /%%EOF/);
   assert.ok(r.ilkKayit);
 });
+
+test("Veresiye: abonenin sonraki maçında o gün GELDİM diyen yöneticiye hatırlatma; ödenince durur", async () => {
+  const d = demoDepo({ PANEL_KURULUM_KODU: "k" });
+  const admin = await d.oturum((await d.panelKur({ kurulumKodu: "k", eposta: "admin@aysu.com", ad: "Admin", sifre: "aysu-2026!" })).token);
+  for (const [e, rol] of [["m@aysu.com", "mudur"], ["y@aysu.com", "mudur_yrd"]]) {
+    await d.kayitOl({ eposta: e, ad: rol, sifre: "sifre-1234", rol });
+    await d.kullaniciGuncelle({ eposta: e, rol, durum: "aktif" }, admin);
+  }
+  const yrd = await d.oturum((await d.panelGiris({ eposta: "y@aysu.com", sifre: "sifre-1234" })).token);
+  await d.aboneKaydet({ ad: "Ekip", telefon: "0545 123 01 23", gun: 0, saat: "21:00", no: 13 });
+  const k = await d.kasaGetir("2026-10-19", admin);
+  k.kayit.maclar[0].veresiyeKantin = { [k.urunler[22].id]: 2 }; k.kayit.maclar[0].veresiyeKim = "Kaptan";
+  assert.ok((await d.kasaKaydet({ ...k.kayit, otomatik: true }, admin)).otomatik);
+  assert.equal((await d.acikVeresiyeler()).length, 1);
+  saatiAyarla("2026-10-26T19:30");
+  assert.equal((await d.veresiyeHatirlatmalari()).length, 0, "maçtan 1 saat önce değil");
+  saatiAyarla("2026-10-26T18:00"); await d.puantajGiris(yrd);
+  saatiAyarla("2026-10-26T20:05");
+  const h = await d.veresiyeHatirlatmalari();
+  assert.deepEqual(h[0].kime, ["y@aysu.com"], "o gün gelen yönetici");
+  assert.equal(h[0].liste[0].kim, "Kaptan");
+  assert.equal((await d.veresiyeHatirlatmalari()).length, 0, "aynı gün bir kez");
+  assert.ok((await d.veresiyeOde({ gun: "2026-10-19", saat: "21:00" }, admin)).basarili);
+  saatiAyarla("2026-11-02T20:05");
+  assert.equal((await d.veresiyeHatirlatmalari()).length, 0, "ödendi");
+});

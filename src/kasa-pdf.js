@@ -60,7 +60,8 @@ export function kasaPdf(k) {
     const detay = [
       m.kantin && Object.keys(m.kantin).length ? `Kantin: ${urunListe(m.kantin)}` : "",
       m.veresiyeKantin && Object.keys(m.veresiyeKantin).length ? `Veresiye${m.veresiyeKim ? " (" + m.veresiyeKim + ")" : ""}: ${urunListe(m.veresiyeKantin)} = ${para(mo.veresiye)}` : "",
-      (m.ekstra || []).length ? `VIP: ${m.ekstra.map((x) => (x === "spiker" ? "spiker" : "hakem")).join(" + ")}` : "",
+      m.ikramKantin && Object.keys(m.ikramKantin).length ? `İkram: ${urunListe(m.ikramKantin)} = ${para(mo.ikram)}` : "",
+            (m.ekstra || []).length ? `VIP: ${m.ekstra.map((x) => (x === "spiker" ? "spiker" : "hakem")).join(" + ")}` : "",
       m.depozito ? `Depozito: ${m.depozito}` : "",
     ].filter(Boolean).join(" · ");
     yer(detay ? 30 : 18);
@@ -126,6 +127,7 @@ export function kasaPdf(k) {
     if (o.teslim !== null) satir("Teslim edilen", para(o.teslim));
   }
   satir("Kasa devir (toplama katılmaz)", para(o.devir), { renk: GRI });
+  if (o.ikramDeger) satir("İkram (ücretsiz, kasaya girmedi)", para(o.ikramDeger), { renk: GRI });
   if (o.veresiyeKantin) satir("Veresiye kantin (kasaya girmedi)", para(o.veresiyeKantin), { renk: GRI });
   satir("Kantin kârı (alış-satış farkı)", para(o.kantinKar), { renk: GRI });
   if (k.not) { baslik("Not"); satir(k.not, ""); }

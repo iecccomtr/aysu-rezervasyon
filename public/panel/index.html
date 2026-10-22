@@ -1506,11 +1506,14 @@
       let veresiye = 0;
       for (const [id, a] of Object.entries(m.veresiyeKantin || {})) veresiye += a * birim(id).satis;
       o.veresiyeKantin += veresiye;
+      let ikram = 0;
+      for (const [id, a] of Object.entries(m.ikramKantin || {})) ikram += a * birim(id).satis;
+      o.ikramDeger += ikram;
       const krampon = (m.krampon || 0) * kr.krampon, eldiven = (m.eldiven || 0) * kr.eldiven;
       o.mac += sayi(m.ucret); o.vip += sayi(m.vip); o.kantin += kantin; o.onOdeme += sayi(m.onOdeme);
       o.kramponAdet += m.krampon || 0; o.eldivenAdet += m.eldiven || 0; o.krampon += krampon; o.eldiven += eldiven;
       const toplam = sayi(m.ucret) + sayi(m.vip) + kantin + krampon + eldiven;
-      o.maclar.push({ kantin, veresiye, toplam, kapora: sayi(m.onOdeme), kalan: toplam - sayi(m.onOdeme) });
+      o.maclar.push({ kantin, veresiye, ikram, toplam, kapora: sayi(m.onOdeme), kalan: toplam - sayi(m.onOdeme) });
     }
     for (const v of Object.values(kk.ikram || {})) for (const [id, a] of Object.entries(v)) o.ikramDeger += a * birim(id).satis;
     const top = (l) => l.reduce((t, x) => t + sayi(x.tutar), 0);
@@ -1540,7 +1543,28 @@
   $("kasa-sonraki").addEventListener("click", () => kasaYukle(gunEkle(kasaGun, 1)));
   window.addEventListener("beforeunload", (e) => { if (kasaDegisti) { e.preventDefault(); e.returnValue = ""; } });
 
-  function degisti() { kasaDegisti = true; const d = $("kasa-degisti"); if (d) { d.textContent = "Kaydedilmedi"; d.className = "degisti"; } }
+  let otoZaman = null, stokZaman = null;
+  function degisti() {
+    kasaDegisti = true;
+    const d = $("kasa-degisti"); if (d) { d.textContent = "Kaydediliyor…"; d.className = "degisti"; }
+    clearTimeout(stokZaman); stokZaman = setTimeout(stokCiz, 150);
+    clearTimeout(otoZaman); otoZaman = setTimeout(otoKaydet, 2500);
+  }
+  // Kasa arka planda kendiliğinden kaydedilir (stok hemen düşer); "Kasayı kaydet" ayrıca Admin'e PDF rapor gönderir
+  async function otoKaydet() {
+    if (!kasaDegisti || !kk) return;
+    const gonderilen = JSON.stringify(kk), gun = kasaGun;
+    const r = await api("kasa", { ...kk, gun, otomatik: true }).catch(() => null);
+    if (!r || r.hata || gun !== kasaGun) { const d = $("kasa-degisti"); if (d && r?.hata) d.textContent = r.hata; return; }
+    kasa.kayit = r.kayit; kasa.kayitli = true; kk.birimler = r.kayit.birimler; kk.kira = r.kayit.kira;
+    const u = await api("urunler").catch(() => null);
+    if (Array.isArray(u)) kasa.urunler = u;
+    if (JSON.stringify(kk) === gonderilen || JSON.stringify({ ...JSON.parse(gonderilen), birimler: kk.birimler, kira: kk.kira }) === JSON.stringify(kk)) {
+      kasaDegisti = false;
+      const d = $("kasa-degisti"); if (d) { d.textContent = `Otomatik kaydedildi ${new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}`; d.className = "soluk"; }
+    }
+    stokCiz();
+  }
 
   function satirListesi(ad, baslik, aciklamaYer, ekDugme = "") {
     return `<div class="kutu kasa-kart"><h3>${baslik}<span class="sag" data-top="${ad}"></span></h3>
@@ -1584,6 +1608,7 @@
             <span class="adim" aria-label="Eldiven"><button type="button" data-adim="maclar.${i}.eldiven" data-d="-1">−</button><span>🧤 ${m.eldiven || 0}</span><button type="button" data-adim="maclar.${i}.eldiven" data-d="1">+</button></span>
             <button class="dugme ikincil kucuk" type="button" data-kantin="${i}">Kantin <span data-mk="${i}"></span></button>
             <button class="dugme ikincil kucuk" type="button" data-veresiye="${i}" style="border-color:#b98a00;color:#8a5a00">Veresiye <span data-mv="${i}"></span></button>
+            <button class="dugme ikincil kucuk" type="button" data-ikram-mac="${i}" style="border-color:#1a7f37;color:#1a7f37">İkram <span data-mi="${i}"></span></button>
             <span class="mac-top" data-mt="${i}"></span>
           </div>
         </div>`).join("") || '<p class="soluk">Bu gün maç yok.</p>'}
@@ -1597,6 +1622,9 @@
       ${satirListesi("girisler", "Diğer kasa girişi", "Açıklama")}
       ${satirListesi("cikislar", "Kasa çıkışı", "Ör. Maaş, yemek, alışveriş", kasa.calisanlar.length ? '<button class="dugme ikincil kucuk" type="button" id="k-maas">Puantajdan maaşları ekle</button>' : "")}
       ${kk.veresiye?.length ? satirListesi("veresiye", "Veresiye (eski kayıt)", "Kim, ne için") : ""}
+      ${(kasa.acikVeresiyeler || []).length ? `<div class="kutu kasa-kart" style="border-color:#ecd97a;background:#fffbe6"><h3>Açık veresiyeler<span class="sag">${para(kasa.acikVeresiyeler.reduce((t, v) => t + v.tutar, 0))}</span></h3>
+        ${kasa.acikVeresiyeler.map((v, i) => `<div class="k-sat" style="grid-template-columns:1fr auto auto"><span><b>${kacis(v.kim)}</b> <small class="soluk">${tarihYazi(v.gun)} ${v.saat} · ${kacis(v.urunler)}${v.aboneId ? " · abonenin sonraki maçında yöneticiye hatırlatılır" : ""}</small></span>
+          <b>${para(v.tutar)}</b><button class="dugme ikincil kucuk" type="button" data-ode="${i}">Ödendi</button></div>`).join("")}</div>` : ""}
 
       <div class="kutu kasa-kart"><h3>Personel / ücretsiz ikram<span class="sag soluk" data-top="ikram"></span></h3>
         <p class="soluk" style="font-size:13px;margin-bottom:8px">Kasaya para girmez, stoktan düşer.</p>
@@ -1618,11 +1646,12 @@
       const t = document.querySelector(`[data-mt="${i}"]`);
       if (t) t.innerHTML = m.kapora ? `<small>Toplam ${para(m.toplam)} − kapora ${para(m.kapora)}</small>Kalan ${para(m.kalan)}` : para(m.toplam);
       const k = document.querySelector(`[data-mk="${i}"]`); if (k) k.textContent = m.kantin ? `· ${para(m.kantin)}` : "";
+      const ik = document.querySelector(`[data-mi="${i}"]`); if (ik) ik.textContent = m.ikram ? `· ${para(m.ikram)}` : "";
       const v = document.querySelector(`[data-mv="${i}"]`); if (v) v.textContent = m.veresiye ? `· ${para(m.veresiye)}${kk.maclar[i].veresiyeKim ? " · " + kk.maclar[i].veresiyeKim : ""}` : "";
     });
     const yaz = (ad, v) => { const e = document.querySelector(`[data-top="${ad}"]`); if (e) e.textContent = v; };
     yaz("maclar", para(o.ciro)); yaz("girisler", para(o.giris)); yaz("cikislar", para(o.cikis)); yaz("veresiye", para(o.veresiye));
-    yaz("ikram", o.ikramDeger ? `değeri ${para(o.ikramDeger)}` : "");
+    yaz("ikram", o.ikramDeger ? `toplam ikram ${para(o.ikramDeger)}` : "");
     const sat = (a, v, s = "") => `<tr class="${s}"><td>${a}</td><td>${v}</td></tr>`;
     $("k-ozet").innerHTML =
       sat("Maç ücretleri", para(o.mac)) + (o.vip ? sat("VIP hizmet", para(o.vip)) : "") +
@@ -1630,6 +1659,7 @@
       sat("Günlük ciro", para(o.ciro), "buyuk") +
       sat("Kasa girişi", para(o.giris)) + sat("O gün gelen kaporalar", para(o.gelenKapora)) + sat("Kasa toplamı", para(o.kasaToplam)) +
       sat("Kasa çıkışı", "− " + para(o.cikis), "eksi") + (o.veresiye ? sat("Veresiye", "− " + para(o.veresiye), "eksi") : "") +
+      (o.ikramDeger ? sat('<span class="soluk">İkram (ücretsiz, kasaya girmedi)</span>', `<span class="soluk">${para(o.ikramDeger)}</span>`) : "") +
       (o.veresiyeKantin ? sat('<span class="soluk">Veresiye kantin (kasaya girmedi)</span>', `<span class="soluk">${para(o.veresiyeKantin)}</span>`) : "") +
       (o.onOdeme ? sat("Önceden alınan kaporalar", "− " + para(o.onOdeme), "eksi") : "") +
       sat("Kasada olması gereken", para(o.olmasiGereken), "buyuk") +
@@ -1686,6 +1716,20 @@
     } else if (b.dataset.kantin !== undefined) {
       const m = kk.maclar[b.dataset.kantin];
       urunSec(`${m.saat} · ${m.ad || "maç"} · kantin`, m.kantin || {}, (yeni) => { m.kantin = yeni; degisti(); kasaOzetCiz(); });
+    } else if (b.dataset.ode !== undefined) {
+      const v = kasa.acikVeresiyeler[b.dataset.ode];
+      const bugunMu = kasaGun === kasa.bugun;
+      if (!confirm(`${v.kim} veresiyesi ${para(v.tutar)} tahsil edildi mi?${bugunMu ? " Tutar bugünkü kasa girişine eklenecek." : ""}`)) return;
+      api("veresiye-ode", { gun: v.gun, saat: v.saat }).then((r) => {
+        if (r.hata) return bildir(r.hata);
+        kasa.acikVeresiyeler = kasa.acikVeresiyeler.filter((x) => x !== v);
+        if (bugunMu) kk.girisler.push({ aciklama: `Veresiye tahsil · ${v.kim} (${tarihYazi(v.gun)} ${v.saat})`, tutar: v.tutar });
+        kasaCiz(); if (bugunMu) degisti(); bildir("Veresiye tahsil edildi");
+      });
+    } else if (b.dataset.ikramMac !== undefined) {
+      const m = kk.maclar[b.dataset.ikramMac];
+      urunSec(`${m.saat} · ${m.ad || "maç"} · ikram`, m.ikramKantin || {}, (yeni) => { m.ikramKantin = yeni; degisti(); kasaOzetCiz(); },
+        { aciklama: "İkram (ücretsiz): stoktan düşer, ciroya / kasaya girmez." });
     } else if (b.dataset.veresiye !== undefined) {
       const m = kk.maclar[b.dataset.veresiye];
       urunSec(`${m.saat} · ${m.ad || "maç"} · veresiye`, m.veresiyeKantin || {}, (yeni, kim) => { m.veresiyeKantin = yeni; m.veresiyeKim = kim; degisti(); kasaOzetCiz(); },
@@ -1711,21 +1755,22 @@
   });
 
   async function kasaKaydet() {
+    clearTimeout(otoZaman);
     const b = $("k-kaydet"); b.disabled = true;
     const r = await api("kasa", { ...kk, gun: kasaGun }).catch(() => ({ hata: "Kaydedilemedi" }));
     b.disabled = false;
     if (r.hata) return bildir(r.hata);
-    kasaDegisti = false; bildir("Kasa kaydedildi");
+    kasaDegisti = false; bildir("Kasa kaydedildi, rapor Admin'e gönderildi");
     kasaYukle(kasaGun);
   }
 
   /** Ürün seçici: adet artır/azalt; kapanınca geri çağırır */
   function urunSec(baslik, mevcut, bitti, ek = null) {
     const sec = { ...mevcut };
-    const aktif = kasa.urunler.filter((u) => u.aktif !== false || sec[u.id]);
+    const aktif = canliUrunler().filter((u) => u.aktif !== false || sec[u.id]);
     const ic = ac(baslik, `
       ${ek ? `<p class="bilgi" style="margin-bottom:8px">${kacis(ek.aciklama)}</p>
-        <div class="alan"><label for="us-kim">Kim (borçlu)</label><input id="us-kim" value="${kacis(ek.kim)}" placeholder="Ad soyad / takım"></div>` : ""}
+        ${ek.kim !== undefined ? `<div class="alan"><label for="us-kim">Kim (borçlu)</label><input id="us-kim" value="${kacis(ek.kim)}" placeholder="Ad soyad / takım"></div>` : ""}` : ""}
       <input type="search" id="us-ara" placeholder="Ürün ara" style="width:100%;border:1px solid #b5c3cf;border-radius:10px;padding:9px 12px;font-size:16px;margin-bottom:8px">
       <div class="urun-grid">${aktif.map((u) => `<div class="urun${sec[u.id] ? " var" : ""}" data-u="${u.id}" data-ad="${kacis(u.ad.toLocaleLowerCase("tr"))}">
         <b>${kacis(u.ad)}</b><small class="soluk">${para(birim(u.id).satis)} · stok ${u.stok}</small>
@@ -1748,34 +1793,51 @@
   }
 
   // ---- Stok ----
+  // Ekranda gösterilen stok: sunucudaki stok − henüz kaydedilmemiş değişiklikler (kantin, veresiye, ikram)
+  const tuketim = (k) => {
+    const t = {}; const ekle = (o) => { for (const [id, a] of Object.entries(o || {})) t[id] = (t[id] || 0) + (Number(a) || 0); };
+    for (const m of k?.maclar || []) { ekle(m.kantin); ekle(m.veresiyeKantin); ekle(m.ikramKantin); }
+    for (const o of Object.values(k?.ikram || {})) ekle(o);
+    return t;
+  };
+  function canliUrunler() {
+    const simdi = tuketim(kk), kayitli = kasa.kayitli ? tuketim(kasa.kayit) : {};
+    return kasa.urunler.map((u) => ({ ...u, stok: u.stok - ((simdi[u.id] || 0) - (kayitli[u.id] || 0)) }));
+  }
+  const siparisAdet = {};
+  let stokAcik = false;
   function stokCiz() {
     const duzenler = ["admin", "mudur"].includes(ben.rol), admin = ben.rol === "admin";
-    const l = kasa.urunler;
+    const l = canliUrunler();
     const azalan = l.filter((u) => u.aktif !== false && u.stok <= 5);
     const siparis = `<div class="kutu kasa-kart" style="border-color:#f2c4c4;background:#fffafa"><h3>Azalan ürünler (5 ve altı)<span class="sag soluk">${azalan.length} ürün</span></h3>
       ${azalan.length ? `<p class="soluk" style="font-size:13px;margin-bottom:8px">İstediğiniz sipariş adedini yazın (boş bırakılan ürün listeye adetsiz eklenir, 0 yazılan eklenmez).</p>
       ${azalan.map((u) => `<div class="k-sat" style="grid-template-columns:1fr 60px 90px"><span><b>${kacis(u.ad)}</b></span><span class="${u.stok <= 0 ? "" : "soluk"}" style="${u.stok <= 0 ? "color:#b42318;font-weight:700" : ""}">stok ${u.stok}</span>
-        <input data-siparis="${u.id}" inputmode="numeric" placeholder="adet" aria-label="${kacis(u.ad)} sipariş adedi"></div>`).join("")}
+        <input data-siparis="${u.id}" inputmode="numeric" placeholder="adet" value="${kacis(siparisAdet[u.id] || "")}" aria-label="${kacis(u.ad)} sipariş adedi"></div>`).join("")}
       <button class="dugme wp tam" type="button" id="s-wp" style="margin-top:8px">WhatsApp'tan sipariş listesini gönder</button>
       <p class="soluk" style="font-size:13px;margin-top:6px">Liste ${SIPARIS_TEL_YAZI} numarasına WhatsApp'ta hazır mesaj olarak açılır; gönder'e basmanız yeterli.</p>`
       : '<p class="soluk">Stoğu azalan ürün yok.</p>'}</div>`;
-    $("kasa-stok-alan").innerHTML = siparis + `<details class="kutu kasa-kart"><summary style="cursor:pointer"><b style="font-size:20px">Kantin stok</b> <span class="soluk">· ${l.filter((u) => u.aktif !== false && u.stok <= 5).length} ürün azaldı</span></summary>
+    $("kasa-stok-alan").innerHTML = siparis + `<details class="kutu kasa-kart"${stokAcik ? " open" : ""}><summary style="cursor:pointer"><b style="font-size:20px">Kantin stok</b> <span class="soluk">· ${l.filter((u) => u.aktif !== false && u.stok <= 5).length} ürün azaldı</span></summary>
       <table class="stok-t" style="margin-top:8px"><thead><tr><th>Ürün</th>${admin ? "<th>Alış</th>" : ""}<th>Satış</th><th>Stok</th></tr></thead><tbody>
       ${l.map((u, i) => `<tr data-s="${i}" class="${u.aktif !== false && u.stok <= 5 ? "az" : ""}"${u.aktif === false ? ' style="opacity:.5"' : ""}><td>${kacis(u.ad)}</td>${admin ? `<td>${para(u.alis)}</td>` : ""}<td>${para(u.satis)}</td><td>${u.stok}</td></tr>`).join("")}
       </tbody></table>
       ${duzenler ? '<div class="k-alt"><button class="dugme ikincil kucuk" type="button" id="s-ekle">+ Yeni ürün</button><span class="soluk" style="font-size:13px">Mal girişi, sayım ve fiyat için ürüne dokunun.</span></div>' : ""}
     </details>`;
+    $("kasa-stok-alan").querySelector("details").addEventListener("toggle", (e) => { stokAcik = e.target.open; });
+    $("kasa-stok-alan").querySelectorAll("[data-siparis]").forEach((el) => el.addEventListener("input", () => { siparisAdet[el.dataset.siparis] = el.value; }));
     $("s-wp")?.addEventListener("click", () => {
       const satirlar = [];
       for (const u of azalan) {
         const v = $("kasa-stok-alan").querySelector(`[data-siparis="${u.id}"]`).value.trim();
         if (v === "0") continue;
-        satirlar.push(`• ${u.ad}${v ? ` — ${v} adet` : ""} (stok ${u.stok})`);
+        satirlar.push(`• ${u.ad}${v ? ` — ${v} adet` : ""}`);
       }
       if (!satirlar.length) return bildir("Listede ürün yok");
       const tarih = new Date(Date.now() + 3 * 3600000).toISOString().slice(0, 10).split("-").reverse().join(".");
-      const metin = `Merhaba, Aysu Halı Saha kantin sipariş listesi (${tarih}):\n\n${satirlar.join("\n")}\n\nSipariş veren: ${ben.ad}`;
+      const metin = `Merhaba, Aysu Halı Saha kantin sipariş listesi (${tarih}):\n\n${satirlar.join("\n")}\n\nSipariş veren: Aysu Halı Saha`;
       window.open(`https://wa.me/${SIPARIS_TEL}?text=${encodeURIComponent(metin)}`, "_blank", "noopener");
+      // Yöneticilere bilgi e-postası
+      api("siparis", { satirlar: satirlar.map((x) => x.replace(/^• /, "")) }).then((r) => r.hata || bildir("Sipariş yöneticilere e-postayla bildirildi"));
     });
     if (!duzenler) return;
     $("kasa-stok-alan").querySelectorAll("[data-s]").forEach((tr) => tr.addEventListener("click", () => urunDuzenle(l[tr.dataset.s])));

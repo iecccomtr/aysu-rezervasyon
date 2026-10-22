@@ -318,12 +318,26 @@ async function panel(request, env, ctx, yol) {
     case "POST kasa": {
       const r = await d.kasaKaydet(g, ben);
       // Her kayıtta günlük kasa raporu PDF olarak sadece Admin'e gider
-      if (r.basarili) ctx.waitUntil(kasaRaporuGonder(env, d, r.kayit, r.ilkKayit).catch((e) => console.error("Kasa PDF", e)));
+      if (r.basarili && !r.otomatik) ctx.waitUntil(kasaRaporuGonder(env, d, r.kayit, r.ilkKayit).catch((e) => console.error("Kasa PDF", e)));
       return json(alisGizle(r, ben), r.hata ? 400 : 200);
     }
     case "GET kasa/ay":
       if (ben.rol !== "admin") return json({ hata: "Aylık kasa özeti sadece Admin içindir." }, 403);
       return json(await d.kasaAy(url.searchParams.get("ay") || simdi().tarih.slice(0, 7)));
+    case "POST siparis": {
+      // Kantin siparişi WhatsApp'tan verildi: yöneticilere bilgi e-postası
+      const satirlar = (Array.isArray(g.satirlar) ? g.satirlar : []).map((x) => String(x).slice(0, 80)).filter(Boolean).slice(0, 60);
+      if (!satirlar.length) return json({ hata: "Liste boş." }, 400);
+      await d.kayitTut(ben, "Kantin siparişi verdi", satirlar.join(", ").slice(0, 280));
+      const kime = await d.rolEpostalari(["admin", "mudur", "mudur_yrd"]);
+      ctx.waitUntil(epostaYolla(env, {
+        kime, konu: `Kantin siparişi verildi (${satirlar.length} ürün)`,
+        satirlar: [["Sipariş veren", `${ben.ad} (${ROLLER[ben.rol]?.ad || ""})`], ["Zaman", simdi().tarih.split("-").reverse().join(".") + " " + simdi().saat], ...satirlar.map((x, i) => [`${i + 1}.`, x])],
+        alt: "Sipariş WhatsApp'tan tedarikçiye (0543 476 46 87) gönderildi. Mal gelince Kasa → Kantin stok'tan 'Gelen mal' girin.",
+      }).catch((e) => console.error("Sipariş e-postası", e)));
+      return json({ basarili: true });
+    }
+    case "POST veresiye-ode": return sonuc(await d.veresiyeOde(g, ben));
     case "GET urunler": return json(alisGizle({ urunler: await d.urunler() }, ben).urunler);
     case "POST urun": {
       // Alış fiyatını sadece Admin değiştirir (diğerleri göremez de)
@@ -683,6 +697,16 @@ export default {
     }
     // 5 dakikada bir: dekontu gelmeyen online opsiyonları düşür, işletmeye haber ver
     ctx.waitUntil(depo(env).opsiyonlariDusur());
+    // Abone veresiyesi: abonenin sonraki maçında o günkü yöneticiye hatırlatma
+    ctx.waitUntil((async () => {
+      const l = await depo(env).veresiyeHatirlatmalari();
+      const tl = (n) => `${Math.round(n).toLocaleString("tr-TR")} TL`;
+      await Promise.all(l.filter((g) => g.kime.length).map((g) => epostaYolla(env, {
+        kime: g.kime, konu: `Veresiye hatırlatması: ${g.abone} bugün ${g.saat} — ${tl(g.liste.reduce((t, v) => t + v.tutar, 0))}`,
+        satirlar: g.liste.map((v) => [`${v.gun.split("-").reverse().join(".")} ${v.saat}`, `${v.kim}: ${v.urunler} = ${tl(v.tutar)}`]),
+        alt: "Tahsil edince panelde Kasa → Açık veresiyeler bölümünden 'Ödendi'ye basın; tutar o günün kasa girişine eklenir.",
+      })));
+    })().catch((e) => console.error("Veresiye hatırlatma", e)));
     // İlk dekonttan 15 dk sonra kapora hâlâ eksikse Müdür ve Müdür Yardımcısı'na bir kez bilgi
     ctx.waitUntil((async () => {
       const d = depo(env);

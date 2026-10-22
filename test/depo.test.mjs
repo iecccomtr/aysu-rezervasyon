@@ -777,3 +777,28 @@ test("Dekont: tutar metinden bulunur; IBAN'da 1-2 rakam okuma hatası ve adda 1 
   assert.ok(dekontDegerlendir({ alici_iban: null, alici_ad: null, _metin: "Alıcı AHMET AYSU IBAN ...0154 8342 35 Tutar 1.200,00 TL" }, kural).onay);
   assert.equal(dekontDegerlendir({ alici_iban: "TR120006400000112345678901", alici_ad: "AHMET AYSU" }, kural).onay, false);
 });
+
+test("Temizlik ürünleri: elle eklenir, stok güncellenir, silinir", async () => {
+  const d = demoDepo({ PANEL_KURULUM_KODU: "k" });
+  const admin = await d.oturum((await d.panelKur({ kurulumKodu: "k", eposta: "admin@aysu.com", ad: "Admin", sifre: "aysu-2026!" })).token);
+  const r = await d.temizlikKaydet({ ad: "çamaşır suyu", stok: 3 }, admin);
+  assert.ok(r.basarili); assert.equal(r.urun.ad, "ÇAMAŞIR SUYU");
+  await d.temizlikKaydet({ id: r.urun.id, stokEkle: 5 }, admin);
+  assert.equal((await d.temizlikUrunleri())[0].stok, 8);
+  assert.match((await d.temizlikKaydet({ ad: "x" }, { rol: "personel" })).hata, /yetki/i);
+  assert.ok((await d.temizlikKaydet({ id: r.urun.id, sil: true }, admin)).basarili);
+  assert.equal((await d.temizlikUrunleri()).length, 0);
+  assert.equal((await d.fiyatAyar()).temizlikTel, "05545618282");
+});
+
+test("Tedarikçi rehberi: varsayılan Elektrikçi ve PAKSU; sadece Admin değiştirir", async () => {
+  const d = demoDepo({ PANEL_KURULUM_KODU: "k" });
+  const admin = await d.oturum((await d.panelKur({ kurulumKodu: "k", eposta: "admin@aysu.com", ad: "Admin", sifre: "aysu-2026!" })).token);
+  const r = await d.rehber();
+  assert.deepEqual(r.map((x) => [x.ad, x.tel]), [["Elektrikçi", "05424980226"], ["PAKSU (tuz)", "05323226819"]]);
+  assert.match(r[1].mesaj, /10 çuval tuz/);
+  assert.match((await d.rehberKaydet([], { rol: "mudur" })).hata, /Admin/);
+  assert.ok((await d.rehberKaydet([...r, { ad: "Tesisatçı", tel: "0532 111 22 33" }], admin)).basarili);
+  assert.equal((await d.rehber()).length, 3);
+  assert.match((await d.rehberKaydet([{ ad: "X", tel: "123" }], admin)).hata, /Geçersiz/);
+});

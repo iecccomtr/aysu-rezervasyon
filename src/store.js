@@ -1085,6 +1085,7 @@ export class RezervasyonDeposu extends DurableObject {
         spiker: k.spiker ?? EKSTRALAR.spiker.ucret, hakem: k.hakem ?? EKSTRALAR.hakem.ucret,
         abone: k.abone ?? 3200, krampon: k.krampon ?? 100, eldiven: k.eldiven ?? 100,
         siparisTel: k.siparisTel ?? "05434764687", // kantin tedarikçisi (Tespo) WhatsApp
+        temizlikTel: k.temizlikTel ?? "05545618282", // temizlik ürünleri tedarikçisi WhatsApp
       };
     }
     return this._fiyat;
@@ -1101,6 +1102,11 @@ export class RezervasyonDeposu extends DurableObject {
         if (!Number.isFinite(n) || n < enAz || n > enCok) return { hata: "Geçersiz tutar." };
         yeni[a] = n;
       }
+      if (girdi.temizlikTel !== undefined && girdi.temizlikTel !== "") {
+        const t = telefonNormalize(girdi.temizlikTel);
+        if (!t) return { hata: "Temizlik sipariş numarası geçersiz (05XX XXX XX XX)." };
+        yeni.temizlikTel = t;
+      }
       if (girdi.siparisTel !== undefined && girdi.siparisTel !== "") {
         const t = telefonNormalize(girdi.siparisTel);
         if (!t) return { hata: "Sipariş numarası geçersiz (05XX XXX XX XX)." };
@@ -1109,8 +1115,8 @@ export class RezervasyonDeposu extends DurableObject {
       if (yeni.kapora > yeni.mac) return { hata: "Kapora maç ücretinden büyük olamaz." };
       await this.st.put("ayar:fiyat", yeni);
       this._fiyat = yeni;
-      const ad = { mac: "Maç", kapora: "Kapora", spiker: "VIP spiker", hakem: "VIP hakem", abone: "Abone maç", krampon: "Krampon kirası", eldiven: "Eldiven kirası", siparisTel: "Tespo sipariş no" };
-      const fark = Object.keys(ad).filter((a) => eski[a] !== yeni[a]).map((a) => `${ad[a]}: ${eski[a]} → ${yeni[a]}${a === "siparisTel" ? "" : " TL"}`);
+      const ad = { mac: "Maç", kapora: "Kapora", spiker: "VIP spiker", hakem: "VIP hakem", abone: "Abone maç", krampon: "Krampon kirası", eldiven: "Eldiven kirası", siparisTel: "Tespo sipariş no", temizlikTel: "Temizlik sipariş no" };
+      const fark = Object.keys(ad).filter((a) => eski[a] !== yeni[a]).map((a) => `${ad[a]}: ${eski[a]} → ${yeni[a]}${a.endsWith("Tel") ? "" : " TL"}`);
       if (fark.length) await this.kayitTut(yapan, "Fiyatları değiştirdi", fark.join(" · "));
       return { basarili: true, fiyat: yeni };
     });
@@ -1164,6 +1170,59 @@ export class RezervasyonDeposu extends DurableObject {
         ? ["ad", "alis", "satis", "stok", "aktif"].filter((a) => eski[a] !== yeni[a]).map((a) => `${{ ad: "ad", alis: "alış", satis: "satış", stok: "stok", aktif: "satışta" }[a]}: ${eski[a]} → ${yeni[a]}`)
         : [`alış ${yeni.alis || 0} · satış ${yeni.satis || 0} · stok ${yeni.stok}`];
       if (fark.length) await this.kayitTut(yapan, eski ? "Kantin ürünü düzenledi" : "Kantin ürünü ekledi", `${yeni.ad} · ${fark.join(" · ")}`);
+      return { basarili: true, urun: yeni };
+    });
+  }
+
+  // ---- Tedarikçi / usta rehberi (Admin yazar; kasada WhatsApp düğmesi olur) ----
+  //   ayar:rehber  [{ ad, tel, mesaj }]  (mesaj: WhatsApp'ta hazır açılan yazı)
+  async rehber() {
+    const r = await this.st.get("ayar:rehber");
+    return Array.isArray(r) ? r : [
+      { ad: "Elektrikçi", tel: "05424980226", mesaj: "" },
+      { ad: "PAKSU (tuz)", tel: "05323226819", mesaj: "Merhaba, 10 çuval tuz alabilir miyiz? Aysu Halı Saha" },
+    ];
+  }
+
+  async rehberKaydet(liste, yapan) {
+    return this.kilitli(async () => {
+      if (yapan?.rol !== "admin") return { hata: "Rehberi sadece Admin düzenler." };
+      const l = [];
+      for (const x of Array.isArray(liste) ? liste.slice(0, 30) : []) {
+        const ad = kirp(x?.ad, 40), tel = telefonNormalize(x?.tel), mesaj = kirp(x?.mesaj, 300);
+        if (!ad && !x?.tel) continue;
+        if (!ad || !tel) return { hata: `Geçersiz satır: ${ad || "(ad yok)"} ${x?.tel || ""}` };
+        l.push({ ad, tel, mesaj });
+      }
+      await this.st.put("ayar:rehber", l);
+      await this.kayitTut(yapan, "Tedarikçi rehberini güncelledi", l.map((x) => `${x.ad} ${x.tel}`).join(", "));
+      return { basarili: true, rehber: l };
+    });
+  }
+
+  // ---- Temizlik ürünleri (elle eklenir; satış yok, sadece stok ve sipariş) ----
+  //   tu:<id>  { id, ad, stok }
+  async temizlikUrunleri() {
+    return [...(await this.st.list({ prefix: "tu:" })).values()].sort((a, b) => a.ad.localeCompare(b.ad, "tr"));
+  }
+
+  async temizlikKaydet({ id, ad, stok, stokEkle, sil }, yapan) {
+    return this.kilitli(async () => {
+      if (!ROLLER[yapan?.rol]?.yonetici) return { hata: "Yetkiniz yok." };
+      const eski = id ? await this.st.get(`tu:${id}`) : null;
+      if (id && !eski) return { hata: "Ürün bulunamadı." };
+      if (sil) {
+        await this.st.delete(`tu:${id}`);
+        await this.kayitTut(yapan, "Temizlik ürünü sildi", eski.ad);
+        return { basarili: true };
+      }
+      const yeni = eski ? { ...eski } : { id: `t${Date.now().toString(36)}${rastgele(2)}`, stok: 0 };
+      if (ad !== undefined) yeni.ad = kirp(ad, 50).toLocaleUpperCase("tr");
+      if (!yeni.ad) return { hata: "Ürün adı gerekli." };
+      if (stok !== undefined && stok !== "") yeni.stok = Math.max(0, Math.round(Number(stok)) || 0);
+      if (stokEkle) yeni.stok = (yeni.stok || 0) + (Math.round(Number(stokEkle)) || 0);
+      await this.st.put(`tu:${yeni.id}`, yeni);
+      await this.kayitTut(yapan, eski ? "Temizlik ürünü güncelledi" : "Temizlik ürünü ekledi", `${yeni.ad} · stok ${eski ? `${eski.stok} → ` : ""}${yeni.stok}`);
       return { basarili: true, urun: yeni };
     });
   }
@@ -1296,7 +1355,7 @@ export class RezervasyonDeposu extends DurableObject {
       gun, gunAd: gunAdi(gun), bugun: isletmeGunu(n.tarih, n.saat), kayitli: Boolean(kayit),
       kayit: kayit || { gun, gelenKaporalar: await this.gelenKaporalar(gun), devir: oncekiKasa?.birakilan ?? 0, maclar: takvim.map((x) => ({ ...x, krampon: 0, eldiven: 0, kantin: {} })), girisler: [], cikislar: [], veresiye: [], ikram: {}, birakilan: null, sayilan: null, not: "" },
       oncekiDevir: oncekiKasa ? { gun: oncekiKasa.gun, tutar: oncekiKasa.birakilan ?? 0 } : null,
-      takvim, urunler, fiyat, calisanlar, ikramKimler: IKRAM_KIMLER, personelIndirim: KURALLAR.personelIndirim,
+      takvim, urunler, fiyat, calisanlar, ikramKimler: IKRAM_KIMLER, temizlik: await this.temizlikUrunleri(), rehber: await this.rehber(), personelIndirim: KURALLAR.personelIndirim,
       personel: kullanicilar.filter((u) => u.durum === "aktif" && u.rol !== "admin" && ROLLER[u.rol])
         .map((u) => ({ eposta: u.eposta, ad: u.ad, calisiyor: puantaj.has(`p:${gun}:${u.eposta}`) })), acikVeresiyeler: await this.acikVeresiyeler(),
     };

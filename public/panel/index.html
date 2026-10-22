@@ -465,10 +465,24 @@
           </div>
           <div class="iki-alan">
             <div class="alan"><label for="f-eldiven">Eldiven kirası (TL)</label><input id="f-eldiven" inputmode="numeric"></div>
-            <div class="alan"><label for="f-siparis">Tespo (kantin tedarikçisi) WhatsApp no</label><input id="f-siparis" type="tel" inputmode="tel" placeholder="05XX XXX XX XX"></div>
+            <div></div>
           </div>
           <p class="soluk" style="font-size:14px;margin:-4px 0 12px">Yeni fiyatlar kaydettiğiniz andan sonraki rezervasyonlarda geçerli olur; önceki rezervasyonların ücreti değişmez.</p>
           <button class="dugme" type="submit">Fiyatları kaydet</button>
+        </form>
+      </div>
+      <div id="rehber-alan" hidden>
+        <div class="baslik-satir" style="margin-top:22px"><h2>Tedarikçiler ve ustalar</h2><span class="soluk sag">Sadece Admin</span></div>
+        <form class="kutu" id="rehber-form" style="padding:14px" novalidate>
+          <div class="iki-alan">
+            <div class="alan"><label for="r-kantin">Kantin tedarikçisi (Tespo)</label><input id="r-kantin" type="tel" inputmode="tel" placeholder="05XX XXX XX XX"></div>
+            <div class="alan"><label for="r-temizlik">Temizlik ürünleri tedarikçisi</label><input id="r-temizlik" type="tel" inputmode="tel" placeholder="05XX XXX XX XX"></div>
+          </div>
+          <label style="font-weight:600;display:block;margin:4px 0 6px">Diğer (elektrikçi, tesisatçı…)</label>
+          <div id="rehber-satirlar"></div>
+          <button class="dugme ikincil kucuk" type="button" id="rehber-ekle" style="margin-bottom:12px">+ Kişi ekle</button>
+          <p class="soluk" style="font-size:14px;margin:0 0 12px">Bu numaralar Kasa sayfasının altında Müdür ve Müdür Yardımcısı için WhatsApp düğmesi olarak görünür.</p>
+          <button class="dugme" type="submit">Kaydet</button>
         </form>
       </div>
       <div id="islem-alan" hidden>
@@ -1413,15 +1427,42 @@
     const f = await api("fiyat").catch(() => null);
     if (!f || f.hata) return;
     $("f-mac").value = f.mac; $("f-kapora").value = f.kapora; $("f-spiker").value = f.spiker; $("f-hakem").value = f.hakem;
-    $("f-abone").value = f.abone; $("f-krampon").value = f.krampon; $("f-eldiven").value = f.eldiven; $("f-siparis").value = telYazi(f.siparisTel);
+    $("f-abone").value = f.abone; $("f-krampon").value = f.krampon; $("f-eldiven").value = f.eldiven; rehberCiz(f);
   }
   $("fiyat-form").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const g = { mac: $("f-mac").value, kapora: $("f-kapora").value, spiker: $("f-spiker").value, hakem: $("f-hakem").value, abone: $("f-abone").value, krampon: $("f-krampon").value, eldiven: $("f-eldiven").value, siparisTel: $("f-siparis").value };
+    const g = { mac: $("f-mac").value, kapora: $("f-kapora").value, spiker: $("f-spiker").value, hakem: $("f-hakem").value, abone: $("f-abone").value, krampon: $("f-krampon").value, eldiven: $("f-eldiven").value, };
     if (!confirm(`Yeni fiyatlar: Maç ${g.mac} TL, kapora ${g.kapora} TL, VIP spiker ${g.spiker} TL, VIP hakem ${g.hakem} TL, abone ${g.abone} TL, krampon ${g.krampon} TL, eldiven ${g.eldiven} TL. Kaydedilsin mi?`)) return;
     const r = await api("fiyat", g);
     if (r.hata) return bildir(r.hata);
     bildir("Fiyatlar kaydedildi"); islemYukle();
+  });
+
+  let rehberListe = [];
+  async function rehberCiz(f) {
+    $("rehber-alan").hidden = ben.rol !== "admin";
+    if (ben.rol !== "admin") return;
+    $("r-kantin").value = telYazi(f.siparisTel); $("r-temizlik").value = telYazi(f.temizlikTel);
+    const r = await api("rehber").catch(() => null);
+    rehberListe = Array.isArray(r) ? r : [];
+    rehberSatirCiz();
+  }
+  function rehberSatirCiz() {
+    $("rehber-satirlar").innerHTML = rehberListe.map((x, i) => `<div class="kutu" style="padding:8px;margin-bottom:8px"><div class="k-sat" style="grid-template-columns:1fr 1.25fr 28px">
+      <input data-r-ad="${i}" value="${kacis(x.ad)}" placeholder="Ör. Elektrikçi"><input data-r-tel="${i}" type="tel" inputmode="tel" value="${kacis(telYazi(x.tel))}" placeholder="05XX XXX XX XX">
+      <button class="x-sil" type="button" data-r-sil="${i}" aria-label="Sil">×</button></div>
+      <input data-r-mesaj="${i}" value="${kacis(x.mesaj || "")}" placeholder="Hazır mesaj (isteğe bağlı), ör. 10 çuval tuz alabilir miyiz?" style="width:100%;border:1px solid #b5c3cf;border-radius:8px;padding:8px;font-size:15px"></div>`).join("");
+    $("rehber-satirlar").querySelectorAll("[data-r-sil]").forEach((b) => b.addEventListener("click", () => { rehberOku(); rehberListe.splice(Number(b.dataset.rSil), 1); rehberSatirCiz(); }));
+  }
+  const rehberOku = () => { rehberListe = rehberListe.map((_, i) => ({ ad: document.querySelector(`[data-r-ad="${i}"]`).value, tel: document.querySelector(`[data-r-tel="${i}"]`).value, mesaj: document.querySelector(`[data-r-mesaj="${i}"]`).value })); };
+  $("rehber-ekle").addEventListener("click", () => { rehberOku(); rehberListe.push({ ad: "", tel: "", mesaj: "" }); rehberSatirCiz(); });
+  $("rehber-form").addEventListener("submit", async (e) => {
+    e.preventDefault(); rehberOku();
+    const a = await api("fiyat", { siparisTel: $("r-kantin").value, temizlikTel: $("r-temizlik").value });
+    if (a.hata) return bildir(a.hata);
+    const r = await api("rehber", { liste: rehberListe });
+    if (r.hata) return bildir(r.hata);
+    bildir("Rehber kaydedildi"); islemYukle();
   });
 
   let islemler = [];
@@ -1955,8 +1996,35 @@
     const simdi = tuketim(kk), kayitli = kasa.kayitli ? tuketim(kasa.kayit) : {};
     return kasa.urunler.map((u) => ({ ...u, stok: u.stok - ((simdi[u.id] || 0) - (kayitli[u.id] || 0)) }));
   }
-  const siparisAdet = {};
-  let stokAcik = false;
+  function rehberKutu() {
+    const f = kasa.fiyat || {};
+    const l = [{ ad: "Kantin (Tespo)", tel: f.siparisTel }, { ad: "Temizlik ürünleri", tel: f.temizlikTel }, ...(kasa.rehber || [])].filter((x) => x.tel);
+    return `<div class="kutu kasa-kart"><h3>Tedarikçiler ve ustalar</h3>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px">${l.map((x) => `<a class="dugme wp" href="${wa(x.tel)}${x.mesaj ? "?text=" + encodeURIComponent(x.mesaj) : ""}" target="_blank" rel="noopener" style="font-size:15px;padding:10px">${kacis(x.ad)}<br><small style="font-weight:500">${telYazi(x.tel)}</small></a>`).join("")}</div>
+      ${ben.rol === "admin" ? '<p class="soluk" style="font-size:13px;margin-top:8px">Numaraları Kullanıcılar → Tedarikçiler ve ustalar bölümünden değiştirin.</p>' : ""}</div>`;
+  }
+  const siparisAdet = {}, temizlikAdet = {};
+  let stokAcik = false, temizlikAcik = false;
+  function temizlikDuzenle(u) {
+    const ic = ac(u ? u.ad : "Yeni temizlik ürünü", `
+      <div class="alan"><label for="tu-ad">Ürün adı</label><input id="tu-ad" value="${kacis(u?.ad || "")}" placeholder="Ör. ÇAMAŞIR SUYU 4 LT"></div>
+      <div class="iki-alan">
+        <div class="alan"><label for="tu-gelen">Gelen (adet)</label><input id="tu-gelen" inputmode="numeric" placeholder="Stoğa eklenir"></div>
+        <div class="alan"><label for="tu-stok">Sayım (stok)</label><input id="tu-stok" inputmode="numeric" value="${u?.stok ?? 0}"></div>
+      </div>
+      <div style="display:grid;gap:8px"><button class="dugme" type="button" id="tu-kaydet">Kaydet</button>
+      ${u ? '<button class="dugme tehlike" type="button" id="tu-sil">Ürünü sil</button>' : ""}</div>`);
+    const gonder = async (ek) => {
+      const g = { id: u?.id, ad: $("tu-ad").value, ...ek };
+      if (!ek.sil) { if (String($("tu-stok").value) !== String(u?.stok ?? 0)) g.stok = $("tu-stok").value; if (Number($("tu-gelen").value)) g.stokEkle = $("tu-gelen").value; }
+      const r = await api("temizlik", g);
+      if (r.hata) return dlgUyari(r.hata);
+      dlg.close(); bildir("Kaydedildi");
+      const v = await api("temizlik"); if (Array.isArray(v)) { kasa.temizlik = v; stokCiz(); }
+    };
+    ic.querySelector("#tu-kaydet").addEventListener("click", () => gonder({}));
+    ic.querySelector("#tu-sil")?.addEventListener("click", () => confirm("Ürün silinsin mi?") && gonder({ sil: true }));
+  }
   function stokCiz() {
     const duzenler = ["admin", "mudur"].includes(ben.rol), admin = ben.rol === "admin";
     const l = canliUrunler();
@@ -1968,12 +2036,35 @@
       <button class="dugme wp tam" type="button" id="s-wp" style="margin-top:8px">Kantin siparişini Tespo'ya gönder (WhatsApp)</button>
       <p class="soluk" style="font-size:13px;margin-top:6px">Kantin sipariş listesi Tespo'nun WhatsApp'ında (${telYazi(siparisTel())}) hazır mesaj olarak açılır; gönder'e basmanız yeterli.</p>`
       : '<p class="soluk">Stoğu azalan ürün yok.</p>'}</div>`;
+    const tl = kasa.temizlik || [];
+    const temizlik = `<details class="kutu kasa-kart"${temizlikAcik ? " open" : ""} id="temizlik-det"><summary style="cursor:pointer"><b style="font-size:20px">Temizlik ürünleri</b> <span class="soluk">· ${tl.length} ürün</span></summary>
+      ${tl.length ? `<p class="soluk" style="font-size:13px;margin:8px 0">Stoğu düzenlemek için ürün adına dokunun. Sipariş için adet yazıp WhatsApp düğmesine basın.</p>
+      ${tl.map((u) => `<div class="k-sat" style="grid-template-columns:1fr 70px 90px"><button type="button" data-tu="${u.id}" style="all:unset;cursor:pointer;font-weight:700">${kacis(u.ad)}</button>
+        <span style="${u.stok <= 2 ? "color:#b42318;font-weight:700" : ""}" class="${u.stok <= 2 ? "" : "soluk"}">stok ${u.stok}</span>
+        <input data-tsiparis="${u.id}" inputmode="numeric" placeholder="adet" value="${kacis(temizlikAdet[u.id] || "")}" aria-label="${kacis(u.ad)} sipariş adedi"></div>`).join("")}
+      <button class="dugme wp tam" type="button" id="t-wp" style="margin-top:8px">Temizlik siparişini gönder (WhatsApp)</button>
+      <p class="soluk" style="font-size:13px;margin-top:6px">Liste ${telYazi(String(kasa?.fiyat?.temizlikTel || "05545618282"))} numarasına WhatsApp'ta hazır mesaj olarak açılır; yöneticilere de e-postayla bildirilir.</p>`
+      : '<p class="soluk" style="margin-top:8px">Henüz ürün yok.</p>'}
+      <div class="k-alt"><button class="dugme ikincil kucuk" type="button" id="tu-ekle">+ Temizlik ürünü ekle</button></div>
+    </details>`;
     $("kasa-stok-alan").innerHTML = `<details class="kutu kasa-kart"${stokAcik ? " open" : ""}><summary style="cursor:pointer"><b style="font-size:20px">Kantin stok</b> <span class="soluk">· ${l.filter((u) => u.aktif !== false && u.stok <= 5).length} ürün azaldı</span></summary>
       <table class="stok-t" style="margin-top:8px"><thead><tr><th>Ürün</th>${admin ? "<th>Alış</th>" : ""}<th>Satış</th><th>Stok</th></tr></thead><tbody>
       ${l.map((u, i) => `<tr data-s="${i}" class="${u.aktif !== false && u.stok <= 5 ? "az" : ""}"${u.aktif === false ? ' style="opacity:.5"' : ""}><td>${kacis(u.ad)}</td>${admin ? `<td>${para(u.alis)}</td>` : ""}<td>${para(u.satis)}</td><td>${u.stok}</td></tr>`).join("")}
       </tbody></table>
       ${duzenler ? '<div class="k-alt"><button class="dugme ikincil kucuk" type="button" id="s-ekle">+ Yeni ürün</button><span class="soluk" style="font-size:13px">Mal girişi, sayım ve fiyat için ürüne dokunun.</span></div>' : ""}
-    </details>` + siparis;
+    </details>` + siparis + temizlik + rehberKutu();
+    $("temizlik-det").addEventListener("toggle", (e) => { temizlikAcik = e.target.open; });
+    $("kasa-stok-alan").querySelectorAll("[data-tsiparis]").forEach((el) => el.addEventListener("input", () => { temizlikAdet[el.dataset.tsiparis] = el.value; }));
+    $("kasa-stok-alan").querySelectorAll("[data-tu]").forEach((el) => el.addEventListener("click", () => temizlikDuzenle(tl.find((u) => u.id === el.dataset.tu))));
+    $("tu-ekle").addEventListener("click", () => temizlikDuzenle(null));
+    $("t-wp")?.addEventListener("click", () => {
+      const satirlar = tl.filter((u) => Number(temizlikAdet[u.id]) > 0).map((u) => `• ${u.ad} — ${temizlikAdet[u.id]} adet`);
+      if (!satirlar.length) return bildir("Sipariş için adet yazın");
+      const tarih = new Date(Date.now() + 3 * 3600000).toISOString().slice(0, 10).split("-").reverse().join(".");
+      const metin = `Merhaba, temizlik ürünleri siparişimiz (${tarih}):\n\n${satirlar.join("\n")}\n\nAysu Halı Saha`;
+      window.open(`${wa(String(kasa?.fiyat?.temizlikTel || "05545618282"))}?text=${encodeURIComponent(metin)}`, "_blank", "noopener");
+      api("siparis", { tur: "temizlik", satirlar: satirlar.map((x) => x.replace(/^• /, "")) }).then((r) => r.hata || bildir("Sipariş yöneticilere e-postayla bildirildi"));
+    });
     $("kasa-stok-alan").querySelector("details").addEventListener("toggle", (e) => { stokAcik = e.target.open; });
     $("kasa-stok-alan").querySelectorAll("[data-siparis]").forEach((el) => el.addEventListener("input", () => { siparisAdet[el.dataset.siparis] = el.value; }));
     $("s-wp")?.addEventListener("click", () => {

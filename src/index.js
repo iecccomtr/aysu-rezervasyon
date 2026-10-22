@@ -332,17 +332,23 @@ async function panel(request, env, ctx, yol) {
       // Kantin siparişi WhatsApp'tan verildi: yöneticilere bilgi e-postası
       const satirlar = (Array.isArray(g.satirlar) ? g.satirlar : []).map((x) => String(x).slice(0, 80)).filter(Boolean).slice(0, 60);
       if (!satirlar.length) return json({ hata: "Liste boş." }, 400);
-      await d.kayitTut(ben, "Kantin siparişi verdi", satirlar.join(", ").slice(0, 280));
+      const temizlik = g.tur === "temizlik", baslik = temizlik ? "Temizlik ürünleri" : "Kantin";
+      await d.kayitTut(ben, `${baslik} siparişi verdi`, satirlar.join(", ").slice(0, 280));
       const kime = await d.rolEpostalari(["admin", "mudur", "mudur_yrd"]);
       ctx.waitUntil(epostaYolla(env, {
-        kime, konu: `Kantin siparişi verildi (${satirlar.length} ürün)`,
+        kime, konu: `${baslik} siparişi verildi (${satirlar.length} ürün)`,
         satirlar: [["Sipariş veren", `${ben.ad} (${ROLLER[ben.rol]?.ad || ""})`], ["Zaman", simdi().tarih.split("-").reverse().join(".") + " " + simdi().saat], ...satirlar.map((x, i) => [`${i + 1}.`, x])],
-        alt: "Sipariş WhatsApp'tan Tespo'ya gönderildi. Mal gelince Kasa → Kantin stok'tan 'Gelen mal' girin.",
+        alt: temizlik ? "Sipariş WhatsApp'tan temizlik tedarikçisine gönderildi. Mal gelince Kasa → Temizlik ürünleri'nden stoğu güncelleyin."
+          : "Sipariş WhatsApp'tan Tespo'ya gönderildi. Mal gelince Kasa → Kantin stok'tan 'Gelen mal' girin.",
       }).catch((e) => console.error("Sipariş e-postası", e)));
       return json({ basarili: true });
     }
     case "POST kasa/kapora-sil": { const r = await d.gelenKaporaSil(g, ben); return json(r, r.hata ? 400 : 200); }
     case "POST veresiye-ode": return sonuc(await d.veresiyeOde(g, ben));
+    case "GET rehber": return json(await d.rehber());
+    case "POST rehber": { const r = await d.rehberKaydet(g.liste, ben); return json(r, r.hata ? 400 : 200); }
+    case "GET temizlik": return json(await d.temizlikUrunleri());
+    case "POST temizlik": { const r = await d.temizlikKaydet(g, ben); return json(r, r.hata ? 400 : 200); }
     case "GET urunler": return json(alisGizle({ urunler: await d.urunler() }, ben).urunler);
     case "POST urun": {
       // Alış fiyatını sadece Admin değiştirir (diğerleri göremez de)

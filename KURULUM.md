@@ -212,3 +212,11 @@ Panelde **Kasa** sekmesi var; Admin, Müdür ve Müdür Yardımcısı kullanır.
 **Erişim ve özet**
 - Müdür ve Müdür Yardımcısı yalnızca bugünü ve dünü görür; Admin tüm günleri görür ve **aylık kasa özetini** alır.
 - Abone maç ücreti, krampon kirası ve eldiven kirası: Kullanıcılar → Fiyatlar (Admin).
+
+## Google Search Console ve Analytics
+
+- **Search Console:** `https://aysuhalisaha.com/` mülkü iecccomtr@gmail.com hesabında. Doğrulama `public/google8f0611b9b2b92741.html` dosyasıyla yapıldı; bu dosyayı silmeyin. Site haritası (`sitemap.xml`) gönderildi.
+- **Google Analytics 4:** IECC hesabı altında "Aysu Halı Saha" mülkü, ölçüm kimliği `G-961PZQR67Y`.
+  - Kod: `public/analitik.js`, yalnızca site sayfalarında; panelde yok.
+  - KVKK çerez şeridi var. "Kabul et" denene kadar analitik çerez yazılmaz (Consent Mode v2).
+  - Olaylar: `generate_lead` (rezervasyon oluşturuldu), `rezervasyon_kesinlesti` (kapora onaylandı).

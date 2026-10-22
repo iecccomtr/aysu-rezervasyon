@@ -262,6 +262,7 @@
     addEventListener("appinstalled", () => dugmeler().forEach((b) => { b.hidden = true; }));
   })();
 </script>
+<script src="/analitik.js" defer></script>
 </head>
 <body>
   <header class="saha">
@@ -672,6 +673,7 @@
       ["ad", "telefon", "telefon2", "not"].forEach((id) => { $(id).value = ""; }); $("kvkk").checked = false; telefonKontrol(); // formu sıfırla
       document.querySelectorAll("[data-ekstra]").forEach((x) => { x.checked = false; });
       sonRez = { kayitNo: v.kayitNo, telefon };
+      window.aysuOlay?.("generate_lead", { currency: "TRY", value: v.ucret || 0, saat: v.saat });
       basariGoster(v, g);
     } catch {
       uyar(uyari, "Bağlantı kurulamadı. İnternetinizi kontrol edip tekrar deneyin.");
@@ -851,6 +853,7 @@
 
   /** Kapora doğrulandı: yükleme ve WhatsApp düğmeleri kalkar, "kesinleşti" yazar. */
   function kesinlestiGoster() {
+    if (!sonRez?.onayli) window.aysuOlay?.("rezervasyon_kesinlesti", {});
     if (sonRez) sonRez.onayli = true;
     clearInterval(sayacZaman); clearInterval(durumZaman);
     $("t-sayac").textContent = "";

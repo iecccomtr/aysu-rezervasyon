@@ -13,6 +13,7 @@
   a { color: #0067a4; }
   .not { background: #fff8c5; border: 1px solid #e8d97a; padding: 10px 14px; border-radius: 8px; font-size: 14px; }
 </style>
+<script src="/analitik.js" defer></script>
 </head>
 <body>
 <main>
@@ -38,6 +39,9 @@
   <h2>Saklama süresi</h2>
   <p>Rezervasyon kayıtları, ilgili mevzuatta öngörülen süreler boyunca ve en fazla 2 yıl saklanır.</p>
 
+  <h2>Çerezler ve ziyaret istatistiği</h2>
+  <p>Sitemizin nasıl kullanıldığını anlamak için, izin vermeniz hâlinde Google Analytics çerezleri kullanılır (ziyaret edilen sayfalar, cihaz türü, ziyaretin nereden geldiği; IP adresi kısaltılır). İzin vermezseniz analitik çerez yazılmaz. Reklam çerezi kullanılmaz.
+  <button type="button" onclick="try{localStorage.removeItem('aysu-cerez-izni')}catch(e){};location.reload()" style="margin-top:8px;display:block;border:1px solid #0067a4;background:#fff;color:#0067a4;border-radius:999px;padding:8px 14px;font:600 15px system-ui;cursor:pointer">Çerez tercihimi değiştir</button></p>
   <h2>Haklarınız</h2>
   <p>KVKK'nın 11. maddesi uyarınca verilerinizin işlenip işlenmediğini öğrenme, düzeltilmesini veya silinmesini isteme ve diğer haklarınızı kullanmak için yukarıdaki iletişim bilgilerinden bize başvurabilirsiniz.</p>
 

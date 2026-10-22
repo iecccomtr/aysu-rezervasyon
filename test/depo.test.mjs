@@ -885,9 +885,10 @@ test("Kasa: maç günü IBAN'a ödenen tutar ciroda kalır, kasada olması gerek
   assert.equal(r.kayit.ozet.olmasiGereken, 1200);
 });
 
-test("Ay sonu maaş raporu: ayın 1'inde 09:00'dan sonra geçen ay için bir kez", async () => {
+test("Ay sonu maaş raporu: ayın son günü 09:00'dan sonra o ay için bir kez", async () => {
   const d = demoDepo();
-  saatiAyarla("2026-11-01T08:30"); assert.equal(await d.maasRaporuZamani(), null);
-  saatiAyarla("2026-11-01T09:05"); assert.equal(await d.maasRaporuZamani(), "2026-10");
+  saatiAyarla("2026-10-30T10:00"); assert.equal(await d.maasRaporuZamani(), null);
+  saatiAyarla("2026-10-31T08:30"); assert.equal(await d.maasRaporuZamani(), null);
+  saatiAyarla("2026-10-31T09:05"); assert.equal(await d.maasRaporuZamani(), "2026-10");
   assert.equal(await d.maasRaporuZamani(), null);
 });

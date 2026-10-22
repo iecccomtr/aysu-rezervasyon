@@ -791,7 +791,7 @@ export default {
         }
       }
     })().catch((e) => console.error("IBAN kontrolü", e)));
-    // Her ayın 1'inde geçen ayın maaş özeti Admin'e
+    // Her ayın son günü o ayın maaş özeti Admin'e
     ctx.waitUntil((async () => {
       const d = depo(env);
       const ay = await d.maasRaporuZamani();
@@ -810,7 +810,7 @@ export default {
             `${String(k.saat).replace(".", ",")} saat × ${k.saatlikUcret} TL = ${tl(k.brut)}${k.kesinti ? ` − kantin ${tl(k.kesinti)}` : ""}${k.avans ? ` − avans ${tl(k.avans)}` : ""} → ÖDENECEK ${tl(k.kalan)}`]),
           ["TOPLAM ÖDENECEK", tl(toplam)],
         ],
-        alt: "Saatlere günlük yarım saat yol dahildir. Ayrıntılar panelde Kullanıcılar → Puantaj bölümünde.",
+        alt: "Saatlere günlük yarım saat yol dahildir. Bu e-posta ayın son günü sabah hazırlandı; bu akşamın vardiyası ve sonraki kantin / avans girişleri panelde Kullanıcılar → Puantaj bölümünde güncel görünür.",
       });
     })().catch((e) => console.error("Maaş raporu", e)));
     // İş başı saati geldi ama hiçbir çalışan GELDİM demedi → Admin, Müdür ve Müdür Yardımcısı'na uyarı

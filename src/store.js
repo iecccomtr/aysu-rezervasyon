@@ -1078,15 +1078,15 @@ export class RezervasyonDeposu extends DurableObject {
     return { ay, kisiler: [...kisiler.values()].sort((a, b) => a.ad.localeCompare(b.ad, "tr")) };
   }
 
-  /** Ay sonu maaş e-postası: her ayın 1'inde (09:00 sonrası) geçen ay için bir kez */
+  /** Ay sonu maaş e-postası: her ayın SON GÜNÜ 09:00'dan sonra o ay için bir kez (o akşamın vardiyası panelde eklenir) */
   async maasRaporuZamani() {
     return this.kilitli(async () => {
       const n = simdi();
-      if (n.tarih.slice(8) !== "01" || n.saat < "09:00") return null;
-      const gecen = gunEkle(n.tarih, -1).slice(0, 7);
-      if (await this.st.get(`mr:${gecen}`)) return null;
-      await this.st.put(`mr:${gecen}`, { zaman: simdiYazi() });
-      return gecen;
+      if (gunEkle(n.tarih, 1).slice(8) !== "01" || n.saat < "09:00") return null;
+      const ay = n.tarih.slice(0, 7);
+      if (await this.st.get(`mr:${ay}`)) return null;
+      await this.st.put(`mr:${ay}`, { zaman: simdiYazi() });
+      return ay;
     });
   }
 

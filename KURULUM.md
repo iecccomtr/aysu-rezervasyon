@@ -172,10 +172,9 @@ Tüm kayıtlar Cloudflare'in **Durable Object** veritabanında tutulur. Cloudfla
 - Ücret = ödenecek saat × saatlik ücret.
 - Saatlik ücreti Admin, Kullanıcılar sekmesinde kişiye dokunup girer.
 
-**Günlük vardiya (Admin)**
-- Kullanıcılar → Puantaj bölümünden o gün kimin çalışacağı seçilir.
-- Gerekirse iş başı ve çıkış saati değiştirilir.
-- Vardiyada adı olmayan kişiye GELDİM penceresi açılmaz.
+**Gün sonu e-postası**
+- Çalışan ÇIKTIM'a basınca o günün özeti kendi e-postasına gider: geldim, çıktım, çalışılan saat, yarım saat yol, toplam saat, ücret ve bu ayın toplamı.
+- Ayrıca vardiya girmeye gerek yok: GELDİM'e basan o gün çalışmış sayılır.
 
 **Puantaj raporu**
 - Ay ay listelenir.

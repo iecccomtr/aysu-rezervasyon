@@ -248,7 +248,12 @@ async function panel(request, env, ctx, yol) {
   // Puantaj: her çalışan kendi giriş / çıkışını onaylar
   if (yol === "puantaj/bugun" && request.method === "GET") return json(await d.puantajBugun(ben));
   if (yol === "puantaj/giris" && post) { const r = await d.puantajGiris(ben); return json(r, r.hata ? 400 : 200); }
-  if (yol === "puantaj/cikis" && post) { const r = await d.puantajCikis(ben); return json(r, r.hata ? 400 : 200); }
+  if (yol === "puantaj/cikis" && post) {
+    const r = await d.puantajCikis(ben);
+    // Gün sonu: çalışana o günün özeti (yarım saat yol dahil) e-postayla
+    if (r.basarili) ctx.waitUntil(puantajOzetGonder(env, d, ben, r).catch((e) => console.error("Puantaj e-postası", e)));
+    return json(r, r.hata ? 400 : 200);
+  }
 
   if (!yonetici) return json({ hata: "Bu işlem için yetkiniz yok." }, 403);
 
@@ -309,8 +314,6 @@ async function panel(request, env, ctx, yol) {
       return json(await d.puantajAy(ay, ["admin", "mudur"].includes(ben.rol) ? null : ben.eposta));
     }
     case "POST puantaj/duzelt": return sonuc(await d.puantajDuzelt(g, ben));
-    case "GET vardiya": return json(await d.vardiyaGetir(url.searchParams.get("gun")));
-    case "POST vardiya": return sonuc(await d.vardiyaKaydet(g, ben));
     case "GET kasa": { const r = await d.kasaGetir(url.searchParams.get("gun"), ben); return json(alisGizle(r, ben), r.hata ? 403 : 200); }
     case "POST kasa": {
       const r = await d.kasaKaydet(g, ben);
@@ -411,6 +414,25 @@ async function onayEpostalari(env, d, kullanici, koken) {
     dugme: { yazi: `${kullanici.ad} kullanıcısını onayla`, link: `${koken}/panel/#onay=${b.token}` },
     alt: "Bağlantı 7 gün geçerli ve tek kullanımlık. Açılan sayfada Onayla ya da Reddet'i seçin. Kişiyi tanımıyorsanız reddedin.",
   })));
+}
+
+async function puantajOzetGonder(env, d, ben, r) {
+  const ay = await d.puantajAy(r.gun.slice(0, 7), ben.eposta);
+  const kisi = ay.kisiler[0];
+  const gunK = kisi?.gunler.find((x) => x.gun === r.gun);
+  if (!gunK) return;
+  const sa = (n) => `${String(n).replace(".", ",")} saat`;
+  const tl = (n) => `${Math.round(n).toLocaleString("tr-TR")} TL`;
+  const calisilan = Math.round((gunK.saat - KURALLAR.puantajYolSaat) * 100) / 100;
+  await epostaYolla(env, {
+    kime: [ben.eposta], konu: `Çalışma özeti ${r.gun.split("-").reverse().join(".")}: ${sa(gunK.saat)}`,
+    satirlar: [
+      ["Geldim", gunK.giris], ["Çıktım", gunK.cikis], ["Çalışılan", sa(calisilan)], ["Yol", sa(KURALLAR.puantajYolSaat)],
+      ["Toplam", sa(gunK.saat)], ...(kisi.saatlikUcret ? [["Ücret", tl(gunK.saat * kisi.saatlikUcret)]] : []),
+      ["Bu ay toplam", `${sa(kisi.saat)}${kisi.saatlikUcret ? " · " + tl(kisi.ucret) : ""}`],
+    ],
+    alt: "Saatlerde hata varsa yöneticinize bildirin. — Aysu Halı Saha",
+  });
 }
 
 async function kasaRaporuGonder(env, d, k, ilk) {

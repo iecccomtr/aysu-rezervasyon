@@ -590,23 +590,6 @@ test("Kasa: alınan kapora otomatik gelir, sonradan girilen kapora da güncellen
 });
 
 
-test("Vardiya: Admin günün çalışanlarını ve saatini belirler; beklenen çıkış son maç + 30 dk", async () => {
-  const d = demoDepo({ PANEL_KURULUM_KODU: "k" });
-  const admin = await d.oturum((await d.panelKur({ kurulumKodu: "k", eposta: "admin@aysu.com", ad: "Admin", sifre: "aysu-2026!" })).token);
-  await d.kayitOl({ eposta: "p@aysu.com", ad: "Personel Bir", sifre: "personel-1", rol: "personel" });
-  await d.kullaniciGuncelle({ eposta: "p@aysu.com", rol: "personel", durum: "aktif" }, admin);
-  const p = await d.oturum((await d.panelGiris({ eposta: "p@aysu.com", sifre: "personel-1" })).token);
-  await d.panelRezEkle({ gunTarihi: "2026-10-19", saat: "20:00", ad: "Ali", telefon: "" });
-  await d.panelRezEkle({ gunTarihi: "2026-10-19", saat: "00:00", ad: "Banu", telefon: "" });
-  let v = await d.vardiyaGetir("2026-10-19");
-  assert.equal(v.baslama, "19:00"); assert.equal(v.bitis, "01:30");
-  assert.match((await d.vardiyaKaydet({ gun: "2026-10-19", kisiler: ["p@aysu.com"] }, p)).hata, /Admin/);
-  assert.ok((await d.vardiyaKaydet({ gun: "2026-10-19", kisiler: ["p@aysu.com"], baslama: "18:30" }, admin)).basarili);
-  v = await d.vardiyaGetir("2026-10-19");
-  assert.equal(v.baslama, "18:30"); assert.ok(v.calisanlar.find((x) => x.eposta === "p@aysu.com").secili);
-  assert.equal((await d.puantajBugun(p)).baslama, "18:30");
-});
-
 test("Kasa: maçtaki veresiye kantin stoktan düşer, ciroya girmez", async () => {
   const d = demoDepo({ PANEL_KURULUM_KODU: "k" });
   const admin = await d.oturum((await d.panelKur({ kurulumKodu: "k", eposta: "admin@aysu.com", ad: "Admin", sifre: "aysu-2026!" })).token);

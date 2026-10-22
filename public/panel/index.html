@@ -442,7 +442,6 @@
         <div class="baslik-satir" style="margin-top:22px"><h2>Puantaj</h2>
           <input type="month" id="puantaj-ay" class="sag" style="border:1px solid #b5c3cf;border-radius:10px;padding:7px 10px;font-size:15px;background:var(--kart)"></div>
         <p class="soluk" style="margin-bottom:10px;font-size:14px">Çalışanlar panele girince GELDİM, çıkarken ÇIKTIM'a basar. Ücret = (çalışılan saat + yarım saat yol) × saatlik ücret (kullanıcıya dokunup Admin belirler).</p>
-        <div id="vardiya-alan"></div>
         <div class="kutu" id="puantaj-liste"></div>
       </div>
       <div id="fiyat-alan" hidden>
@@ -1407,7 +1406,7 @@
     const k = p.kayit || {};
     const saatYaz = (ms) => new Date(ms).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Istanbul" });
     const plan = p.baslama
-      ? `Bugün iş başı <b>${p.baslama}</b>${p.bitis ? ` · çıkış ~<b>${p.bitis}</b>` : ""}${p.vardiyada === false ? '<br><small class="soluk">Bugünkü vardiyada adınız yok.</small>' : ""}`
+      ? `Bugün iş başı <b>${p.baslama}</b>${p.bitis ? ` · çıkış ~<b>${p.bitis}</b>` : ""}`
       : `<span class="soluk">Bugün takvimde maç yok.</span>`;
     let durum, dugme = "";
     if (!k.giris) { durum = "Henüz GELDİM demediniz"; dugme = `<button class="dugme" type="button" id="p-giris" style="background:#1a7f37;font-size:20px;font-weight:800">GELDİM</button>`; }
@@ -1423,11 +1422,11 @@
       puantajKartYukle();
     };
     el.querySelector("#p-giris")?.addEventListener("click", () => confirm("Sahaya geldiğinizi şimdi onaylıyor musunuz?") && isle("puantaj/giris"));
-    el.querySelector("#p-cikis")?.addEventListener("click", () => confirm("İşten çıktığınızı şimdi onaylıyor musunuz?") && isle("puantaj/cikis"));
-    // Panele girişte (bir kez) sor: bugün maç var, vardiyadasınız ve henüz GELDİM demediniz
+    el.querySelector("#p-cikis")?.addEventListener("click", () => confirm("İşten çıktığınızı şimdi onaylıyor musunuz? Günün özeti e-postanıza gelecek.") && isle("puantaj/cikis"));
+    // Panele girişte (bir kez) sor: bugün maç var ve henüz GELDİM demediniz
     const dk = (x) => { const [h, m] = x.split(":").map(Number); return (h < 6 ? h + 24 : h) * 60 + m; };
     const simdiDk = dk(new Date(Date.now() + 3 * 3600000).toISOString().slice(11, 16));
-    if (!geldimSoruldu && !k.giris && p.baslama && p.vardiyada !== false && simdiDk >= dk(p.baslama) - 120) {
+    if (!geldimSoruldu && !k.giris && p.baslama && simdiDk >= dk(p.baslama) - 120) {
       geldimSoruldu = true;
       const ic = ac(`Merhaba ${ben.ad}`, `<p style="margin-bottom:14px">Bugün iş başı <b>${p.baslama}</b>. Sahaya geldiyseniz onaylayın; çalışma saatiniz şimdi başlar.</p>
         <button class="dugme tam" type="button" id="pg-evet" style="background:#1a7f37;font-size:22px;font-weight:800;padding:16px">GELDİM</button>
@@ -1442,7 +1441,6 @@
     $("puantaj-alan").hidden = !yonetici();
     if (!yonetici()) return;
     if (!$("puantaj-ay").value) $("puantaj-ay").value = new Date(Date.now() + 3 * 3600000).toISOString().slice(0, 7);
-    vardiyaYukle();
     puantaj = await api(`puantaj?ay=${$("puantaj-ay").value}`).catch(() => null);
     if (!puantaj || puantaj.hata) return;
     const top = puantaj.kisiler.reduce((t, k) => t + k.ucret, 0);
@@ -1456,33 +1454,6 @@
     $("p-ekle")?.addEventListener("click", () => puantajDuzeltAc(null, null));
   }
   $("puantaj-ay").addEventListener("change", puantajYukle);
-
-  // ---- Günlük vardiya (Admin) ----
-  let vardiyaGun = null;
-  async function vardiyaYukle() {
-    const alan = $("vardiya-alan");
-    if (ben.rol !== "admin") { alan.innerHTML = ""; return; }
-    const v = await api("vardiya" + (vardiyaGun ? `?gun=${vardiyaGun}` : "")).catch(() => null);
-    if (!v || v.hata) return;
-    vardiyaGun = v.gun;
-    alan.innerHTML = `<div class="kutu kasa-kart"><h3>Günlük vardiya <input type="date" id="v-gun" value="${v.gun}" class="sag" style="border:1px solid #b5c3cf;border-radius:8px;padding:5px 8px;font-size:15px"></h3>
-      <p class="soluk" style="font-size:14px;margin-bottom:8px">${v.ilkMac ? `${kacis(v.gunAd)}: maçlar ${v.ilkMac} – ${v.sonMac}. İş başı ilk maçtan 1 saat önce, çıkış son maç bitişinden 30 dk sonra; her güne yarım saat yol eklenir.` : "Bu gün takvimde maç yok."}</p>
-      <div style="display:grid;gap:6px;margin-bottom:10px">${v.calisanlar.map((c) => `<label style="display:flex;gap:8px;align-items:center;font-weight:600"><input type="checkbox" data-v="${kacis(c.eposta)}"${c.secili ? " checked" : ""} style="width:20px;height:20px"> ${kacis(c.ad)} <small class="soluk">${kacis(c.rol)}</small></label>`).join("") || '<span class="soluk">Aktif çalışan yok.</span>'}</div>
-      <div class="iki-alan">
-        <div class="alan"><label for="v-bas">İş başı</label><input type="time" id="v-bas" value="${v.baslama || ""}"></div>
-        <div class="alan"><label for="v-bit">Çıkış</label><input type="time" id="v-bit" value="${v.bitis || ""}"></div>
-      </div>
-      <p class="soluk" style="font-size:13px;margin:-6px 0 10px">Saatler otomatik hesaplanır${v.otomatikBaslama ? ` (${v.otomatikBaslama} – ${v.otomatikBitis})` : ""}; o gün farklıysa değiştirin.</p>
-      <button class="dugme" type="button" id="v-kaydet">Vardiyayı kaydet</button></div>`;
-    $("v-gun").addEventListener("change", (e) => { vardiyaGun = e.target.value; vardiyaYukle(); });
-    $("v-kaydet").addEventListener("click", async () => {
-      const bas = $("v-bas").value, bit = $("v-bit").value;
-      const r = await api("vardiya", { gun: vardiyaGun, kisiler: [...alan.querySelectorAll("[data-v]:checked")].map((x) => x.dataset.v),
-        baslama: bas && bas !== v.otomatikBaslama ? bas : "", bitis: bit && bit !== v.otomatikBitis ? bit : "" });
-      if (r.hata) return bildir(r.hata);
-      bildir("Vardiya kaydedildi"); vardiyaYukle();
-    });
-  }
 
   function puantajDetay(k) {
     const duzeltir = ["admin", "mudur"].includes(ben.rol);

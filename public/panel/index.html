@@ -192,6 +192,7 @@
   .gv-tablo td.eksik { background: #fdecec; }
   .gv-tablo td small { display: block; font-weight: 400; color: #3d5a45; }
   .gv-tablo .x-sil { width: 20px; height: 20px; font-size: 13px; line-height: 1; margin-top: 2px; }
+  .ipucu { position: fixed; z-index: 50; background: #062a45; color: #fff; padding: 8px 10px; border-radius: 10px; font-size: 13px; line-height: 1.4; white-space: pre-line; pointer-events: none; box-shadow: 0 6px 20px rgba(0,0,0,.25); }
   .od-satir { display: flex; align-items: center; justify-content: space-between; margin-top: 4px; border: 1px solid #f2c4c4; background: #fde8e8; color: var(--hata); border-radius: 999px; overflow: hidden; }
   .od-satir span { font-weight: 700; font-size: 12px; }
   .od-satir button { border: 0; background: rgba(255,255,255,.6); color: inherit; width: 30px; height: 28px; font-size: 16px; cursor: pointer; }
@@ -921,7 +922,7 @@
               <span class="rozet ${durumSinif(r.durum)}">${r.durum === "Kapora bekleniyor" ? (r.kaynak === "Online" ? "⏳ Opsiyon" : "Kapora") : kacis(r.durum)}</span>`;
       } else if (s.tur === "abone") {
         sinif += " t-abone";
-        ic = `<span class="i"><b>${aboneEtiket(s.abone)}</b>${yonetici() ? `<small>${kacis(s.abone.ad)}${s.abone.telefon ? " · " + telYazi(s.abone.telefon) : ""}</small>` : ""}</span><span class="rozet r-abone">Abone</span>`;
+        ic = `<span class="i"><b>${aboneEtiket(s.abone)}</b>${yonetici() ? `<small>${kacis(s.abone.ad)}${s.abone.telefon ? " · " + telYazi(s.abone.telefon) : ""}</small>${aboneNot(s.abone) ? `<small style="color:#6b5900">📝 ${kacis(aboneNot(s.abone).replace(/\n/g, " · "))}</small>` : ""}` : ""}</span><span class="rozet r-abone">Abone</span>`;
       } else if (s.tur === "abone-gelmiyor") {
         sinif += " bos";
         ic = `<span class="i">Boş <small>· ${aboneEtiket(s.abone)} bu hafta gelmiyor</small></span><span class="arti">+ Ekle</span>`;
@@ -947,6 +948,22 @@
   // ---------- Hafta tablosu ----------
   const kisaAd = (ad) => String(ad || "").trim();
   /** Tabloda abonenin adı yerine numarası yazılır: "Abone 3" */
+  /** Abonenin notları: açıklama + depozito */
+  const aboneNot = (a) => [a?.not, a?.depozito ? `Depozito: ${a.depozito}` : ""].filter(Boolean).join("\n");
+  // Notlu abone hücresinin üstüne gelince (telefonda dokununca değil, basılı tutunca) not balonu
+  const ipucuEl = document.createElement("div");
+  ipucuEl.className = "ipucu"; ipucuEl.hidden = true; document.body.appendChild(ipucuEl);
+  document.addEventListener("mouseover", (e) => {
+    const b = e.target.closest?.("[data-ipucu]");
+    if (!b) { ipucuEl.hidden = true; return; }
+    ipucuEl.textContent = b.dataset.ipucu; ipucuEl.hidden = false;
+    const r = b.getBoundingClientRect(), w = Math.min(280, innerWidth - 16);
+    ipucuEl.style.maxWidth = w + "px";
+    ipucuEl.style.left = Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2)) + "px";
+    const ust = r.top - ipucuEl.offsetHeight - 6;
+    ipucuEl.style.top = (ust > 8 ? ust : r.bottom + 6) + "px";
+  });
+  document.addEventListener("scroll", () => { ipucuEl.hidden = true; }, true);
   const aboneEtiket = (a) => (a && a.no ? `Abone ${a.no}` : "Abone");
   function hucreTiklandi(gun, saat) {
     const g = hafta.gunler.find((x) => x.tarih === gun);
@@ -967,12 +984,13 @@
         yazi = (bek ? "⏳ " : "") + (s.rez.ekstra && s.rez.ekstra.length ? "★ " : "") + kacis(kisaAd(s.rez.ad)); // ⏳ = opsiyon, ★ = VIP
         baslik = `${g.gun} ${saat}: ${s.rez.ad}${s.rez.telefon ? " " + telYazi(s.rez.telefon) : ""} (${s.rez.durum})`;
       } else if (s.tur === "abone") {
-        sinif = "h h-abone"; yazi = aboneEtiket(s.abone); baslik = `${g.gun} ${saat}: ${aboneEtiket(s.abone)}${yonetici() && s.abone.ad ? " (" + s.abone.ad + ")" : ""}`;
+        sinif = "h h-abone"; yazi = aboneEtiket(s.abone) + (yonetici() && aboneNot(s.abone) ? " 📝" : ""); baslik = `${g.gun} ${saat}: ${aboneEtiket(s.abone)}${yonetici() && s.abone.ad ? " (" + s.abone.ad + ")" : ""}${yonetici() && aboneNot(s.abone) ? "\n" + aboneNot(s.abone) : ""}`;
       } else if (s.tur === "abone-gelmiyor") {
         sinif = "h h-gelmiyor"; yazi = aboneEtiket(s.abone); baslik = `${g.gun} ${saat}: boş (${aboneEtiket(s.abone)} bu hafta gelmiyor)`;
       }
       if (s.gecmis) sinif += " gecmis";
-      return `<td class="${g.tarih === hafta.bugun ? "bugun-s" : ""}"><button type="button" class="${sinif}" data-g="${g.tarih}" data-s="${saat}" title="${kacis(baslik)}" aria-label="${kacis(baslik)}">${yazi}</button></td>`;
+      const ipucu = s.tur === "abone" && yonetici() && aboneNot(s.abone);
+      return `<td class="${g.tarih === hafta.bugun ? "bugun-s" : ""}"><button type="button" class="${sinif}" data-g="${g.tarih}" data-s="${saat}" ${ipucu ? `data-ipucu="${kacis(baslik)}"` : `title="${kacis(baslik)}"`} aria-label="${kacis(baslik)}">${yazi}</button></td>`;
     };
     const satir = (saat) => `<tr${SAATLER.includes(saat) ? "" : ' class="ozel-satir"'}><th class="saat-b" scope="row">${saat}${SAATLER.includes(saat) ? "" : "<small> özel</small>"}</th>${hafta.gunler.map((g) => hucre(g, saat)).join("")}</tr>`;
     const bas = `<thead><tr><th class="saat-b">Saat</th>${hafta.gunler.map((g, i) =>

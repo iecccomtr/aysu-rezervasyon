@@ -75,8 +75,14 @@ Takvim tablosunda aboneler adla değil **numarayla** görünür ("Abone 3"). Num
 - Telefonla / panelden girdiğiniz rezervasyonlar Onaylı kaydedilir.
 - **Dekont tarih ve tekrar kontrolü şu an KAPALI** (denemeler aynı eski dekontla yapılıyor). Canlıya geçerken `src/config.js` → `dekontTarihKontrol: true` ve `dekontTekrarKontrol: true` yapılmalı.
 
+### Fiyatlar (sadece Admin)
+Panel → Kullanıcılar → **Fiyatlar**: maç ücreti, kapora, VIP spiker ve VIP hakem ücretleri. Kaydedilen fiyatlar sonraki rezervasyonlardan itibaren geçerlidir; değişiklik İşlem kaydına yazılır.
+
+### Parça parça kapora
+Müşteri kaporayı iki seferde gönderebilir (ör. 500 + 700): her dekontu ayrı yükler, tutarlar toplanır (panelde kapora "500 + 700"). İlk dekonttan 15 dakika sonra toplam hâlâ kaporadan azsa Müdür ve Müdür Yardımcısı'na bir kez "Eksik kapora" e-postası gider.
+
 ### İptal ve işlem kaydı
-- Müşteri rezervasyon sayfasının altındaki **Rezervasyonu iptal et** ile iptal sayfasına geçer, gün ve saati seçer, telefonunu yazar. Kaporaların iadesi yoktur. Onaylı maça 3 saatten az kaldıysa iptal için aramalıdır.
+- Müşteri rezervasyon sayfasının altındaki **Rezervasyonumu kontrol et** ile kontrol sayfasına geçer, gün ve saati seçer, ad soyad ve telefonunu yazar; rezervasyon bilgilerini görür, isterse oradan iptal eder. Kaporaların iadesi yoktur. Onaylı maça 3 saatten az kaldıysa iptal için aramalıdır.
 - Onaylı bir rezervasyon iptal edilince (siteden ya da panelden) **Müdür ve Müdür Yardımcısı'na e-posta** gider; kimin iptal ettiği yazar.
 - Paneldeki her değişiklik **İşlem kaydı**na (sadece Admin) kim / ne zaman / neyi neyden neye değiştirdi olarak yazılır; 1 yıl saklanır.
 - Dekontlar 3 ay saklanır; ayrıca her dekont e-postayla da gelir.

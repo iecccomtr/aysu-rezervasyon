@@ -14,7 +14,7 @@
 //   d:<kayitNo>                  müşterinin yüklediği kapora dekontu (fotoğraf/PDF)
 
 import { DurableObject } from "cloudflare:workers";
-import { SAATLER, KURALLAR, DURUM, EKSTRALAR } from "./config.js";
+import { SAATLER, KURALLAR, DURUM, EKSTRALAR, FIYATLAR } from "./config.js";
 import {
   simdi, gunAdi, gunEkle, macZamani, tarihNormalize, saatNormalize,
   telefonNormalize, telefonGercekci, gecerliSaat, fiyat, isletmeGunu, haftaBasi,
@@ -188,7 +188,7 @@ export class RezervasyonDeposu extends DurableObject {
       .map((saat) => {
         const s = this.slot(durum, tarih, saat);
         const ops = opsiyonBilgisi(s.rez, simdiMs);
-        return { saat, bos: s.tur === "bos" || s.tur === "abone-gelmiyor", ucret: fiyat(takvimTarihi(tarih, saat), saat), ...(ops ? { opsiyon: ops } : {}) };
+        return { saat, bos: s.tur === "bos" || s.tur === "abone-gelmiyor", ...(ops ? { opsiyon: ops } : {}) };
       });
     return { tarih, gun: gunAdi(tarih), bosSaatler: detay.filter((s) => s.bos).map((s) => s.saat), detay };
   }
@@ -221,6 +221,7 @@ export class RezervasyonDeposu extends DurableObject {
       return { hata: "Bu telefon numarası geçerli görünmüyor. Lütfen kendi cep telefonunuzu doğru yazın (05XX XXX XX XX)." };
     }
     const tarih = takvimTarihi(gun, saat);
+    const f = await this.fiyatAyar();
     if (!panel) {
       if (macZamani(tarih, saat) <= Date.now()) return { hata: "Bu saat geçmiş." };
       if (gun > gunEkle(simdi().tarih, KURALLAR.enFazlaGunSonra)) {
@@ -255,9 +256,10 @@ export class RezervasyonDeposu extends DurableObject {
       kaynak: kaynak || "Online", olusturma: simdiYazi(),
       // VIP spiker / VIP hakem: ücrete eklenir
       ekstra: [...new Set(Array.isArray(ekstra) ? ekstra : [])].filter((x) => EKSTRALAR[x]),
+      kaporaTutar: f.kapora, // o anki kapora tutarı (fiyat sonradan değişse de bu rezervasyon için geçerli)
       ...(!panel ? { opsiyonBitis: Date.now() + KURALLAR.opsiyonDakika * 60_000 } : {}),
     };
-    kayit.ucret = fiyat(tarih, saat) + kayit.ekstra.reduce((t, x) => t + EKSTRALAR[x].ucret, 0);
+    kayit.ucret = f.mac + kayit.ekstra.reduce((t, x) => t + (f[x] ?? EKSTRALAR[x].ucret), 0);
     const anahtar = `r:${tarih}:${saat}:${kayit.kayitNo}`;
     await this.st.put({ [anahtar]: kayit, [`k:${kayit.kayitNo}`]: anahtar });
     return { basarili: true, ...kayit };
@@ -272,6 +274,18 @@ export class RezervasyonDeposu extends DurableObject {
     if (!anahtar) return null;
     const kayit = await this.st.get(anahtar);
     return kayit ? { anahtar, kayit } : null;
+  }
+
+  /** "Rezervasyonumu kontrol et": gün + saat + telefon + ad soyad eşleşirse rezervasyon özeti. */
+  async rezSorgula({ tarih: gunGirdi, saat: s, telefon: tel, ad }) {
+    return this.kilitli(async () => {
+      const gun = tarihNormalize(gunGirdi), saat = saatNormalize(s), telefon = telefonNormalize(tel);
+      const sl = gun && saat && telefon ? this.slot(await this.durumYukle(gun, gun), gun, saat) : null;
+      if (!sl || sl.tur !== "rez" || sl.rez.telefon !== telefon || !adEslesir(ad, sl.rez.ad)) {
+        return { hata: "Seçtiğiniz gün ve saatte bu ad soyad ve telefonla rezervasyon bulunamadı." };
+      }
+      return { basarili: true, ...sl.rez };
+    });
   }
 
   /** Bağlantısı kopan müşteri: opsiyonlu saatine telefonla geri döner. */
@@ -337,9 +351,13 @@ export class RezervasyonDeposu extends DurableObject {
       if (!DEKONT_TURLERI.includes(tur)) return { hata: "Dekontu PDF ya da JPG (ekran görüntüsü) olarak yükleyin." };
       if (!(veri instanceof Uint8Array) || veri.byteLength < 100) return { hata: "Dosya okunamadı." };
       if (veri.byteLength > DEKONT_EN_FAZLA) return { hata: "Dosya çok büyük (en fazla 1,8 MB)." };
-      const dekont = { zaman: simdiYazi(), tur, ad: kirp(ad, 80) || "dekont", boyut: veri.byteLength };
-      await this.st.put(`d:${b.kayit.kayitNo}`, { ...dekont, veri });
-      const kayit = { ...b.kayit, dekont };
+      // Kapora parça parça gelebilir (ör. 500 + 700): her dekont ayrı saklanır
+      const sira = (b.kayit.dekontlar || []).length + 1;
+      if (sira > 5) return { hata: "Bu rezervasyona en fazla 5 dekont yüklenebilir. Lütfen arayın." };
+      const anahtarD = sira === 1 ? `d:${b.kayit.kayitNo}` : `d:${b.kayit.kayitNo}:${sira}`;
+      const dekont = { zaman: simdiYazi(), tur, ad: kirp(ad, 80) || "dekont", boyut: veri.byteLength, anahtar: anahtarD, sira };
+      await this.st.put(anahtarD, { ...dekont, veri });
+      const kayit = { ...b.kayit, dekont, dekontlar: [...(b.kayit.dekontlar || []), dekont] };
       await this.st.put(b.anahtar, kayit);
       return { basarili: true, ...kayit };
     });
@@ -355,7 +373,10 @@ export class RezervasyonDeposu extends DurableObject {
       if (!b) return { hata: "Rezervasyon bulunamadı." };
       const nedenler = [...deger.nedenler];
       const onceki = await this.st.get(`dh:${dosyaOzeti}`);
+      // Aynı rezervasyona aynı dekont ikinci kez yüklenirse tutar iki kez sayılmaz
+      const ayniDosya = onceki && onceki.kayitNo === b.kayit.kayitNo && (b.kayit.dekontlar || []).length > 1;
       if (KURALLAR.dekontTekrarKontrol && onceki && onceki.kayitNo !== b.kayit.kayitNo) nedenler.unshift("Bu dekont daha önce başka bir rezervasyon için kullanılmış.");
+      else if (ayniDosya) nedenler.unshift("Bu dekontu zaten yüklediniz.");
       else await this.st.put(`dh:${dosyaOzeti}`, { kayitNo: b.kayit.kayitNo, tarih: simdi().tarih });
       const onay = nedenler.length === 0;
       const o = deger.okunan || {};
@@ -363,17 +384,48 @@ export class RezervasyonDeposu extends DurableObject {
         onay, nedenler, tutar: deger.tutar, zaman: simdiYazi(),
         okunan: { iban: o.alici_iban || null, ad: o.alici_ad || null, tutar: o.tutar ?? null, tarih: o.tarih || null, model: o._model || null },
       };
-      const kayit = { ...b.kayit, dekont: { ...(b.kayit.dekont || {}), kontrol } };
+      const dekontlar = [...(b.kayit.dekontlar || [])];
+      if (dekontlar.length) dekontlar[dekontlar.length - 1] = { ...dekontlar.at(-1), kontrol };
+      const kayit = { ...b.kayit, dekont: { ...(b.kayit.dekont || {}), kontrol }, dekontlar };
       if (onay && kayit.durum === DURUM.bekliyor) {
         kayit.durum = DURUM.onayli;
         kayit.opsiyonBitis = null;
-        kayit.kapora = kayit.kapora || (deger.tutar != null ? String(deger.tutar) : "dekontta okunamadı");
         kayit.onaylayan = "Dekont (otomatik)";
+      }
+      // Onaylı dekontların tutarları toplanır: kapora "500 + 700", toplam 1200
+      const parcalar = dekontlar.filter((x) => x.kontrol?.onay);
+      const tutarlar = parcalar.map((x) => x.kontrol.tutar).filter((x) => x != null);
+      if (parcalar.length) {
+        kayit.kapora = tutarlar.length ? tutarlar.join(" + ") : "dekontta okunamadı";
+        kayit.kaporaToplam = tutarlar.reduce((t, x) => t + x, 0);
+        const gereken = kayit.kaporaTutar ?? (await this.fiyatAyar()).kapora;
+        kayit.eksikKapora = tutarlar.length !== parcalar.length || kayit.kaporaToplam < gereken;
       }
       await this.st.put(b.anahtar, kayit);
       await this.kayitTut(null, onay ? "Dekont otomatik onaylandı" : "Dekont kontrol gerekiyor",
         `${kayit.kayitNo} · ${kayit.ad} · ${onay ? deger.tutar + " TL" : nedenler.join(" ")}`);
-      return { basarili: true, onay, nedenler, rez: kayit, eksik: Boolean(deger.eksik), tutar: deger.tutar };
+      return { basarili: true, onay, nedenler, rez: kayit, eksik: Boolean(kayit.eksikKapora), tutar: deger.tutar,
+        toplam: kayit.kaporaToplam ?? null, gereken: kayit.kaporaTutar ?? null };
+    });
+  }
+
+  /**
+   * Kaporası eksik kalan onaylı online rezervasyonlar (ilk dekonttan 15 dk sonra hâlâ eksikse) — bir kez bildirilir.
+   * Müşteri bu sürede ikinci parçanın dekontunu yükleyebilir.
+   */
+  async eksikKaporalar() {
+    return this.kilitli(async () => {
+      const n = simdi();
+      const liste = await this.st.list({ start: `r:${gunEkle(n.tarih, -1)}`, end: `r:${gunEkle(n.tarih, 40)}~` });
+      const sonuc = [];
+      for (const [anahtar, r] of liste) {
+        if (r.durum !== DURUM.onayli || !r.eksikKapora || r.eksikBildirildi || !r.dekontlar?.length) continue;
+        const ilk = Date.parse(r.dekontlar[0].zaman.replace(" ", "T") + ":00+03:00");
+        if (Date.now() - ilk < KURALLAR.opsiyonDakika * 60_000) continue;
+        await this.st.put(anahtar, { ...r, eksikBildirildi: true });
+        sonuc.push(r);
+      }
+      return sonuc;
     });
   }
 
@@ -394,8 +446,10 @@ export class RezervasyonDeposu extends DurableObject {
     });
   }
 
-  async dekontGetir(kayitNo) {
-    return (await this.st.get(`d:${String(kayitNo || "").trim().toUpperCase()}`)) || null;
+  async dekontGetir(kayitNo, sira) {
+    const no = String(kayitNo || "").trim().toUpperCase();
+    const n = Number(sira) || 1;
+    return (await this.st.get(n > 1 ? `d:${no}:${n}` : `d:${no}`)) || null;
   }
 
   /** Müşteri iptali: kayıt no ile ya da seçtiği gün + saat ile (telefon eşleşmeli). */
@@ -693,6 +747,41 @@ export class RezervasyonDeposu extends DurableObject {
     });
   }
 
+  // ================= Fiyatlar (Admin panelden değiştirir) =================
+  //   ayar:fiyat  { mac, kapora, spiker, hakem }
+
+  async fiyatAyar() {
+    if (!this._fiyat) {
+      const k = (await this.st.get("ayar:fiyat")) || {};
+      this._fiyat = {
+        mac: k.mac ?? FIYATLAR.gunduz, kapora: k.kapora ?? FIYATLAR.kapora,
+        spiker: k.spiker ?? EKSTRALAR.spiker.ucret, hakem: k.hakem ?? EKSTRALAR.hakem.ucret,
+      };
+    }
+    return this._fiyat;
+  }
+
+  async fiyatKaydet(girdi, yapan) {
+    return this.kilitli(async () => {
+      if (yapan?.rol !== "admin") return { hata: "Fiyatları sadece Admin değiştirebilir." };
+      const eski = await this.fiyatAyar();
+      const yeni = { ...eski };
+      for (const [a, enAz, enCok] of [["mac", 100, 100000], ["kapora", 0, 100000], ["spiker", 0, 100000], ["hakem", 0, 100000]]) {
+        if (girdi[a] === undefined || girdi[a] === "") continue;
+        const n = Math.round(Number(String(girdi[a]).replace(/[^\d]/g, "")));
+        if (!Number.isFinite(n) || n < enAz || n > enCok) return { hata: "Geçersiz tutar." };
+        yeni[a] = n;
+      }
+      if (yeni.kapora > yeni.mac) return { hata: "Kapora maç ücretinden büyük olamaz." };
+      await this.st.put("ayar:fiyat", yeni);
+      this._fiyat = yeni;
+      const ad = { mac: "Maç", kapora: "Kapora", spiker: "VIP spiker", hakem: "VIP hakem" };
+      const fark = Object.keys(ad).filter((a) => eski[a] !== yeni[a]).map((a) => `${ad[a]}: ${eski[a]} → ${yeni[a]} TL`);
+      if (fark.length) await this.kayitTut(yapan, "Fiyatları değiştirdi", fark.join(" · "));
+      return { basarili: true, fiyat: yeni };
+    });
+  }
+
   // ================= İşlem kaydı (Admin kontrolü) =================
   //   l:<zaman ISO>:<rastgele>  { zaman, kim, rol, islem, detay }
 
@@ -737,7 +826,7 @@ export class RezervasyonDeposu extends DurableObject {
           }),
         });
       }
-      return { baslangic: bas, gunler, bekleyenler: [], bugun: isletmeGunu(n.tarih, n.saat) };
+      return { baslangic: bas, gunler, bekleyenler: [], bugun: isletmeGunu(n.tarih, n.saat), fiyat: await this.fiyatAyar() };
     });
   }
 
@@ -1057,7 +1146,7 @@ export class RezervasyonDeposu extends DurableObject {
       const abone = (await this.aboneler()).filter((a) => a.telefon === telefon && !a.bitis);
       if (abone.length) return { hata: `Bu numara aboneye kayıtlı (${abone.map((a) => a.ad).join(", ")}). Önce aboneliği sonlandırın.` };
       const sil = [`m:${telefon}`];
-      for (const [k, r] of tum) sil.push(k, `k:${r.kayitNo}`, `d:${r.kayitNo}`);
+      for (const [k, r] of tum) sil.push(k, `k:${r.kayitNo}`, `d:${r.kayitNo}`, ...(r.dekontlar || []).map((x) => x.anahtar).filter(Boolean));
       for (let i = 0; i < sil.length; i += 128) await this.st.delete(sil.slice(i, i + 128));
       await this.kayitTut(yapan, "Müşteri sildi", `${telefon} · ${tum.length} rezervasyon kaydı`);
       return { basarili: true, silinen: tum.length };

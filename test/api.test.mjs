@@ -301,21 +301,40 @@ test("Bağlantısı kopan müşteri opsiyonlu saatine telefonla geri döner; yan
   assert.equal(l.rezervasyonlar[0].kayitNo, r.kayitNo);
 });
 
-test("Dekont: 500 TL ödeme de onaylanır, Müdür ve Müdür Yardımcısı'na eksik kapora e-postası gider", async () => {
-  const AI = { run: async () => ({ response: JSON.stringify({ alici_iban: "TR700015700000000154834235", alici_ad: "Ahmet Aysu", tutar: "500,00", tarih: "2026-10-21" }) }) };
-  const { istek } = await kur({ AI, RESEND_API_KEY: "re_test" });
+test("Kapora iki parça (500 + 700): ikisi toplanır; eksik kalırsa 15 dk sonra Müdür / Müdür Yrd.'a e-posta", async () => {
+  let okunanTutar = "500,00";
+  const AI = { run: async () => ({ response: JSON.stringify({ alici_iban: "TR700015700000000154834235", alici_ad: "Ahmet Aysu", tutar: okunanTutar, tarih: "2026-10-21" }) }) };
+  const { istek, depo } = await kur({ AI, RESEND_API_KEY: "re_test" });
   await istek("/api/panel/kur", { kurulumKodu: "kurulum-kodu", eposta: "admin@aysu.com", sifre: "aysu-sifre-1" });
   for (const [eposta, rol] of [["mudur@aysu.com", "mudur"], ["yrd@aysu.com", "mudur_yrd"], ["p@aysu.com", "personel"]]) {
     await istek("/api/panel/kayit", { eposta, ad: "Kişi " + rol, sifre: "sifre-1234", rol });
     await istek("/api/panel/kullanici", { eposta, rol, durum: "aktif" });
   }
+  const env = { AI, RESEND_API_KEY: "re_test", REZERVASYON_DEPOSU: { idFromName: () => "aysu", get: () => depo } };
+  const cron = async () => { const p = []; await worker.scheduled({ cron: "*/5 * * * *" }, env, { waitUntil: (x) => p.push(x) }); await Promise.all(p); };
+  const yukle = (no, dosya) => istek("/api/dekont", { kayitNo: no, telefon: REZ.telefon, tur: "image/jpeg", ad: "d.jpg", dosya: btoa(dosya.repeat(300)) });
+
+  // 1) Tek parça 500 TL: onaylanır, 15 dk sonra eksik kapora e-postası
   const r = (await istek("/api/rezervasyon", REZ)).veri;
-  const y = await istek("/api/dekont", { kayitNo: r.kayitNo, telefon: REZ.telefon, tur: "image/jpeg", ad: "d.jpg", dosya: btoa("y".repeat(300)) });
-  assert.equal(y.veri.onay, true);
+  const y = await yukle(r.kayitNo, "a");
+  assert.equal(y.veri.onay, true); assert.equal(y.veri.eksik, true); assert.equal(y.veri.toplam, 500);
+  await cron();
+  assert.ok(!epostalar.some((e) => /^Eksik kapora/.test(e.subject)), "hemen gönderilmez, ikinci parçaya fırsat");
+  saatiAyarla("2026-10-21T23:50");
+  await cron();
   const eksik = epostalar.find((e) => /^Eksik kapora/.test(e.subject));
-  assert.ok(eksik, "eksik kapora e-postası");
-  assert.deepEqual(eksik.to.sort(), ["mudur@aysu.com", "yrd@aysu.com"]);
-  assert.match(eksik.text, /500 TL/);
+  assert.ok(eksik); assert.deepEqual(eksik.to.sort(), ["mudur@aysu.com", "yrd@aysu.com"]); assert.match(eksik.text, /500 TL/);
+
+  // 2) 500 + 700: toplam 1200, eksik değil
+  saatiAyarla("2026-10-21T23:30");
+  const r2 = (await istek("/api/rezervasyon", { ...REZ, saat: "23:00" })).veri;
+  await yukle(r2.kayitNo, "b");
+  okunanTutar = "700,00";
+  const y2 = await yukle(r2.kayitNo, "c");
+  assert.equal(y2.veri.toplam, 1200); assert.equal(y2.veri.eksik, false);
+  const k = await depo.kayitBul(r2.kayitNo);
+  assert.equal(k.kayit.kapora, "500 + 700"); assert.equal(k.kayit.dekontlar.length, 2);
+  assert.equal(epostalar.filter((e) => e.subject.startsWith("Yeni rezervasyon") && e.subject.includes(r2.kayitNo)).length, 1, "ikinci parça için yeni rezervasyon e-postası yok");
 });
 
 test("Geçmiş haftalar ve geçmiş kayıtlar sadece Admin'e açık", async () => {
@@ -381,4 +400,23 @@ test("Rezervasyon iptali: Müdür ve Müdür Yardımcısı'na e-posta (siteden v
   assert.equal((await istek("/api/iptal", { tarih: "2026-10-25", saat: "20:00", telefon: "0532 111 22 33", ad: "ali" })).durum, 200);
   e = epostalar.slice(m).find((x) => /iptal edildi/.test(x.subject));
   assert.match(e.text, /Müşteri \(siteden\)/); assert.ok(t2.kayitNo);
+});
+
+test("Fiyatlar: sadece Admin değiştirir; yeni rezervasyonlar yeni fiyatla, eskiler eski fiyatla", async () => {
+  const { istek, cerezSil } = await kur();
+  await istek("/api/panel/kur", { kurulumKodu: "kurulum-kodu", eposta: "admin@aysu.com", ad: "Admin", sifre: "aysu-sifre-1" });
+  const eski = (await istek("/api/rezervasyon", REZ)).veri;
+  assert.equal(eski.ucret, 3700);
+  assert.equal((await istek("/api/panel/fiyat", { mac: "4000", kapora: "1500", spiker: "1800", hakem: "1200" })).durum, 200);
+  assert.match((await istek("/api/panel/islemler")).veri[0].detay, /Maç: 3700 → 4000 TL/);
+  const m = (await istek("/api/musaitlik")).veri;
+  assert.equal(m.fiyat, 4000); assert.equal(m.kapora, 1500); assert.equal(m.ekstralar.spiker.ucret, 1800);
+  const yeni = (await istek("/api/rezervasyon", { ...REZ, saat: "23:00", telefon: "0532 999 88 77", ekstra: ["hakem"] })).veri;
+  assert.equal(yeni.ucret, 5200); assert.equal(yeni.kapora, 1500); assert.equal(yeni.kalan, 3700);
+  assert.match((await istek("/api/panel/fiyat", { kapora: "9000" })).veri.hata, /büyük olamaz/);
+  await istek("/api/panel/kayit", { eposta: "mudur@aysu.com", ad: "Müdür", sifre: "mudur-1234", rol: "mudur" });
+  await istek("/api/panel/kullanici", { eposta: "mudur@aysu.com", rol: "mudur", durum: "aktif" });
+  cerezSil(); await istek("/api/panel/giris", { eposta: "mudur@aysu.com", sifre: "mudur-1234" });
+  assert.equal((await istek("/api/panel/fiyat", { mac: "1" })).durum, 400, "Müdür fiyat değiştiremez");
+  assert.ok(eski.kayitNo);
 });

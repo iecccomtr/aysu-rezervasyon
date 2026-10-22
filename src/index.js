@@ -296,6 +296,12 @@ async function panel(request, env, ctx, yol) {
     case "POST musteri-not": return degisti(await d.musteriNot(g));
     case "POST musteri-sil": { const r = await d.musteriSil(g.telefon, ben); return json(r, r.hata ? 400 : 200); }
     case "GET kullanicilar": return json(await d.kullanicilar());
+    case "GET fiyat": return json(await d.fiyatAyar());
+    case "POST fiyat": {
+      const r = await d.fiyatKaydet(g, ben);
+      if (r.basarili) onbellegiTemizle(request, ctx);
+      return json(r, r.hata ? 400 : 200);
+    }
     case "POST dekont-kontrol": {
       // Panelden "Dekontu yeniden kontrol et"
       const f = await d.dekontGetir(g.kayitNo);
@@ -306,7 +312,7 @@ async function panel(request, env, ctx, yol) {
       return json(k, k.hata ? 400 : 200);
     }
     case "GET dekont": {
-      const f = await d.dekontGetir(url.searchParams.get("k"));
+      const f = await d.dekontGetir(url.searchParams.get("k"), url.searchParams.get("s"));
       if (!f) return json({ hata: "Dekont bulunamadı." }, 404);
       return new Response(f.veri, { headers: {
         "content-type": f.tur, "cache-control": "private, no-store",
@@ -345,7 +351,7 @@ async function iptalBildir(env, d, r) {
 /** Müşteriye dönen rezervasyon özeti (onay ekranı). */
 const rezCevap = (r) => ({
   basarili: true, kayitNo: r.kayitNo, tarih: r.tarih, gun: r.gun, saat: r.saat, durum: r.durum,
-  ucret: r.ucret, kapora: FIYATLAR.kapora, kalan: r.ucret - FIYATLAR.kapora,
+  ucret: r.ucret, kapora: r.kaporaTutar ?? FIYATLAR.kapora, kalan: r.ucret - (r.kaporaTutar ?? FIYATLAR.kapora),
   iban: IBAN.no || null, alici: IBAN.alici || null, opsiyonBitis: r.opsiyonBitis || null, dekont: Boolean(r.dekont),
   // Telefon saati yanlış olabilir: kalan süre sunucudan milisaniye olarak
   opsiyonKalan: r.opsiyonBitis ? Math.max(0, r.opsiyonBitis - Date.now()) : null,
@@ -355,7 +361,7 @@ const rezCevap = (r) => ({
 async function dekontKontrolEt(env, d, rez, veri) {
   const okunan = await dekontOku(env, { tur: rez.dekont.tur, veri });
   const deger = dekontDegerlendir(okunan, {
-    iban: IBAN.no, alici: IBAN.alici, kapora: FIYATLAR.kapora,
+    iban: IBAN.no, alici: IBAN.alici, kapora: rez.kaporaTutar ?? FIYATLAR.kapora,
     rezTarihi: String(rez.olusturma || "").slice(0, 10) || null, bugun: simdi().tarih,
     tarihKontrol: KURALLAR.dekontTarihKontrol,
   });
@@ -417,7 +423,12 @@ export default {
     if (yol === "/api/musaitlik" && request.method === "GET") {
       return onbellekli(request, ctx, 10, async () => {
         try {
-          return json({ gunler: await gunleriGetir(env), fiyat: FIYATLAR.gunduz, kapora: FIYATLAR.kapora, ekstralar: EKSTRALAR, dogrulama: env.TURNSTILE_SITE_KEY || null });
+          const f = await depo(env).fiyatAyar();
+          return json({
+            gunler: await gunleriGetir(env), fiyat: f.mac, kapora: f.kapora,
+            ekstralar: { spiker: { ad: EKSTRALAR.spiker.ad, ucret: f.spiker }, hakem: { ad: EKSTRALAR.hakem.ad, ucret: f.hakem } },
+            dogrulama: env.TURNSTILE_SITE_KEY || null,
+          });
         } catch (e) {
           console.error(e);
           return json({ hata: "Boş saatler şu an okunamıyor." }, 503);
@@ -475,31 +486,33 @@ export default {
         const { okunan, k } = await dekontKontrolEt(env, d, r, veri);
         if (k.onay) onbellegiTemizle(request, ctx);
         const uzanti = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "application/pdf": "pdf" }[r.dekont.tur];
-        // Sadece kesinleşen rezervasyon için e-posta (doğrulanamayan dekont için e-posta yok)
-        if (k.onay) ctx.waitUntil(bildir(env, {
+        // Sadece bu dekontla kesinleşen rezervasyon için "Yeni rezervasyon" e-postası
+        // (doğrulanamayan dekont ya da kaporanın ikinci parçası için e-posta yok; eksik kapora 15 dk sonra bildirilir)
+        if (k.onay && r.durum !== "Onaylı") ctx.waitUntil(bildir(env, {
           konu: `Yeni rezervasyon: ${r.gun} ${r.saat} (${r.kayitNo})`,
           satirlar: [["Maç", `${r.gun}, ${r.tarih} saat ${r.saat}`], ["Ad soyad", r.ad], ["Telefon", r.telefon], ["Kayıt no", r.kayitNo],
             ["VIP", r.ekstra?.length ? r.ekstra.map((x) => EKSTRALAR[x].ad).join(", ") : "-"], ["Toplam ücret", `${r.ucret} TL`],
-            ["Kapora", `${k.rez.dekont.kontrol.tutar ?? "?"} TL (dekont ekte)`],
-            k.onay ? ["Durum", "Onaylı — kapora dekontla doğrulandı"]
-              : ["Neden", `${k.nedenler.join(" ")} Müşteri süre içinde geçerli dekont yüklemezse yer boşa çıkar.`]],
+            ["Kapora", `${k.rez.kapora || "?"} TL (dekont ekte)`], ["Durum", "Onaylı — kapora dekontla doğrulandı"]],
           ekler: [{ ad: `dekont-${r.kayitNo}.${uzanti}`, tur: r.dekont.tur, veri }],
         }));
-        // Kaporadan az (ya da okunamayan) ödeme: Müdür ve Müdür Yardımcısı'na bilgi
-        if (k.onay && k.eksik) {
-          ctx.waitUntil(d.rolEpostalari(["mudur", "mudur_yrd"]).then((kime) => epostaYolla(env, {
-            kime, konu: `Eksik kapora: ${r.gun} ${r.saat} — ${k.tutar ?? "?"} TL (${r.kayitNo})`,
-            satirlar: [["Maç", `${r.gun}, ${r.tarih} saat ${r.saat}`], ["Ad soyad", r.ad], ["Telefon", r.telefon], ["Kayıt no", r.kayitNo],
-              ["Ödenen", k.tutar != null ? `${k.tutar} TL` : "dekonttan okunamadı"], ["Kapora", `${FIYATLAR.kapora} TL`], ["Toplam ücret", `${r.ucret} TL`]],
-            alt: "Rezervasyon onaylandı (IBAN ve hesap adı doğru). Kalan tutarı sahada tahsil edin.",
-            ekler: [{ ad: `dekont-${r.kayitNo}.${uzanti}`, tur: r.dekont.tur, veri }],
-          })));
-        }
-        return json({ basarili: true, kayitNo: r.kayitNo, onay: k.onay, nedenler: k.onay ? [] : k.nedenler });
+        return json({ basarili: true, kayitNo: r.kayitNo, onay: k.onay, nedenler: k.onay ? [] : k.nedenler,
+          toplam: k.toplam, gereken: k.gereken, eksik: k.onay && k.eksik, durum: k.rez.durum });
       } catch (e) {
         console.error(e);
         return json({ hata: `Dekont şu an yüklenemedi. WhatsApp'tan gönderebilirsiniz.` }, 502);
       }
+    }
+
+    // "Rezervasyonumu kontrol et": gün + saat + ad soyad + telefon
+    if (yol === "/api/rezervasyon-sorgula" && request.method === "POST") {
+      if (!ayniKaynak(request)) return json({ hata: "Yetkisiz istek." }, 403);
+      if (await sinirAsildi(env, request, "iptal")) return cokFazla();
+      const g = await govdeOku(request);
+      if (!g) return json({ hata: "Geçersiz istek." }, 400);
+      const r = await depo(env).rezSorgula(g);
+      if (!r.basarili) return json(r, 404);
+      return json({ ...rezCevap(r), ad: r.ad, kaporaOdenen: r.kapora || null, ekstra: (r.ekstra || []).map((x) => EKSTRALAR[x]?.ad || x),
+        opsiyonKalan: r.durum === "Kapora bekleniyor" && r.opsiyonBitis ? Math.max(0, r.opsiyonBitis - Date.now()) : null });
     }
 
     // Bağlantısı kopan müşteri opsiyonlu saatine dokunup telefonunu yazınca kaldığı yerden devam eder
@@ -578,5 +591,18 @@ export default {
     }
     // 5 dakikada bir: dekontu gelmeyen online opsiyonları düşür, işletmeye haber ver
     ctx.waitUntil(depo(env).opsiyonlariDusur());
+    // İlk dekonttan 15 dk sonra kapora hâlâ eksikse Müdür ve Müdür Yardımcısı'na bir kez bilgi
+    ctx.waitUntil((async () => {
+      const d = depo(env);
+      const liste = await d.eksikKaporalar();
+      if (!liste.length) return;
+      const kime = await d.rolEpostalari(["mudur", "mudur_yrd"]);
+      await Promise.all(liste.map((r) => epostaYolla(env, {
+        kime, konu: `Eksik kapora: ${r.gun} ${r.saat} — ${r.kaporaToplam ?? "?"} TL (${r.kayitNo})`,
+        satirlar: [["Maç", `${r.gun}, ${r.tarih} saat ${r.saat}`], ["Ad soyad", r.ad], ["Telefon", r.telefon], ["Kayıt no", r.kayitNo],
+          ["Ödenen", `${r.kapora} TL`], ["Kapora", `${r.kaporaTutar ?? "?"} TL`], ["Toplam ücret", `${r.ucret} TL`]],
+        alt: "Rezervasyon onaylı (IBAN ve hesap adı doğru). Eksik tutarı sahada tahsil edin.",
+      })));
+    })().catch((e) => console.error("Eksik kapora", e)));
   },
 };

@@ -171,8 +171,12 @@
   .ops-uyari { background: #fff1d6; color: #7a4a00; border-radius: 10px; padding: 10px 12px; margin-top: 10px; font-size: 15px; }
   .saat.iptal-sec { color: #ffb4a8; border: 2px solid #e5484d; background: transparent; text-decoration: none; }
   .saat.iptal-sec[aria-pressed="true"] { background: #e5484d; color: #fff; }
-  .iptal-baslik { background: #fff1f0; border: 2px solid #e5484d; border-radius: 14px; padding: 14px 16px; margin: 4px 0 18px; }
-  .iptal-baslik h2 { color: #b42318; margin-bottom: 6px; }
+  .iptal-baslik { background: #eef6fc; border: 2px solid var(--cim, #0067a4); border-radius: 14px; padding: 14px 16px; margin: 4px 0 18px; }
+  .iptal-baslik h2 { color: var(--cim, #0067a4); margin-bottom: 6px; }
+  .rez-ozet { background: #fff; color: var(--murekkep, #10202d); border-radius: 12px; padding: 14px; margin-top: 10px; display: grid; gap: 6px; }
+  .rez-ozet div { display: flex; justify-content: space-between; gap: 10px; }
+  .rez-ozet span { color: var(--gri, #566270); }
+  .dugme.iptal-dugme { background: #fff; color: #b42318; border: 2px solid #e5484d; margin-top: 10px; width: 100%; }
   .iptal-baslik p { margin-bottom: 10px; }
   .iptal-baslik a { font-weight: 600; color: var(--cim, #0067a4); }
   .ipucu.kotu { color: #b42318; font-weight: 600; } .ipucu.iyi { color: #14532d; font-weight: 600; }
@@ -238,8 +242,8 @@
   <main class="kap">
     <!-- ===== Rezervasyon adımları ===== -->
     <div class="iptal-baslik" id="iptal-baslik" hidden>
-      <h2>Rezervasyon iptali</h2>
-      <p>İptal etmek istediğiniz rezervasyonun <b>gününü ve saatini</b> aşağıdan seçin, ardından rezervasyondaki <b>ad soyad</b> ve <b>telefon numarasını</b> yazın. <b>Kaporaların iadesi yoktur.</b></p>
+      <h2>Rezervasyon kontrolü</h2>
+      <p>Rezervasyonunuzun <b>gününü ve saatini</b> aşağıdan seçin, ardından rezervasyondaki <b>ad soyad</b> ve <b>telefon numarasını</b> yazın. Rezervasyon bilgileriniz açılır; isterseniz oradan iptal edebilirsiniz.</p>
       <a href="/rezervasyon/">← Yeni rezervasyon yap</a>
     </div>
     <div id="secim">
@@ -272,8 +276,8 @@
           <div id="form-uyari" class="uyari" role="alert" hidden></div>
           <fieldset class="vip">
             <legend>VIP hizmetler <small>(isteğe bağlı)</small></legend>
-            <label class="vip-sec"><input type="checkbox" id="vip-spiker" data-ekstra="spiker"><span>VIP spiker</span><b>+1.600 TL</b></label>
-            <label class="vip-sec"><input type="checkbox" id="vip-hakem" data-ekstra="hakem"><span>VIP hakem</span><b>+1.000 TL</b></label>
+            <label class="vip-sec"><input type="checkbox" id="vip-spiker" data-ekstra="spiker"><span>VIP spiker</span><b id="vip-spiker-ucret">+1.600 TL</b></label>
+            <label class="vip-sec"><input type="checkbox" id="vip-hakem" data-ekstra="hakem"><span>VIP hakem</span><b id="vip-hakem-ucret">+1.000 TL</b></label>
             <p class="vip-not">VIP sporcularımıza çaylarımız ve sular ikramımızdır.</p>
           </fieldset>
           <div class="alan">
@@ -343,7 +347,7 @@
 
     <!-- ===== İptal (en altta): ayrı iptal sayfasını açar ===== -->
     <div class="iptal-alan" id="iptal-alan">
-      <a class="dugme ikincil tam" id="iptal-ac" href="/rezervasyon/?iptal">Rezervasyonu iptal et</a>
+      <a class="dugme ikincil tam" id="iptal-ac" href="/rezervasyon/?kontrol">Rezervasyonumu kontrol et</a>
     </div>
 
     <p class="alt-bilgi"><a href="/">Ana sayfa</a> · Abonelik ve toplu rezervasyon için <a href="https://wa.me/905555102626" target="_blank" rel="noopener">WhatsApp'tan yazın</a></p>
@@ -445,7 +449,7 @@
     html += `<div class="ops-uyari" id="ops-uyari" role="status" hidden></div>`;
     el.innerHTML = html;
     if (iptalModu) {
-      el.querySelector(".tabela-not").textContent = "İptal etmek istediğiniz rezervasyonun saatine dokunun.";
+      el.querySelector(".tabela-not").textContent = "Rezervasyonunuzun saatine dokunun.";
       el.querySelectorAll("[data-iptal]:not(:disabled)").forEach((b) => b.addEventListener("click", () => {
         el.querySelectorAll("[data-iptal]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
         iptalSor(g, b.dataset.iptal);
@@ -542,12 +546,16 @@
       } else if (gunIdx >= veri.gunler.length) gunIdx = 0;
       sayfa = sayfaOf(gunIdx);
       $("fiyat-not").textContent = iptalModu ? "" : `Maç ${tl(veri.fiyat)}`;
+      // VIP ücretleri panelden değiştirilebilir
+      if (veri.ekstralar) { $("vip-spiker-ucret").textContent = "+" + tl(veri.ekstralar.spiker.ucret); $("vip-hakem-ucret").textContent = "+" + tl(veri.ekstralar.hakem.ucret); }
       gunleriCiz(); saatleriCiz(); formuGuncelle(Boolean(secilenSaat));
     } catch {
       $("gunler").innerHTML = "";
       $("tabela").innerHTML = '<p class="bos-mesaj">Boş saatler şu an yüklenemedi. Sayfayı yenileyin ya da <a href="tel:+905555102626" style="color:var(--isik)">bizi arayın</a>.</p>';
     }
   }
+
+  const kacis = (x) => String(x ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
   // ---------- Telefon: 05XX XXX XX XX biçimi, iki kez yazılır ----------
   const telefonSade = (v) => { let d = String(v || "").replace(/\D/g, ""); if (d.startsWith("90") && d.length === 12) d = "0" + d.slice(2); if (d.length === 10 && d[0] === "5") d = "0" + d; return d; };
@@ -705,31 +713,54 @@
   // ================= Rezervasyonu iptal et: gün + saat seç → telefon =================
   // İptal modunda dolu / ⏳ saatler de seçilebilir; seçince telefon sorulur.
   // /rezervasyon/?iptal → iptal sayfası: rezervasyon formu yok, dolu saatler seçilir
-  const iptalModu = new URLSearchParams(location.search).has("iptal");
+  // /rezervasyon/?kontrol (eski ?iptal bağlantıları da) → rezervasyon kontrol sayfası
+  const iptalModu = new URLSearchParams(location.search).has("kontrol") || new URLSearchParams(location.search).has("iptal");
   if (iptalModu) {
     $("iptal-baslik").hidden = false;
     $("iptal-alan").hidden = true;
-    document.title = "Rezervasyon iptali · Aysu Halı Saha";
+    document.title = "Rezervasyon kontrolü · Aysu Halı Saha";
   }
   function iptalSor(g, saat) {
     const u = $("ops-uyari");
-    u.innerHTML = `<p><b>${g.gun} ${tarihYazi(g.tarih)}, ${saat}</b> rezervasyonunu iptal etmek için rezervasyondaki bilgileri yazın:</p>
+    u.innerHTML = `<p><b>${g.gun} ${tarihYazi(g.tarih)}, ${saat}</b> rezervasyonunu görmek için rezervasyondaki bilgileri yazın:</p>
       <form class="ops-devam" novalidate><input type="text" name="ad" placeholder="Rezervasyondaki ad soyad" autocomplete="off" aria-label="Ad soyad">
       <input type="tel" name="tel" inputmode="tel" placeholder="Rezervasyondaki telefon 05XX XXX XX XX" autocomplete="off" aria-label="Cep telefonu">
-      <button class="dugme kucuk" type="submit">İptal et</button></form><p class="ops-hata" role="alert"></p>
-      <p style="margin-top:6px;font-size:14px">Kaporaların iadesi yoktur. Onaylı maça 3 saatten az kaldıysa arayın: 0 555 510 26 26</p>`;
+      <button class="dugme kucuk" type="submit">Rezervasyonumu göster</button></form><p class="ops-hata" role="alert"></p>
+      <div id="rez-ozet-alan"></div>`;
     u.hidden = false;
     u.querySelector("input").focus();
     u.querySelector("form").addEventListener("submit", async (e) => {
       e.preventDefault();
       const ad = u.querySelector("[name=ad]").value.trim(), telefon = u.querySelector("[name=tel]").value.trim();
+      u.querySelector(".ops-hata").textContent = "";
       if (ad.length < 2 || telefon.replace(/\D/g, "").length < 10) { u.querySelector(".ops-hata").textContent = "Ad soyad ve telefonu yazın."; return; }
-      const r = await fetch("/api/iptal", { method: "POST", headers: { "content-type": "application/json" },
+      const r = await fetch("/api/rezervasyon-sorgula", { method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({ tarih: g.tarih, saat, telefon, ad }) }).catch(() => null);
       const v = r ? await r.json().catch(() => ({})) : {};
-      if (!r || !r.ok) { u.querySelector(".ops-hata").textContent = v.hata || "İptal yapılamadı."; return; }
-      await yukle();
-      const u2 = $("ops-uyari"); u2.innerHTML = `<p><b>✓ ${g.gun} ${tarihYazi(g.tarih)}, ${saat} rezervasyonu iptal edildi.</b></p>`; u2.hidden = false;
+      if (!r || !r.ok) { u.querySelector(".ops-hata").textContent = v.hata || "Rezervasyon bulunamadı."; return; }
+      const onayli = v.durum === "Onaylı";
+      $("rez-ozet-alan").innerHTML = `<div class="rez-ozet">
+          <div><span>Ad soyad</span><b>${kacis(v.ad)}</b></div>
+          <div><span>Maç</span><b>${g.gun} ${tarihYazi(g.tarih)}${gece(saat) ? " gecesi" : ""}, ${saat}</b></div>
+          <div><span>Durum</span><b style="color:${onayli ? "#14532d" : "#8a5a00"}">${onayli ? "✓ Kesinleşti" : "Ödeme bekleniyor"}</b></div>
+          ${v.ekstra && v.ekstra.length ? `<div><span>VIP</span><b>${kacis(v.ekstra.join(", "))}</b></div>` : ""}
+          <div><span>Toplam ücret</span><b>${tl(v.ucret)}</b></div>
+          ${onayli ? `<div><span>Ödenen kapora</span><b>${kacis(v.kaporaOdenen || "-")} TL</b></div>` : `<div><span>Kapora</span><b>${tl(v.kapora)}</b></div>`}
+        </div>
+        ${!onayli ? '<button class="dugme tam" type="button" id="rez-devam" style="margin-top:10px">Dekont yüklemeye devam et</button>' : ""}
+        <button class="dugme iptal-dugme" type="button" id="rez-iptal">Rezervasyonu iptal et</button>
+        <p style="margin-top:6px;font-size:14px">Kaporaların iadesi yoktur. Onaylı maça 3 saatten az kaldıysa iptal için arayın: 0 555 510 26 26</p>`;
+      const devam = $("rez-devam");
+      if (devam) devam.addEventListener("click", () => { sonRez = { kayitNo: v.kayitNo, telefon }; basariGoster(v, g); });
+      $("rez-iptal").addEventListener("click", async () => {
+        if (!confirm(`${g.gun} ${tarihYazi(g.tarih)} ${saat} rezervasyonu iptal edilsin mi?\nKaporaların iadesi yoktur.`)) return;
+        const y = await fetch("/api/iptal", { method: "POST", headers: { "content-type": "application/json" },
+          body: JSON.stringify({ tarih: g.tarih, saat, telefon, ad }) }).catch(() => null);
+        const s2 = y ? await y.json().catch(() => ({})) : {};
+        if (!y || !y.ok) { u.querySelector(".ops-hata").textContent = s2.hata || "İptal yapılamadı."; return; }
+        await yukle();
+        const u2 = $("ops-uyari"); u2.innerHTML = `<p><b>✓ ${g.gun} ${tarihYazi(g.tarih)}, ${saat} rezervasyonu iptal edildi.</b></p>`; u2.hidden = false;
+      });
     });
   }
 

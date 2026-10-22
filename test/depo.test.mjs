@@ -645,3 +645,18 @@ test("Veresiye: abonenin sonraki maçında o gün GELDİM diyen yöneticiye hat�
   saatiAyarla("2026-11-02T20:05");
   assert.equal((await d.veresiyeHatirlatmalari()).length, 0, "ödendi");
 });
+
+test("Abone maçını bu hafta başka gün/saate taşır: asıl saat boşalır, yeni saate abone ücretiyle rezervasyon", async () => {
+  const d = demoDepo({ PANEL_KURULUM_KODU: "k" });
+  const admin = await d.oturum((await d.panelKur({ kurulumKodu: "k", eposta: "admin@aysu.com", ad: "Admin", sifre: "aysu-2026!" })).token);
+  const a = await d.aboneKaydet({ ad: "Ekip", telefon: "0545 123 01 23", gun: 3, saat: "20:00", no: 13, ucret: "3200" });
+  const r = await d.aboneTasi({ id: a.abone.id, gun: "2026-10-22", saat: "20:00", yeniGun: "2026-10-23", yeniSaat: "22:00" });
+  assert.ok(r.basarili, JSON.stringify(r));
+  assert.equal(await tur(d, "2026-10-22", "20:00"), "abone-gelmiyor");
+  assert.equal(await tur(d, "2026-10-23", "22:00"), "rez");
+  assert.equal(await tur(d, "2026-10-29", "20:00"), "abone", "sonraki hafta değişmez");
+  saatiAyarla("2026-10-23T12:00");
+  const k = await d.kasaGetir("2026-10-23", admin);
+  assert.deepEqual(k.kayit.maclar.map((m) => [m.saat, m.tur, m.ad, m.ucret]), [["22:00", "abone", "Abone 13 · Ekip", 3200]]);
+  assert.match((await d.aboneTasi({ id: a.abone.id, gun: "2026-10-29", saat: "20:00", yeniGun: "2026-10-23", yeniSaat: "22:00" })).hata, /dolu/);
+});

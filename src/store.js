@@ -1086,7 +1086,7 @@ export class RezervasyonDeposu extends DurableObject {
         const vip = (r.ekstra || []).reduce((t, x) => t + (f[x] ?? EKSTRALAR[x]?.ucret ?? 0), 0);
         // Kapora maç günü alındıysa ayrıca düşülmez: maçın toplamı bugün kasaya girer
         const onOdeme = r.kaporaGunu === gun ? 0 : Number(r.kaporaToplam) || kaporaSayi(r.kapora);
-        satirlar.push({ saat, tur: "normal", ad: r.ad, ucret: Math.max(0, (Number(r.ucret) || f.mac) - vip), vip, ekstra: (r.ekstra || []).filter((x) => EKSTRALAR[x]), onOdeme, tkOn: onOdeme, kayitNo: r.kayitNo, kaynak: "takvim" });
+        satirlar.push({ saat, tur: r.aboneId ? "abone" : "normal", ...(r.aboneId ? { aboneId: r.aboneId } : {}), ad: r.ad, ucret: Math.max(0, (Number(r.ucret) || f.mac) - vip), vip, ekstra: (r.ekstra || []).filter((x) => EKSTRALAR[x]), onOdeme, tkOn: onOdeme, kayitNo: r.kayitNo, kaynak: "takvim" });
       }
     }
     return satirlar;
@@ -1484,6 +1484,37 @@ export class RezervasyonDeposu extends DurableObject {
    * Abone gelmiyor (gelmiyor=true) / yine geliyor (false).
    * kapsam: "saat" (sadece `saat`), "gun" (o işletme gününün tüm saatleri), "hafta" (o haftanın tüm saatleri).
    */
+  /**
+   * Abone o hafta başka gün/saatte oynamak istiyor: asıl saat "gelmiyor" olur (boşa çıkar),
+   * yeni gün/saate abone adına onaylı rezervasyon açılır (abone ücretiyle).
+   */
+  async aboneTasi({ id, gun, saat, yeniGun, yeniSaat }) {
+    return this.kilitli(async () => {
+      const a = await this.st.get(`a:${id}`);
+      const g = tarihNormalize(gun), s1 = saatNormalize(saat);
+      const yg = tarihNormalize(yeniGun), ys = saatNormalize(yeniSaat);
+      if (!a || !g || !s1) return { hata: "Abone veya tarih bulunamadı." };
+      if (!yg || !ys) return { hata: "Yeni gün ve saati seçin." };
+      if (yg === g && ys === s1) return { hata: "Yeni gün/saat asıl saatle aynı." };
+      if (!slotlarOf(a).some((x) => x.gun === gunNo(g) && x.saat === s1)) return { hata: "Bu tarih abonenin günlerine denk gelmiyor." };
+      const d = await this.durumYukle(yg, yg);
+      const hedef = this.slot(d, yg, ys);
+      if (hedef.tur === "rez" || hedef.tur === "abone") return { hata: `${yg.split("-").reverse().join(".")} ${ys} dolu. Başka saat seçin.` };
+      const f = await this.fiyatAyar();
+      const no = aboneNo(a);
+      const ucret = tutar(a.ucret) || f.abone;
+      const r = await this.rezervasyonYaz({
+        gunTarihi: yg, saat: ys, ad: `${no ? `Abone ${no} · ` : ""}${a.ad}`, telefon: a.telefon || "", durum: DURUM.onayli, kaynak: "Abone",
+        not: `Abone taşıma: asıl ${GUNLER[gunNo(g)]} ${g.split("-").reverse().join(".")} ${s1}`,
+      }, true);
+      if (!r.basarili) return r;
+      const anahtar = `r:${r.tarih}:${r.saat}:${r.kayitNo}`;
+      await this.st.put(anahtar, { ...(await this.st.get(anahtar)), ucret, aboneId: a.id, tasimaKaynak: { gun: g, saat: s1 } });
+      await this.st.put(`x:${g}:${s1}:${a.id}`, { olusturma: simdiYazi(), tasindi: { gun: yg, saat: ys, kayitNo: r.kayitNo } });
+      return { basarili: true, kayitNo: r.kayitNo, ad: r.ad, eski: `${g} ${s1}`, yeni: `${yg} ${ys}` };
+    });
+  }
+
   async aboneAtla({ id, gun, saat, gelmiyor, kapsam = "saat" }) {
     return this.kilitli(async () => {
       const a = await this.st.get(`a:${id}`);

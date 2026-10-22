@@ -1088,7 +1088,21 @@
         ${gunSaat > 1 ? `<button class="dugme tam" type="button" data-kapsam="gun">${g.gun} hiç gelmiyor (${gunSaat} saat)</button>` : ""}
         ${haftaSaat > gunSaat ? `<button class="dugme tam" type="button" data-kapsam="hafta">Bu hafta hiç gelmiyor (${haftaSaat} saat)</button>` : ""}
       </div>
-      <p class="soluk" style="margin-top:10px;font-size:14px">Seçilen saatler sadece bu tarih/hafta için boşa çıkar ve sitede rezervasyona açılır. Sonraki haftalar dolu kalır.</p>`);
+      <p class="soluk" style="margin-top:10px;font-size:14px">Seçilen saatler sadece bu tarih/hafta için boşa çıkar ve sitede rezervasyona açılır. Sonraki haftalar dolu kalır.</p>
+      <h3 style="font-size:20px;margin:18px 0 10px">Bu hafta başka gün / saatte oynayacak</h3>
+      <div class="iki-alan">
+        <div class="alan"><label for="t-gun">Yeni gün</label><input type="date" id="t-gun" value="${g.tarih}"></div>
+        <div class="alan"><label for="t-saat">Yeni saat</label><select id="t-saat">${SAATLER.map((x) => `<option${x === s.saat ? " selected" : ""}>${x}</option>`).join("")}</select></div>
+      </div>
+      <button class="dugme ikincil tam" type="button" id="t-tasi">Maçı taşı</button>
+      <p class="soluk" style="margin-top:8px;font-size:14px">${g.gun} ${s.saat} boşa çıkar; seçilen gün/saate abone adına (abone ücretiyle) rezervasyon açılır. Sonraki haftalar değişmez.</p>`);
+    $("t-tasi").addEventListener("click", async () => {
+      const yg = $("t-gun").value, ys = $("t-saat").value;
+      if (!confirm(`${a.ad}: ${g.gun} ${s.saat} → ${tarihYazi(yg)} ${ys} taşınsın mı?`)) return;
+      const r = await api("abone-tasi", { id: a.id, gun: g.tarih, saat: s.saat, yeniGun: yg, yeniSaat: ys });
+      if (r.hata) return dlgUyari(r.hata);
+      dlg.close(); bildir(`Taşındı: ${tarihYazi(yg)} ${ys}`); haftaYukle();
+    });
     $("dlg-ic").querySelectorAll("[data-kapsam]").forEach((btn) => btn.addEventListener("click", async () => {
       const r = await api("abone-atla", { id: a.id, gun: g.tarih, saat: s.saat, gelmiyor: true, kapsam: btn.dataset.kapsam });
       if (r.hata) return dlgUyari(r.hata);

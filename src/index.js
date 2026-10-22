@@ -293,6 +293,7 @@ async function panel(request, env, ctx, yol) {
       return degisti(r && r.basarili ? { ...r, ad: ab ? `${ab.no ? "Abone " + ab.no + " · " : ""}${ab.ad}` : g.id } : r);
     }
     case "POST abone-atla": return degisti(await d.aboneAtla(g));
+    case "POST abone-tasi": return degisti(await d.aboneTasi(g));
     case "GET musteriler": return json(await d.musteriler());
     case "GET musteri": {
       const m = await d.musteriDetay(url.searchParams.get("tel"));
@@ -480,7 +481,7 @@ function alisGizle(r, ben) {
 
 const ISLEM_ADLARI = {
   rez: "Rezervasyon ekledi", "rez-guncelle": "Rezervasyon güncelledi", abone: "Abone kaydetti",
-  "abone-sil": "Abonelik sonlandırdı", "abone-atla": "Abone gelmiyor/geliyor", "musteri-not": "Müşteri notu",
+  "abone-sil": "Abonelik sonlandırdı", "abone-atla": "Abone gelmiyor/geliyor", "abone-tasi": "Abone maçını taşıdı", "musteri-not": "Müşteri notu",
   kullanici: "Kullanıcı güncelledi", "kullanici-sil": "Kullanıcı sildi",
 };
 function islemDetayi(yol, g, r) {
@@ -490,6 +491,7 @@ function islemDetayi(yol, g, r) {
     case "rez-guncelle": return `${k.kayitNo || g.kayitNo} · ${k.isletmeGunu || k.tarih || ""} ${k.saat || ""} · ${k.ad || ""} · ${(r.degisen || []).join(" · ") || "değişiklik yok"}`;
     case "abone": return `${g.id ? "Düzenledi" : "Yeni"} · ${r.abone?.no ? "Abone " + r.abone.no + " · " : ""}${g.ad || ""} · ${(r.abone?.slotlar || []).map((x) => ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"][x.gun] + " " + x.saat).join(", ")}`;
     case "abone-sil": return `${r.ad || g.id}`;
+    case "abone-tasi": return `${r.ad || ""} · ${r.eski} → ${r.yeni} (${r.kayitNo})`;
     case "abone-atla": return `${g.gun} ${g.saat || ""} · ${g.gelmiyor ? "gelmiyor" : "geliyor"} (${g.kapsam || "saat"})`;
     case "musteri-not": return `${g.telefon || ""} · etiket: ${g.etiket || "—"} · not: ${String(g.not || "—").slice(0, 80)}`;
     case "kullanici": return `${g.eposta} · ${[g.rol, g.durum].filter(Boolean).join(" · ")}`;

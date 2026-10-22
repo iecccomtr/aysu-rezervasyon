@@ -75,6 +75,8 @@ const gunNo = (tarih) => (new Date(tarih + "T00:00:00Z").getUTCDay() + 6) % 7;
 const slotlarOf = (a) => (Array.isArray(a.slotlar) ? a.slotlar : (a.gun != null && a.saat ? [{ gun: a.gun, saat: a.saat }] : []));
 /** Abone numarası: kayıtlı "no" ya da eski kayıtlarda nottaki "Abone 3" ifadesi. */
 const aboneNo = (a) => (Number.isInteger(a.no) && a.no > 0 ? a.no : Number(String(a.not || "").match(/abone\s*(\d+)/i)?.[1]) || null);
+/** Veresiye izni: abonede "veresiye" işaretliyse (varsayılan: Abone 1 ve 2) */
+const veresiyeAcik = (a) => (a?.veresiye !== undefined ? Boolean(a.veresiye) : [1, 2].includes(aboneNo(a)));
 const SAAT_SIRA = (saat) => (Number(saat.slice(0, 2)) < 6 ? 24 : 0) + Number(saat.slice(0, 2));
 const slotSirala = (l) => [...l].sort((x, y) => x.gun - y.gun || SAAT_SIRA(x.saat) - SAAT_SIRA(y.saat));
 /** ms → Türkiye saatiyle "HH:MM" */
@@ -1080,7 +1082,7 @@ export class RezervasyonDeposu extends DurableObject {
       const s = this.slot(d, gun, saat);
       if (s.tur === "abone") {
         const no = aboneNo(s.abone);
-        satirlar.push({ saat, tur: "abone", aboneId: s.abone.id, ad: no ? `Abone ${no}` : s.abone.ad, ucret: tutar(s.abone.ucret) || f.abone, vip: 0, onOdeme: 0, kaynak: "takvim", ...(s.abone.depozito ? { depozito: s.abone.depozito } : {}) });
+        satirlar.push({ saat, tur: "abone", aboneId: s.abone.id, veresiyeAcik: veresiyeAcik(s.abone), ad: no ? `Abone ${no}` : s.abone.ad, ucret: tutar(s.abone.ucret) || f.abone, vip: 0, onOdeme: 0, kaynak: "takvim", ...(s.abone.depozito ? { depozito: s.abone.depozito } : {}) });
       } else if (s.tur === "rez" && s.rez.durum === DURUM.onayli) {
         const r = s.rez;
         const vip = (r.ekstra || []).reduce((t, x) => t + (f[x] ?? EKSTRALAR[x]?.ucret ?? 0), 0);
@@ -1155,6 +1157,8 @@ export class RezervasyonDeposu extends DurableObject {
       this.st.list({ prefix: `p:${gun}:` }),
     ]);
     const oncekiKasa = [...onceki.values()][0];
+    // Veresiye izni abone ayarından gelir (kaydedilmiş günlerde de güncel olsun)
+    if (kayit) for (const m of kayit.maclar || []) { const t = takvim.find((x) => x.saat === m.saat && x.aboneId && x.aboneId === m.aboneId); if (t) m.veresiyeAcik = t.veresiyeAcik; }
     const kullanicilar = await this.kullaniciListesi();
     const calisanlar = [...puantaj].map(([k, v]) => {
       const u = kullanicilar.find((x) => x.eposta === k.split(":").slice(2).join(":"));
@@ -1176,6 +1180,8 @@ export class RezervasyonDeposu extends DurableObject {
       if (!this.kasaYetkili(yapan, gun)) return { hata: "Geçmiş günlerin kasasını sadece Admin düzenleyebilir." };
       const [eski, urunler, f] = await Promise.all([this.st.get(`kasa:${gun}`), this.urunler(), this.fiyatAyar()]);
       const urunMap = new Map(urunler.map((u) => [u.id, u]));
+      const aboneMap = new Map((await this.aboneler()).map((a) => [a.id, a]));
+      const veresiyeIzin = (m) => Boolean(m?.aboneId && veresiyeAcik(aboneMap.get(m.aboneId)));
       const kantinTemiz = (o) => {
         const r = {};
         for (const [id, a] of Object.entries(o && typeof o === "object" ? o : {})) {
@@ -1193,7 +1199,9 @@ export class RezervasyonDeposu extends DurableObject {
           ad: kirp(m?.ad, 40), ucret: tutar(m?.ucret), vip: tutar(m?.vip), onOdeme: tutar(m?.onOdeme),
           krampon: Math.min(50, Math.max(0, Math.round(Number(m?.krampon)) || 0)),
           eldiven: Math.min(50, Math.max(0, Math.round(Number(m?.eldiven)) || 0)),
-          kantin: kantinTemiz(m?.kantin), veresiyeKantin: kantinTemiz(m?.veresiyeKantin), veresiyeKim: kirp(m?.veresiyeKim, 60), ikramKantin: kantinTemiz(m?.ikramKantin), ...(m?.kayitNo ? { kayitNo: kirp(m.kayitNo, 20) } : {}),
+          kantin: kantinTemiz(m?.kantin), veresiyeKantin: veresiyeIzin(m) || Object.keys(eski?.maclar?.find((x) => x.saat === m?.saat)?.veresiyeKantin || {}).length ? kantinTemiz(m?.veresiyeKantin) : {},
+          veresiyeKim: kirp(m?.veresiyeKim, 60), ...(m?.veresiyeAcik ? { veresiyeAcik: true } : {}), ikramKantin: kantinTemiz(m?.ikramKantin),
+          ...(m?.odendi ? { odendi: true, odemeZamani: kirp(m.odemeZamani, 20) } : {}), ...(m?.kayitNo ? { kayitNo: kirp(m.kayitNo, 20) } : {}),
           ...(m?.kaynak === "takvim" ? { kaynak: "takvim", tkOn: tutar(m?.tkOn ?? m?.onOdeme) } : {}),
           ...(m?.depozito ? { depozito: kirp(m.depozito, 120) } : {}),
           ...(m?.aboneId ? { aboneId: kirp(m.aboneId, 20) } : {}),
@@ -1423,7 +1431,7 @@ export class RezervasyonDeposu extends DurableObject {
   }
 
   /** slotlar: [{gun, saat}] — ya da eski biçimde tek gun + saat */
-  async aboneKaydet({ id, ad, telefon, slotlar, gun, saat, baslangic, not = "", ucret = "", depozito, no }) {
+  async aboneKaydet({ id, ad, telefon, slotlar, gun, saat, baslangic, not = "", ucret = "", depozito, veresiye, no }) {
     return this.kilitli(async () => {
       let liste = Array.isArray(slotlar) ? slotlar : [{ gun, saat }];
       liste = liste.map((x) => ({ gun: Number(x.gun), saat: saatNormalize(x.saat) }));
@@ -1458,6 +1466,7 @@ export class RezervasyonDeposu extends DurableObject {
         ad: kirp(ad, 60), telefon: tel, slotlar: liste, baslangic: bas, bitis: null,
         not: kirp(not, 200), ucret: kirp(ucret, 40), depozito: depozito === undefined ? (eski?.depozito || "") : kirp(depozito, 120),
         olusturma: eski?.olusturma || simdiYazi(),
+        ...(veresiye !== undefined ? { veresiye: Boolean(veresiye) } : eski?.veresiye !== undefined ? { veresiye: eski.veresiye } : {}),
       };
       await this.st.put(`a:${abone.id}`, abone);
       // Uyarı: abonenin saatlerine denk gelen ileri tarihli aktif rezervasyonlar

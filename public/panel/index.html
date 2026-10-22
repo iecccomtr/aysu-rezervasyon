@@ -128,6 +128,19 @@
   .mac.t-abone .saat-i { background: var(--mavi, #2b5fb3); border-color: var(--mavi, #2b5fb3); }
   .mac.t-bos .saat-i { background: #9aa5ae; border-color: #9aa5ae; }
   .depozito { display: block; margin-top: 3px; color: #8a5a00; font-weight: 600; font-size: 13px; }
+  .adisyon-maclar { display: flex; gap: 6px; overflow-x: auto; margin-bottom: 12px; padding-bottom: 2px; }
+  .adisyon-maclar button { flex: none; min-width: 84px; border: 1px solid var(--cizgi); background: var(--kart); border-radius: 12px; padding: 6px 10px; cursor: pointer; line-height: 1.15; text-align: center; }
+  .adisyon-maclar button b { display: block; font: 700 22px/1.1 "Barlow Condensed", sans-serif; }
+  .adisyon-maclar button small { display: block; font-size: 12px; color: var(--gri); max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .adisyon-maclar button[aria-pressed="true"] { background: var(--cim); border-color: var(--cim); color: #fff; }
+  .adisyon-maclar button[aria-pressed="true"] small { color: #cfe3f2; }
+  .adisyon-maclar button.odendi { border-color: #1a7f37; }
+  .adisyon-kira { display: grid; gap: 8px; }
+  .adisyon-kira > div { display: flex; align-items: center; justify-content: space-between; font-weight: 600; font-size: 17px; }
+  .adisyon-kira small { color: var(--gri); font-weight: 500; }
+  .adisyon-kira .adim button { width: 44px; height: 40px; font-size: 22px; }
+  .adisyon-kira .adim span { min-width: 44px; font-size: 18px; font-weight: 700; }
+  .kasa-mod button[aria-pressed="true"] { background: var(--cim); color: #fff; }
   .vip-sec { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 8px; align-items: center; }
   .vip-sec label { display: flex; gap: 6px; align-items: center; font-weight: 600; font-size: 15px; cursor: pointer; }
   .vip-sec input { width: 20px; height: 20px; accent-color: #ef7f1a; }
@@ -411,6 +424,10 @@
         <button class="ok" type="button" id="kasa-sonraki" aria-label="Sonraki gün">›</button>
       </div>
       <p class="soluk" id="kasa-durum" style="text-align:center;margin:-4px 0 12px;font-size:14px"></p>
+      <div class="gorunum-sec kasa-mod" role="group" aria-label="Kasa görünümü" style="margin:0 auto 12px;display:flex;width:max-content">
+        <button type="button" data-kasa-mod="adisyon">Maç adisyonu</button>
+        <button type="button" data-kasa-mod="gun">Gün kasası</button>
+      </div>
       <div id="kasa-ic"></div>
       <div id="kasa-stok-alan"></div>
       <div id="kasa-ay-alan" hidden></div>
@@ -1191,6 +1208,7 @@
         </div>
         <div class="alan"><label for="d-depozito">Depozito</label><input id="d-depozito" value="${kacis(a.depozito || "")}" placeholder="ör. 3.200 TL alındı (01.10.2026)"></div>
         <div class="alan"><label for="d-not">Not</label><input id="d-not" value="${kacis(a.not || "")}"></div>
+        <label style="display:flex;gap:8px;align-items:center;font-weight:600;margin-bottom:14px"><input type="checkbox" id="d-veresiye" style="width:20px;height:20px"${(a.veresiye !== undefined ? a.veresiye : [1, 2].includes(Number(a.no))) ? " checked" : ""}> Kantinden veresiye alabilir</label>
         <button class="dugme tam" type="submit">${yeni ? "Aboneyi ekle" : "Kaydet"}</button>
         ${yeni ? "" : '<button class="dugme tehlike tam" type="button" id="d-sil" style="margin-top:10px">Aboneliği sonlandır</button>'}
       </form>`);
@@ -1223,7 +1241,7 @@
       if (!slotlar.length) return dlgUyari("En az bir gün seçin.");
       const btn = e.submitter; btn.disabled = true;
       try {
-        const r = await api("abone", { id: yeni ? undefined : a.id, no: $("d-no").value, ad: $("d-ad").value, telefon: $("d-tel").value, slotlar, baslangic: $("d-bas").value, ucret: $("d-ucret").value, depozito: $("d-depozito").value, not: $("d-not").value });
+        const r = await api("abone", { id: yeni ? undefined : a.id, no: $("d-no").value, ad: $("d-ad").value, telefon: $("d-tel").value, slotlar, baslangic: $("d-bas").value, ucret: $("d-ucret").value, depozito: $("d-depozito").value, veresiye: $("d-veresiye").checked, not: $("d-not").value });
         if (r.hata) return dlgUyari(r.hata);
         dlg.close(); bildir(r.uyari || (yeni ? "Abone eklendi" : "Kaydedildi")); aboneYukle();
       } finally { btn.disabled = false; }
@@ -1594,7 +1612,77 @@
       <div class="k-alt"><button class="dugme ikincil kucuk" type="button" data-ekle="${ad}">+ Satır ekle</button>${ekDugme}</div></div>`;
   }
 
+  // ---- Maç adisyonu: maç sırasında alınanlar tek dokunuşla eklenir, maç sonunda tek seferde tahsil ----
+  let kasaMod = null, adisyonMac = null, adisyonAra = "";
+  document.querySelectorAll("[data-kasa-mod]").forEach((b) => b.addEventListener("click", () => { kasaMod = b.dataset.kasaMod; kasaCiz(); window.scrollTo({ top: 0 }); }));
+  function simdikiMac() {
+    // Şu an oynanan maç; yoksa sıradaki; o da yoksa sonuncusu
+    const dk = (x) => { const [h, m] = x.split(":").map(Number); return (h < 6 ? h + 24 : h) * 60 + m; };
+    const n = dk(new Date(Date.now() + 3 * 3600000).toISOString().slice(11, 16));
+    const l = kk.maclar.map((m, i) => ({ i, d: dk(m.saat || "00:00") }));
+    return (l.find((x) => n >= x.d && n < x.d + 60) || l.find((x) => x.d > n) || l.at(-1))?.i ?? null;
+  }
+  function adisyonCiz() {
+    if (!kk.maclar.length) { $("kasa-ic").innerHTML = '<div class="kutu kasa-kart"><p class="soluk">Bugün maç yok.</p></div>'; return; }
+    if (adisyonMac === null || !kk.maclar[adisyonMac]) adisyonMac = simdikiMac();
+    const i = adisyonMac, m = kk.maclar[i], kr = kira();
+    const urunler = canliUrunler().filter((u) => u.aktif !== false);
+    const q = adisyonAra.toLocaleLowerCase("tr");
+    $("kasa-ic").innerHTML = `
+      <div class="adisyon-maclar">${kk.maclar.map((x, j) => `<button type="button" data-ad-mac="${j}" aria-pressed="${j === i}" class="${x.odendi ? "odendi" : ""}">
+        <b>${kacis(x.saat)}</b><small>${kacis(x.ad)}</small>${x.odendi ? "<small>✓ ödendi</small>" : ""}</button>`).join("")}</div>
+      <div class="kutu kasa-kart mac t-${m.tur}" style="margin-bottom:12px">
+        <div class="mac-ust"><span class="saat-i">${kacis(m.saat)}</span><span class="tur-y">${m.tur === "abone" ? "Abone" : "Normal"}</span><b class="ad-y">${kacis(m.ad)}</b></div>
+        <div class="adisyon-kira">
+          <div><span>👟 Krampon <small>${para(kr.krampon)}</small></span><span class="adim"><button type="button" data-ad-kira="krampon" data-d="-1">−</button><span>${m.krampon || 0}</span><button type="button" data-ad-kira="krampon" data-d="1">+</button></span></div>
+          <div><span>🧤 Eldiven <small>${para(kr.eldiven)}</small></span><span class="adim"><button type="button" data-ad-kira="eldiven" data-d="-1">−</button><span>${m.eldiven || 0}</span><button type="button" data-ad-kira="eldiven" data-d="1">+</button></span></div>
+        </div>
+      </div>
+      <div class="kutu kasa-kart adisyon-hesap" id="ad-hesap"></div>
+      <div class="kutu kasa-kart">
+        <h3>Kantin<span class="sag soluk" id="ad-kantin-top"></span></h3>
+        <input type="search" id="ad-ara" value="${kacis(adisyonAra)}" placeholder="Ürün ara" style="width:100%;border:1px solid #b5c3cf;border-radius:10px;padding:9px 12px;font-size:16px;margin-bottom:8px">
+        <div class="urun-grid" style="max-height:none">${urunler.map((u) => `<div class="urun${m.kantin?.[u.id] ? " var" : ""}" data-ad-urun="${u.id}" data-ad="${kacis(u.ad.toLocaleLowerCase("tr"))}"${q && !u.ad.toLocaleLowerCase("tr").includes(q) ? " hidden" : ""}>
+          <b>${kacis(u.ad)}</b><small class="soluk">${para(birim(u.id).satis)}${u.stok <= 5 ? ` · <span style="color:#b42318">stok ${u.stok}</span>` : ""}</small>
+          <span class="adim"><button type="button" data-d="-1">−</button><span>${m.kantin?.[u.id] || 0}</span><button type="button" data-d="1">+</button></span></div>`).join("")}</div>
+      </div>`;
+    $("ad-ara").addEventListener("input", (e) => {
+      adisyonAra = e.target.value; const q2 = adisyonAra.toLocaleLowerCase("tr");
+      $("kasa-ic").querySelectorAll("[data-ad-urun]").forEach((el) => { el.hidden = q2 && !el.dataset.ad.includes(q2); });
+    });
+    adisyonHesapCiz();
+  }
+  function adisyonHesapCiz() {
+    const el = $("ad-hesap"); if (!el) return;
+    const i = adisyonMac, m = kk.maclar[i], o = kasaOzetHesapla(), mo = o.maclar[i], kr = kira();
+    const kalemler = Object.entries(m.kantin || {}).map(([id, a]) => [`${birim(id).ad} ×${a}`, a * birim(id).satis]);
+    $("ad-kantin-top").textContent = mo.kantin ? para(mo.kantin) : "";
+    const sat = (a, v, c = "") => `<tr class="${c}"><td>${a}</td><td>${v}</td></tr>`;
+    el.innerHTML = `<h3>Maç sonu hesap${m.odendi ? '<span class="sag rozet r-onayli">✓ Ödendi ' + kacis(m.odemeZamani || "") + "</span>" : ""}</h3>
+      <table class="ozet-t">
+        ${sat(m.tur === "abone" ? "Abone maç ücreti" : "Maç ücreti", para(m.ucret))}
+        ${m.vip ? sat("VIP hizmet", para(m.vip)) : ""}
+        ${m.krampon ? sat(`Krampon ×${m.krampon}`, para(m.krampon * kr.krampon)) : ""}
+        ${m.eldiven ? sat(`Eldiven ×${m.eldiven}`, para(m.eldiven * kr.eldiven)) : ""}
+        ${kalemler.map(([a, v]) => sat(a, para(v))).join("")}
+        ${m.onOdeme ? sat("Alınan kapora", "− " + para(m.onOdeme), "eksi") : ""}
+        ${sat("ÖDENECEK", para(mo.kalan), "buyuk")}
+      </table>
+      <button class="dugme tam" type="button" data-ad-ode style="margin-top:12px;font-size:18px;padding:14px;${m.odendi ? "background:#5b6b78" : "background:#1a7f37"}">${m.odendi ? "Ödemeyi geri al" : "Ödendi"}</button>
+      <p class="soluk" style="font-size:13px;margin-top:8px">Maç sırasında alınanları buradan ekleyin; her dokunuş kendiliğinden kaydedilir ve stoktan düşer. Veresiye ve ikram için "Gün kasası"ndaki maç kutusunu kullanın.</p>`;
+  }
+
   function kasaCiz() {
+    if (!kasaMod) kasaMod = kasa.gun === kasa.bugun ? "adisyon" : "gun";
+    document.querySelectorAll("[data-kasa-mod]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.kasaMod === kasaMod)));
+    $("kasa-stok-alan").hidden = kasaMod === "adisyon";
+    if (kasaMod === "adisyon") {
+      $("kasa-baslik").textContent = `${tarihYazi(kasa.gun, true)} ${kasa.gunAd}`;
+      $("kasa-sonraki").disabled = kasa.gun >= kasa.bugun;
+      $("kasa-onceki").disabled = ben.rol !== "admin" && kasa.gun <= gunEkle(kasa.bugun, -1);
+      $("kasa-durum").textContent = "";
+      return adisyonCiz();
+    }
     const bugunMu = kasa.gun === kasa.bugun;
     $("kasa-baslik").textContent = `${tarihYazi(kasa.gun, true)} ${kasa.gunAd}`;
     $("kasa-sonraki").disabled = kasa.gun >= kasa.bugun;
@@ -1612,7 +1700,7 @@
           <div class="mac-ust">
             <span class="saat-i">${kacis(m.saat)}</span>
             <span class="tur-y">${m.tur === "abone" ? "Abone" : m.tur === "bos" ? "Boş" : "Normal"}</span>
-            <b class="ad-y">${kacis(m.ad)}</b>
+            <b class="ad-y">${kacis(m.ad)}${m.odendi ? ' <span class="rozet r-onayli" style="font-size:12px">✓ ödendi</span>' : ""}</b>
             ${m.kaynak === "takvim" ? "" : `<button class="x-sil" type="button" data-sil="maclar.${i}" aria-label="Satırı sil">×</button>`}
           </div>
           ${m.depozito ? `<small class="depozito" style="margin:-2px 0 6px">Depozito: ${kacis(m.depozito)}</small>` : ""}
@@ -1626,7 +1714,7 @@
             <span class="adim" aria-label="Krampon"><button type="button" data-adim="maclar.${i}.krampon" data-d="-1">−</button><span>👟 ${m.krampon || 0}</span><button type="button" data-adim="maclar.${i}.krampon" data-d="1">+</button></span>
             <span class="adim" aria-label="Eldiven"><button type="button" data-adim="maclar.${i}.eldiven" data-d="-1">−</button><span>🧤 ${m.eldiven || 0}</span><button type="button" data-adim="maclar.${i}.eldiven" data-d="1">+</button></span>
             <button class="dugme ikincil kucuk" type="button" data-kantin="${i}">Kantin <span data-mk="${i}"></span></button>
-            <button class="dugme ikincil kucuk" type="button" data-veresiye="${i}" style="border-color:#b98a00;color:#8a5a00">Veresiye <span data-mv="${i}"></span></button>
+            ${m.veresiyeAcik || Object.keys(m.veresiyeKantin || {}).length ? `<button class="dugme ikincil kucuk" type="button" data-veresiye="${i}" style="border-color:#b98a00;color:#8a5a00">Veresiye <span data-mv="${i}"></span></button>` : ""}
             <button class="dugme ikincil kucuk" type="button" data-ikram-mac="${i}" style="border-color:#1a7f37;color:#1a7f37">İkram <span data-mi="${i}"></span></button>
             <span class="mac-top" data-mt="${i}"></span>
           </div>
@@ -1660,6 +1748,7 @@
   }
 
   function kasaOzetCiz() {
+    if (kasaMod === "adisyon") return adisyonHesapCiz();
     const o = kasaOzetHesapla();
     o.maclar.forEach((m, i) => {
       const t = document.querySelector(`[data-mt="${i}"]`);
@@ -1721,6 +1810,28 @@
   });
   $("v-kasa").addEventListener("click", (e) => {
     const b = e.target.closest("button"); if (!b || !kk) return;
+    if (b.dataset.adMac !== undefined) { adisyonMac = Number(b.dataset.adMac); adisyonCiz(); return; }
+    if (b.dataset.adKira) {
+      const m = kk.maclar[adisyonMac]; const a = b.dataset.adKira;
+      m[a] = Math.max(0, (m[a] || 0) + Number(b.dataset.d));
+      b.parentElement.querySelector("span").textContent = m[a];
+      degisti(); adisyonHesapCiz(); return;
+    }
+    const kart = b.closest("[data-ad-urun]");
+    if (kart && b.dataset.d) {
+      const m = kk.maclar[adisyonMac], id = kart.dataset.adUrun;
+      m.kantin = { ...(m.kantin || {}) };
+      m.kantin[id] = Math.max(0, (m.kantin[id] || 0) + Number(b.dataset.d)); if (!m.kantin[id]) delete m.kantin[id];
+      kart.querySelector(".adim span").textContent = m.kantin[id] || 0;
+      kart.classList.toggle("var", Boolean(m.kantin[id]));
+      degisti(); adisyonHesapCiz(); return;
+    }
+    if (b.dataset.adOde !== undefined) {
+      const m = kk.maclar[adisyonMac];
+      if (m.odendi) { if (!confirm("Ödeme geri alınsın mı?")) return; delete m.odendi; delete m.odemeZamani; }
+      else { m.odendi = true; m.odemeZamani = new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" }); }
+      degisti(); adisyonCiz(); if (m.odendi) bildir(`${m.saat} ${m.ad}: ödendi`); return;
+    }
     if (b.dataset.adim) {
       const p = yolAyir(b.dataset.adim), m = kk.maclar[p[1]];
       m[p[2]] = Math.max(0, (m[p[2]] || 0) + Number(b.dataset.d));

@@ -592,18 +592,22 @@ test("Kasa: alınan kapora otomatik gelir, sonradan girilen kapora da güncellen
 });
 
 
-test("Kasa: maçtaki veresiye kantin stoktan düşer, ciroya girmez", async () => {
+test("Kasa: maçtaki veresiye kantin stoktan düşer, ciroya girmez (sadece izinli abone: varsayılan Abone 1 ve 2)", async () => {
   const d = demoDepo({ PANEL_KURULUM_KODU: "k" });
   const admin = await d.oturum((await d.panelKur({ kurulumKodu: "k", eposta: "admin@aysu.com", ad: "Admin", sifre: "aysu-2026!" })).token);
-  await d.panelRezEkle({ gunTarihi: "2026-10-19", saat: "20:00", ad: "Yusuf", telefon: "" });
+  await d.aboneKaydet({ ad: "Ekip", telefon: "0545 123 01 23", gun: 0, saat: "20:00", no: 1, ucret: "3700" });
+  await d.panelRezEkle({ gunTarihi: "2026-10-19", saat: "22:00", ad: "Yusuf", telefon: "" });
   const k = await d.kasaGetir("2026-10-19", admin);
   const su = k.urunler[22];
   k.kayit.maclar[0].kantin = { [su.id]: 2 };
   k.kayit.maclar[0].veresiyeKantin = { [su.id]: 3 }; k.kayit.maclar[0].veresiyeKim = "Yusuf";
+  k.kayit.maclar[1].veresiyeKantin = { [su.id]: 4 }; // normal müşteriye veresiye yok
+  assert.equal(k.kayit.maclar[0].veresiyeAcik, true); assert.ok(!k.kayit.maclar[1].veresiyeAcik);
   const r = await d.kasaKaydet({ ...k.kayit }, admin);
+  assert.deepEqual(r.kayit.maclar[1].veresiyeKantin, {});
   assert.equal(r.kayit.ozet.kantin, 2 * su.satis);
   assert.equal(r.kayit.ozet.veresiyeKantin, 3 * su.satis);
-  assert.equal(r.kayit.ozet.ciro, 3700 + 2 * su.satis);
+  assert.equal(r.kayit.ozet.ciro, 3700 + 3700 + 2 * su.satis);
   assert.equal((await d.urunler()).find((u) => u.id === su.id).stok, su.stok - 5);
 });
 
@@ -628,7 +632,7 @@ test("Veresiye: abonenin sonraki maçında o gün GELDİM diyen yöneticiye hat�
     await d.kullaniciGuncelle({ eposta: e, rol, durum: "aktif" }, admin);
   }
   const yrd = await d.oturum((await d.panelGiris({ eposta: "y@aysu.com", sifre: "sifre-1234" })).token);
-  await d.aboneKaydet({ ad: "Ekip", telefon: "0545 123 01 23", gun: 0, saat: "21:00", no: 13 });
+  await d.aboneKaydet({ ad: "Ekip", telefon: "0545 123 01 23", gun: 0, saat: "21:00", no: 2 });
   const k = await d.kasaGetir("2026-10-19", admin);
   k.kayit.maclar[0].veresiyeKantin = { [k.urunler[22].id]: 2 }; k.kayit.maclar[0].veresiyeKim = "Kaptan";
   assert.ok((await d.kasaKaydet({ ...k.kayit, otomatik: true }, admin)).otomatik);

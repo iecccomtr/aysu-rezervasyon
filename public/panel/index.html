@@ -120,8 +120,14 @@
   .kasa-kart { padding: 12px 14px; margin-bottom: 12px; }
   .kasa-kart h3 { font-size: 20px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
   .kasa-kart h3 .sag { margin-left: auto; font-size: 16px; }
-  .mac { border-top: 1px solid var(--cizgi); padding: 10px 0; }
-  .mac:first-of-type { border-top: 0; padding-top: 0; }
+  .mac { border: 2px solid #f1d2b3; border-left: 6px solid #ef7f1a; border-radius: 12px; padding: 10px; margin-bottom: 12px; background: #fff8f1; }
+  .mac.t-abone { border-color: #c9d6f5; }
+  .mac.t-abone { border-left-color: var(--mavi, #2b5fb3); background: #f3f6fd; }
+  .mac.t-bos { border-color: #d5dadd; border-left-color: #9aa5ae; background: #f4f5f6; }
+  .mac-ust .saat-i { background: #ef7f1a; color: #fff; border-color: #ef7f1a; }
+  .mac.t-abone .saat-i { background: var(--mavi, #2b5fb3); border-color: var(--mavi, #2b5fb3); }
+  .mac.t-bos .saat-i { background: #9aa5ae; border-color: #9aa5ae; }
+  .mac .k-alt { border-top: 1px dashed #cfdbe5; padding-top: 8px; }
   .mac-ust { display: grid; grid-template-columns: 66px 104px 1fr 28px; gap: 6px; align-items: center; margin-bottom: 6px; }
   .mac-ust input, .mac-ust select, .k-ic input { width: 100%; border: 1px solid #b5c3cf; border-radius: 8px; padding: 7px 8px; font-size: 16px; background: var(--kart); min-width: 0; }
   .mac-ust .saat-i { font: 700 20px/1 "Barlow Condensed", sans-serif; text-align: center; padding: 6px 2px; }
@@ -1528,7 +1534,7 @@
         <input data-yol="devir" value="${kk.devir || ""}" inputmode="numeric" placeholder="0" aria-label="Kasa devir"></div></div>
 
       <div class="kutu kasa-kart"><h3>Maçlar<span class="sag soluk" data-top="maclar"></span></h3>
-        ${kk.maclar.map((m, i) => `<div class="mac">
+        ${kk.maclar.map((m, i) => `<div class="mac t-${m.tur}">
           <div class="mac-ust">
             <input class="saat-i" data-yol="maclar.${i}.saat" value="${kacis(m.saat)}" aria-label="Saat" placeholder="SS:DD">
             <select data-yol="maclar.${i}.tur" aria-label="Tür">${[["normal", "Normal"], ["abone", "Abone"], ["bos", "Boş"]].map(([v, a]) => `<option value="${v}"${m.tur === v ? " selected" : ""}>${a}</option>`).join("")}</select>
@@ -1611,7 +1617,11 @@
       kasaOzetCiz(); const el = $(id); el.focus(); try { el.setSelectionRange(pos, pos); } catch {}
     } else kasaOzetCiz();
   });
-  $("v-kasa").addEventListener("change", (e) => { if (e.target.dataset.yol && e.target.tagName === "SELECT") { yolYaz(e.target.dataset.yol, e.target.value); degisti(); } });
+  $("v-kasa").addEventListener("change", (e) => {
+    if (!e.target.dataset.yol || e.target.tagName !== "SELECT") return;
+    yolYaz(e.target.dataset.yol, e.target.value); degisti();
+    const kart = e.target.closest(".mac"); if (kart) kart.className = `mac t-${e.target.value}`;
+  });
   $("v-kasa").addEventListener("click", (e) => {
     const b = e.target.closest("button"); if (!b || !kk) return;
     if (b.dataset.adim) {

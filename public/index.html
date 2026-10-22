@@ -199,6 +199,13 @@
   .dugme.ana { background: var(--kirmizi); color: var(--cim-koyu); }
   .dugme.ana:hover { background: #d96d0c; }
   .dugme.ikinci { border-color: rgba(244,247,241,.7); color: var(--tebesir); }
+  /* Maç kayıtları */
+  .mac-kayit { padding: 40px 0; }
+  .mac-kutu { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap;
+    background: linear-gradient(135deg, var(--cim-koyu), var(--cim)); color: var(--tebesir); border-radius: 18px; padding: 26px 28px; }
+  .mac-kutu h2 { font-size: clamp(28px, 4vw, 38px); margin-bottom: 6px; }
+  .mac-kutu p { max-width: 52ch; opacity: .95; }
+  .mac-kutu .dugme { flex: none; }
   /* Sık sorulan sorular */
   .sss { padding: 56px 0; background: var(--tebesir); }
   .sss h2 { margin-bottom: 18px; color: var(--cim-koyu); }
@@ -348,6 +355,7 @@
     <nav aria-label="Ana menü">
       <a href="/rezervasyon/">Rezervasyon</a>
       <a href="#tesis">Tesis</a>
+      <a href="#mac-kayitlari">Maç kayıtları</a>
       <a href="#sss">Sorular</a>
       <a href="#konum">İletişim</a>
     </nav>
@@ -401,6 +409,18 @@
         <p>Hava ne olursa olsun maç iptal olmaz.</p>
       </div>
     </dl>
+  </section>
+
+  <section class="mac-kayit" id="mac-kayitlari" aria-labelledby="mac-kayit-baslik">
+    <div class="kap">
+      <div class="mac-kutu">
+        <div>
+          <h2 id="mac-kayit-baslik">Maç kayıtlarınız</h2>
+          <p>Sahadaki maçlar kaydediliyor. <b>Maçlarınız 1 saat sonra yayında.</b> Kayıtları sosyalhalisaha.com üzerinden izleyebilirsiniz.</p>
+        </div>
+        <a class="dugme ana" href="https://sosyalhalisaha.com" target="_blank" rel="noopener">Maçımı izle →</a>
+      </div>
+    </div>
   </section>
 
   <section id="tesis" aria-labelledby="tesis-baslik">
@@ -457,8 +477,8 @@
   <section id="konum" aria-labelledby="hakkimizda-baslik">
     <div class="kap iki">
       <div class="metin">
-        <h2 id="hakkimizda-baslik">2016'dan beri Batıkent'te</h2>
-        <p>Aysu Halı Saha, Eskişehir'de 1975'ten bu yana mühendislik ve inşaat alanında çalışan Aysu Grup'un hizmet sektöründeki ilk adımı olarak 2016'da açıldı.</p>
+        <h2 id="hakkimizda-baslik">2018'den beri Batıkent'te</h2>
+        <p>Aysu Halı Saha, Eskişehir'de 1975'ten bu yana mühendislik ve inşaat alanında çalışan Aysu Grup'un hizmet sektöründeki ilk adımı olarak 2018'de açıldı.</p>
         <p>Kapalı sahamızı her gün sabah 8'den gece 2'ye kadar açık tutuyoruz. Abonelik ve toplu rezervasyon için <a href="https://wa.me/905555102626" target="_blank" rel="noopener">WhatsApp'tan yazın</a>.</p>
         <div class="adres">
           <span>Batıkent Mah. Ertürk Sk. No:2, Tepebaşı / Eskişehir</span>

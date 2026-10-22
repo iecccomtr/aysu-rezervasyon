@@ -470,3 +470,14 @@ test("Telefon kuralı: gerçek GSM öneki, uydurma numaralar reddedilir", async 
   const d = demoDepo();
   assert.match((await d.olustur({ gunTarihi: "2026-10-21", saat: "21:00", ad: "Uydurma", telefon: "0555 555 55 55" })).hata, /geçerli görünmüyor/);
 });
+
+test("Abone 'gelmiyor': aynı saat bu haftanın bütün günlerinde (Cmt + Paz 08:00)", async () => {
+  const d = demoDepo();
+  const a = (await d.aboneKaydet({ ad: "Futbol Koleji", slotlar: [{ gun: 5, saat: "08:00" }, { gun: 5, saat: "09:00" }, { gun: 6, saat: "08:00" }, { gun: 6, saat: "09:00" }], baslangic: "2026-10-19" })).abone;
+  const r = await d.aboneAtla({ id: a.id, gun: "2026-10-24", saat: "08:00", gelmiyor: true, kapsam: "ayni-saat" });
+  assert.equal(r.sayi, 2);
+  const h = await d.panelHafta("2026-10-19");
+  assert.equal(h.gunler[5].saatler.find((x) => x.saat === "08:00").tur, "abone-gelmiyor");
+  assert.equal(h.gunler[6].saatler.find((x) => x.saat === "08:00").tur, "abone-gelmiyor");
+  assert.equal(h.gunler[6].saatler.find((x) => x.saat === "09:00").tur, "abone");
+});

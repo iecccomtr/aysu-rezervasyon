@@ -920,6 +920,8 @@
   function aboneSlot(g, s) {
     const a = s.abone;
     const gunSaat = aboneGunSaat(a, g.tarih), haftaSaat = (a.slotlar || []).length;
+    // Abonenin bu saatte geldiği bütün günler (ör. Cmt ve Paz 08:00)
+    const ayniSaatGunler = [...new Set((a.slotlar || []).filter((x) => x.saat === s.saat).map((x) => x.gun))].sort((x, y) => x - y);
     ac(`${KISA[gunNo(g.tarih)]} ${tarihYazi(g.tarih)} · ${s.saat}`, `
       <div class="satirlar">
         <div><span>Abone</span><b>${kacis(a.ad)}</b></div>
@@ -931,7 +933,8 @@
         <a class="dugme ikincil kucuk" target="_blank" rel="noopener" href="${wa(a.telefon)}">WhatsApp</a></div>` : ""}
       <h3 style="font-size:20px;margin:4px 0 10px">Gelmiyor olarak işaretle</h3>
       <div style="display:grid;gap:8px">
-        <button class="dugme tam" type="button" data-kapsam="saat">Sadece ${s.saat} gelmiyor</button>
+        <button class="dugme tam" type="button" data-kapsam="saat">Sadece ${g.gun} ${s.saat} gelmiyor</button>
+        ${ayniSaatGunler.length > 1 ? `<button class="dugme tam" type="button" data-kapsam="ayni-saat">${ayniSaatGunler.map((n) => KISA[n]).join(" + ")} ${s.saat} gelmiyor (bu hafta)</button>` : ""}
         ${gunSaat > 1 ? `<button class="dugme tam" type="button" data-kapsam="gun">${g.gun} hiç gelmiyor (${gunSaat} saat)</button>` : ""}
         ${haftaSaat > gunSaat ? `<button class="dugme tam" type="button" data-kapsam="hafta">Bu hafta hiç gelmiyor (${haftaSaat} saat)</button>` : ""}
       </div>

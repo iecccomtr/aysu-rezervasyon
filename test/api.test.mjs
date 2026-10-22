@@ -265,15 +265,16 @@ test("Dekont: doğru IBAN/alıcı/tutar → otomatik onay; yanlış IBAN → kon
   const y2 = await yukle(r2.kayitNo);
   KURALLAR.dekontTekrarKontrol = false;
   assert.equal(y2.veri.onay, false);
-  assert.match(epostalar.at(-1).text, /daha önce başka bir rezervasyon/);
-  assert.doesNotMatch(epostalar.at(-1).text, new RegExp(r1.kayitNo + " için"));
+  assert.match(y2.veri.nedenler.join(" "), /daha önce başka bir rezervasyon/);
+  assert.doesNotMatch(y2.veri.nedenler.join(" "), new RegExp(r1.kayitNo));
+  assert.doesNotMatch(epostalar.at(-1).subject, /doğrulanamadı/, "doğrulanamayan dekont için e-posta yok");
 
   // Yanlış IBAN
   okunacak.alici_iban = "TR11 0000 0000 0000 0000 0000 00";
   const r3 = (await istek("/api/rezervasyon", { ...REZ, saat: "19:00", telefon: "0532 444 55 66" })).veri;
   const y3 = await istek("/api/dekont", { kayitNo: r3.kayitNo, telefon: "0532 444 55 66", tur: "image/jpeg", ad: "d.jpg", dosya: btoa("x".repeat(300)) });
   assert.equal(y3.veri.onay, false);
-  assert.match(epostalar.at(-1).text, /IBAN eşleşmiyor/);
+  assert.match(y3.veri.nedenler.join(" "), /IBAN eşleşmiyor/);
 });
 
 test("VIP spiker (+1600) ve VIP hakem (+1000) ücrete eklenir", async () => {

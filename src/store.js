@@ -865,6 +865,14 @@ export class RezervasyonDeposu extends DurableObject {
           const t = gunEkle(bas, i);
           for (const x of sl) if (x.gun === gunNo(t)) hedef.push({ t, saat: x.saat });
         }
+      } else if (kapsam === "ayni-saat") {
+        // Bu hafta abonenin aynı saatteki bütün günleri (ör. Cmt 08:00 + Paz 08:00)
+        const s1 = saatNormalize(saat);
+        const bas = haftaBasi(g);
+        for (let i = 0; i < 7; i++) {
+          const t = gunEkle(bas, i);
+          if (sl.some((x) => x.gun === gunNo(t) && x.saat === s1)) hedef.push({ t, saat: s1 });
+        }
       } else if (kapsam === "gun") {
         hedef = sl.filter((x) => x.gun === gunNo(g)).map((x) => ({ t: g, saat: x.saat }));
       } else {

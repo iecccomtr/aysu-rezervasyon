@@ -475,8 +475,9 @@ export default {
         const { okunan, k } = await dekontKontrolEt(env, d, r, veri);
         if (k.onay) onbellegiTemizle(request, ctx);
         const uzanti = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "application/pdf": "pdf" }[r.dekont.tur];
-        ctx.waitUntil(bildir(env, {
-          konu: k.onay ? `Yeni rezervasyon: ${r.gun} ${r.saat} (${r.kayitNo})` : `Dekont doğrulanamadı: ${r.gun} ${r.saat} (${r.kayitNo})`,
+        // Sadece kesinleşen rezervasyon için e-posta (doğrulanamayan dekont için e-posta yok)
+        if (k.onay) ctx.waitUntil(bildir(env, {
+          konu: `Yeni rezervasyon: ${r.gun} ${r.saat} (${r.kayitNo})`,
           satirlar: [["Maç", `${r.gun}, ${r.tarih} saat ${r.saat}`], ["Ad soyad", r.ad], ["Telefon", r.telefon], ["Kayıt no", r.kayitNo],
             ["VIP", r.ekstra?.length ? r.ekstra.map((x) => EKSTRALAR[x].ad).join(", ") : "-"], ["Toplam ücret", `${r.ucret} TL`],
             ["Kapora", `${k.rez.dekont.kontrol.tutar ?? "?"} TL (dekont ekte)`],

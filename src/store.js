@@ -275,6 +275,21 @@ export class RezervasyonDeposu extends DurableObject {
     });
   }
 
+  /** Müşterinin onay ekranı için güncel durum (kayıt no + telefon). */
+  async rezDurum({ kayitNo, telefon: tel }) {
+    const telefon = telefonNormalize(tel);
+    const b = await this.kayitBul(kayitNo);
+    if (!b || !telefon || b.kayit.telefon !== telefon) return { hata: "Rezervasyon bulunamadı." };
+    const r = b.kayit;
+    const dustu = opsiyonDustu(r) || Boolean(r.opsiyonDustu);
+    return {
+      durum: dustu ? "Düştü" : iptalMi(r.durum) ? "İptal" : r.durum,
+      opsiyonBitis: r.durum === DURUM.bekliyor && !dustu ? r.opsiyonBitis || null : null,
+      opsiyonKalan: r.durum === DURUM.bekliyor && !dustu && r.opsiyonBitis ? Math.max(0, r.opsiyonBitis - Date.now()) : null,
+      dekont: r.dekont ? { onay: Boolean(r.dekont.kontrol?.onay), nedenler: r.dekont.kontrol?.nedenler || [] } : null,
+    };
+  }
+
   async bul(tel) {
     return this.kilitli(async () => {
       const telefon = telefonNormalize(tel);

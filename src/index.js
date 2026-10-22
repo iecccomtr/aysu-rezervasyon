@@ -324,6 +324,8 @@ const rezCevap = (r) => ({
   basarili: true, kayitNo: r.kayitNo, tarih: r.tarih, gun: r.gun, saat: r.saat, durum: r.durum,
   ucret: r.ucret, kapora: FIYATLAR.kapora, kalan: r.ucret - FIYATLAR.kapora,
   iban: IBAN.no || null, alici: IBAN.alici || null, opsiyonBitis: r.opsiyonBitis || null, dekont: Boolean(r.dekont),
+  // Telefon saati yanlış olabilir: kalan süre sunucudan milisaniye olarak
+  opsiyonKalan: r.opsiyonBitis ? Math.max(0, r.opsiyonBitis - Date.now()) : null,
 });
 
 /** Dekontu okur, kurallara göre değerlendirir ve sonucu rezervasyona yazar. */
@@ -483,6 +485,15 @@ export default {
       if (!g) return json({ hata: "Geçersiz istek." }, 400);
       const r = await depo(env).opsiyonDevam(g);
       return r.basarili ? json(rezCevap(r)) : json(r, 400);
+    }
+
+    // Onay ekranı açıkken birkaç saniyede bir güncel durum (opsiyon süresi, onay, düşme)
+    if (yol === "/api/rezervasyon-durum" && request.method === "POST") {
+      if (!ayniKaynak(request)) return json({ hata: "Yetkisiz istek." }, 403);
+      const g = await govdeOku(request);
+      if (!g) return json({ hata: "Geçersiz istek." }, 400);
+      const r = await depo(env).rezDurum(g);
+      return json(r, r.hata ? 404 : 200);
     }
 
     // Müşteri telefon numarasıyla ileri tarihli rezervasyonlarını görür (dekont yükleme / iptal için)

@@ -615,8 +615,36 @@
 
   try { localStorage.removeItem("aysu-son-rez"); } catch {}
 
+  // Onay ekranı açıkken durumu sunucudan tazele: 10 sn'de bir ve sekmeye geri dönülünce hemen
+  let durumZaman = null;
+  async function durumTazele() {
+    if (!sonRez || $("tamam").hidden) return;
+    const r = await fetch("/api/rezervasyon-durum", { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ kayitNo: sonRez.kayitNo, telefon: sonRez.telefon }), cache: "no-store" }).catch(() => null);
+    if (!r || !r.ok) return;
+    const v = await r.json().catch(() => null);
+    if (!v) return;
+    const el = $("t-dekont-sonuc");
+    if (v.durum === "Onaylı") {
+      sonRez.onayli = true; clearInterval(sayacZaman); clearInterval(durumZaman); $("t-sayac").textContent = "";
+      el.className = "dekont-sonuc iyi"; el.textContent = "✓ Rezervasyonunuz kesinleşti. İyi maçlar!";
+    } else if (v.durum === "Düştü" || v.durum === "İptal") {
+      clearInterval(sayacZaman); clearInterval(durumZaman);
+      $("t-sayac").className = "sayac az";
+      $("t-sayac").textContent = v.durum === "Düştü" ? "Opsiyon süresi doldu, saat boşa çıktı. Ödeme yaptıysanız hemen arayın: 0 555 510 26 26" : "Bu rezervasyon iptal edildi.";
+    } else if (v.opsiyonKalan != null) {
+      sayacBaslat(Date.now() + v.opsiyonKalan); // sunucudaki süreyle eşitle
+    }
+  }
+  function durumIzle() {
+    clearInterval(durumZaman);
+    durumZaman = setInterval(durumTazele, 10_000);
+  }
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") durumTazele(); });
+
   function basariGoster(v, g) {
-    sayacBaslat(v.opsiyonBitis);
+    sayacBaslat(v.opsiyonKalan != null ? Date.now() + v.opsiyonKalan : v.opsiyonBitis);
+    durumIzle();
     if (sonRez) sonRez.yazi = `${g.gun} ${tarihYazi(g.tarih)}, ${v.saat}`;
     const zaman = `${g.gun} ${tarihYazi(g.tarih)}${gece(v.saat) ? " gecesi" : ""}, ${v.saat}`;
     $("t-zaman").textContent = zaman;
@@ -656,7 +684,7 @@
         if (!r || !r.ok) alert("Önceki saat bırakılamadı. Lütfen arayın: 0 555 510 26 26");
       }
     }
-    sonRez = null; clearInterval(sayacZaman);
+    sonRez = null; clearInterval(sayacZaman); clearInterval(durumZaman);
     $("tamam").hidden = true; $("secim").hidden = false;
     document.querySelector(".wp-yuzen").hidden = false;
     secilenSaat = null;

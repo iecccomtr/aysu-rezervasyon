@@ -326,3 +326,15 @@ test("Geçmiş haftalar ve geçmiş kayıtlar sadece Admin'e açık", async () =
   assert.equal(h.gerisiVar, false);
   assert.equal((await istek("/api/panel/hafta?bas=2026-10-26")).veri.baslangic, "2026-10-26", "ileri haftalar açık");
 });
+
+test("Onay ekranı durumu: opsiyon süresi, düşme ve kayıt no + telefon eşleşmesi", async () => {
+  const { istek } = await kur();
+  const r = (await istek("/api/rezervasyon", REZ)).veri;
+  assert.ok(r.opsiyonKalan > 14 * 60_000);
+  assert.equal((await istek("/api/rezervasyon-durum", { kayitNo: r.kayitNo, telefon: "05329999999" })).durum, 404);
+  const d1 = (await istek("/api/rezervasyon-durum", { kayitNo: r.kayitNo, telefon: REZ.telefon })).veri;
+  assert.equal(d1.durum, "Kapora bekleniyor"); assert.ok(d1.opsiyonKalan > 0);
+  saatiAyarla("2026-10-21T23:50");
+  const d2 = (await istek("/api/rezervasyon-durum", { kayitNo: r.kayitNo, telefon: REZ.telefon })).veri;
+  assert.equal(d2.durum, "Düştü");
+});

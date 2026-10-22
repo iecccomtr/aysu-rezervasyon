@@ -1053,23 +1053,60 @@ export class RezervasyonDeposu extends DurableObject {
       const s = this.slot(d, gun, saat);
       if (s.tur === "abone") {
         const no = aboneNo(s.abone);
-        satirlar.push({ saat, tur: "abone", ad: no ? `Abone ${no}` : s.abone.ad, ucret: tutar(s.abone.ucret) || f.abone, vip: 0, onOdeme: 0 });
+        satirlar.push({ saat, tur: "abone", ad: no ? `Abone ${no}` : s.abone.ad, ucret: tutar(s.abone.ucret) || f.abone, vip: 0, onOdeme: 0, kaynak: "takvim" });
       } else if (s.tur === "rez" && s.rez.durum === DURUM.onayli) {
         const r = s.rez;
         const vip = (r.ekstra || []).reduce((t, x) => t + (f[x] ?? EKSTRALAR[x]?.ucret ?? 0), 0);
         const onOdeme = Number(r.kaporaToplam) || tutar(r.kapora);
-        satirlar.push({ saat, tur: "normal", ad: r.ad, ucret: Math.max(0, (Number(r.ucret) || f.mac) - vip), vip, onOdeme, kayitNo: r.kayitNo });
+        satirlar.push({ saat, tur: "normal", ad: r.ad, ucret: Math.max(0, (Number(r.ucret) || f.mac) - vip), vip, onOdeme, kayitNo: r.kayitNo, kaynak: "takvim" });
       }
     }
     return satirlar;
+  }
+
+  /**
+   * Kayıtlı kasa gününü takvimle eşitler: yeni rezervasyon / abone satırı eklenir; iptal edilen ya da
+   * başkasına geçen saatin satırı (henüz krampon, eldiven, kantin girilmemişse) kaldırılır / yenilenir.
+   * Elle eklenen satırlara dokunulmaz.
+   */
+  kasaTakvimBirlestir(kayit, takvim) {
+    const veriYok = (m) => !m.krampon && !m.eldiven && !Object.keys(m.kantin || {}).length;
+    const t = new Map(takvim.map((x) => [x.saat, x]));
+    const degisenler = [];
+    const maclar = [];
+    for (const m of kayit.maclar || []) {
+      const y = t.get(m.saat);
+      if (m.kaynak === "takvim" && !y && veriYok(m)) { degisenler.push(`${m.saat} kaldırıldı (${m.ad})`); continue; }
+      if (m.kaynak === "takvim" && y && (y.ad !== m.ad || y.tur !== m.tur) && veriYok(m)) {
+        maclar.push({ ...y, krampon: 0, eldiven: 0, kantin: {} }); degisenler.push(`${m.saat} ${m.ad} → ${y.ad}`); continue;
+      }
+      maclar.push(m);
+    }
+    for (const y of takvim) {
+      if (!maclar.some((m) => m.saat === y.saat)) { maclar.push({ ...y, krampon: 0, eldiven: 0, kantin: {} }); degisenler.push(`${y.saat} eklendi (${y.ad})`); }
+    }
+    maclar.sort((a, b) => SAAT_SIRA(a.saat || "00:00") - SAAT_SIRA(b.saat || "00:00"));
+    return { maclar, degisenler };
   }
 
   async kasaGetir(gunGirdi, yapan) {
     const n = simdi();
     const gun = tarihNormalize(gunGirdi) || isletmeGunu(n.tarih, n.saat);
     if (!this.kasaYetkili(yapan, gun)) return { hata: "Geçmiş günlerin kasasını sadece Admin görebilir." };
+    // Kayıtlı gün takvimdeki son duruma göre kendiliğinden güncellenir (rezervasyon eklendi / iptal edildi)
+    const takvimSimdi = await this.kasaTakvim(gun);
+    await this.kilitli(async () => {
+      const k = await this.st.get(`kasa:${gun}`);
+      if (!k) return;
+      const { maclar, degisenler } = this.kasaTakvimBirlestir(k, takvimSimdi);
+      if (!degisenler.length) return;
+      const yeni = { ...k, maclar };
+      yeni.ozet = kasaOzet(yeni);
+      await this.st.put(`kasa:${gun}`, yeni);
+      await this.kayitTut(null, "Kasa takvimden güncellendi", `${gun} · ${degisenler.join(" · ")}`);
+    });
     const [kayit, takvim, urunler, fiyat, onceki, puantaj] = await Promise.all([
-      this.st.get(`kasa:${gun}`), this.kasaTakvim(gun), this.urunler(), this.fiyatAyar(),
+      this.st.get(`kasa:${gun}`), Promise.resolve(takvimSimdi), this.urunler(), this.fiyatAyar(),
       this.st.list({ start: "kasa:", end: `kasa:${gun}`, reverse: true, limit: 1 }),
       this.st.list({ prefix: `p:${gun}:` }),
     ]);
@@ -1113,6 +1150,7 @@ export class RezervasyonDeposu extends DurableObject {
           krampon: Math.min(50, Math.max(0, Math.round(Number(m?.krampon)) || 0)),
           eldiven: Math.min(50, Math.max(0, Math.round(Number(m?.eldiven)) || 0)),
           kantin: kantinTemiz(m?.kantin), ...(m?.kayitNo ? { kayitNo: kirp(m.kayitNo, 20) } : {}),
+          ...(m?.kaynak === "takvim" ? { kaynak: "takvim" } : {}),
         })).sort((a, b) => SAAT_SIRA(a.saat || "00:00") - SAAT_SIRA(b.saat || "00:00")),
         girisler: satirlar(g.girisler), cikislar: satirlar(g.cikislar),
         veresiye: (Array.isArray(g.veresiye) ? g.veresiye : []).slice(0, 40)

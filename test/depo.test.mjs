@@ -552,3 +552,20 @@ test("Kasa defteri: takvimden maçlar, kantin/krampon cirosu, stok farkı, yetki
   assert.ok((await d.urunKaydet({ id: su.id, stokEkle: 100 }, mudur)).basarili);
   assert.equal((await d.urunler()).find((u) => u.id === su.id).stok, 396);
 });
+
+test("Kasa: kayıtlı gün rezervasyon eklenince / iptal edilince kendiliğinden güncellenir", async () => {
+  const d = demoDepo({ PANEL_KURULUM_KODU: "k" });
+  const admin = await d.oturum((await d.panelKur({ kurulumKodu: "k", eposta: "admin@aysu.com", ad: "Admin", sifre: "aysu-2026!" })).token);
+  const r1 = await d.panelRezEkle({ gunTarihi: "2026-10-19", saat: "20:00", ad: "Yusuf", telefon: "" });
+  await d.panelRezEkle({ gunTarihi: "2026-10-19", saat: "22:00", ad: "Kantinli", telefon: "" });
+  const k = await d.kasaGetir("2026-10-19", admin);
+  const su = k.urunler[22].id;
+  k.kayit.maclar[1].kantin = { [su]: 2 };
+  assert.ok((await d.kasaKaydet({ ...k.kayit }, admin)).basarili);
+  await d.panelRezEkle({ gunTarihi: "2026-10-19", saat: "23:00", ad: "Berat", telefon: "" });
+  await d.panelRezGuncelle({ kayitNo: r1.kayitNo, durum: "İptal" });
+  const k2 = await d.kasaGetir("2026-10-19", admin);
+  assert.deepEqual(k2.kayit.maclar.map((m) => m.saat), ["22:00", "23:00"]);
+  assert.equal(k2.kayit.maclar[0].kantin[su], 2, "girilmiş veri korunur");
+  assert.ok((await d.islemler()).some((x) => x.islem === "Kasa takvimden güncellendi"));
+});

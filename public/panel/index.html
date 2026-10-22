@@ -1547,9 +1547,8 @@
             <span class="mac-top" data-mt="${i}"></span>
           </div>
         </div>`).join("") || '<p class="soluk">Bu gün maç yok.</p>'}
-        <div class="k-alt" style="margin-top:10px"><button class="dugme ikincil kucuk" type="button" id="k-mac-ekle">+ Maç satırı</button>
-          <button class="dugme ikincil kucuk" type="button" id="k-takvim">Takvimden getir</button></div>
-        <p class="soluk" style="font-size:13px;margin-top:8px">Krampon ${para(kr.krampon)}, eldiven ${para(kr.eldiven)}. Ön ödeme (önceden alınan kapora, IBAN) bugünkü kasaya girmez.</p>
+        <div class="k-alt" style="margin-top:10px"><button class="dugme ikincil kucuk" type="button" id="k-mac-ekle">+ Elle maç satırı</button></div>
+        <p class="soluk" style="font-size:13px;margin-top:8px">Maçlar o günün rezervasyon ve abone listesinden kendiliğinden gelir; rezervasyon eklenince / iptal edilince burası da güncellenir. Krampon ${para(kr.krampon)}, eldiven ${para(kr.eldiven)}. Ön ödeme (önceden alınan kapora, IBAN) bugünkü kasaya girmez.</p>
       </div>
 
       ${satirListesi("girisler", "Kasa girişi", "Ör. Fevzi 23.10 19:00 kapora")}
@@ -1750,6 +1749,16 @@
     alan.querySelectorAll("[data-kg]").forEach((tr) => tr.addEventListener("click", () => { kasaYukle(tr.dataset.kg); window.scrollTo({ top: 0 }); }));
   }
 
+  // Kasa açıkken takvimdeki değişiklikler 20 sn'de bir yansır (yazılmamış değişiklik varken dokunulmaz)
+  setInterval(async () => {
+    if ($("uygulama").hidden || sekme !== "kasa" || dlg.open || kasaDegisti || !kasaGun || document.visibilityState !== "visible") return;
+    const v = await api(`kasa?gun=${kasaGun}`).catch(() => null);
+    if (!v || v.hata || kasaDegisti || dlg.open) return;
+    if (JSON.stringify(v.kayit.maclar) === JSON.stringify(kasa.kayit.maclar) && v.kayitli === kasa.kayitli) return;
+    const y = window.scrollY;
+    kasa = v; kk = kopya(v.kayit); kasaCiz(); stokCiz(); window.scrollTo({ top: y });
+    bildir("Maç listesi rezervasyonlara göre güncellendi");
+  }, 20_000);
   // Başka bir haftaya geçildiyse ve 2 dakika dokunulmadıysa bugünün haftasına dön
   let sonHareket = Date.now();
   ["pointerdown", "keydown", "wheel", "touchstart"].forEach((t) => document.addEventListener(t, () => { sonHareket = Date.now(); }, { passive: true }));

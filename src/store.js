@@ -175,7 +175,7 @@ export const kasaTuketim = (k) => {
   for (const o of Object.values(k.ikram || {})) ekle(o);
   return t;
 };
-/** Personel birim fiyatı: %30 indirimli, 5 TL'nin katına yukarı yuvarlanmış (25 → 17,5 → 20) */
+/** Personel birim fiyatı: %40 indirimli (KURALLAR.personelIndirim), 5 TL'nin katına yukarı yuvarlanmış (25 → 15; 95 → 57 → 60) */
 export const personelFiyat = (satis) => (satis > 0 ? Math.ceil((satis * (1 - KURALLAR.personelIndirim)) / 5) * 5 : 0);
 /** Bir kasa gününde personelin kantin tüketimi {eposta: tutar} (maaştan düşülür) */
 export const personelKesintileri = (k) => {
@@ -220,7 +220,8 @@ export const kasaOzet = (k) => {
   // Personel kantini (maaştan kesilir) eklenir; devir katılmaz
   o.kasaToplam = o.ciro - o.onOdeme + o.giris + o.gelenKapora + o.personelKantin;
   // Önceden alınan kapora ve veresiye kasaya bugün girmez
-  o.olmasiGereken = o.kasaToplam - o.cikis - o.veresiye;
+  o.avans = (k.avanslar || []).reduce((t, x) => t + (Number(x.tutar) || 0), 0); // çalışana kasadan verilen günlük ödeme / avans
+  o.olmasiGereken = o.kasaToplam - o.cikis - o.veresiye - o.avans;
   o.fark = k.sayilan === null || k.sayilan === undefined ? null : k.sayilan - o.olmasiGereken;
   o.teslim = k.birakilan === null || k.birakilan === undefined ? null : (k.sayilan ?? o.olmasiGereken) - k.birakilan;
   return o;
@@ -979,9 +980,11 @@ export class RezervasyonDeposu extends DurableObject {
   /** Aylık puantaj: kişi kişi günler, saatler ve ödenecek tutar. eposta verilirse sadece o kişi. */
   async puantajAy(ay, eposta) {
     if (!/^\d{4}-\d{2}$/.test(ay || "")) return { hata: "Geçersiz ay." };
-    const [m, kullanicilar, kd, avM] = await Promise.all([this.st.list({ start: `p:${ay}-01`, end: `p:${ay}-31~` }), this.kullaniciListesi(),
-      this.kesintiDagit(`${ay}-31`), this.st.list({ start: `av:${ay}-01`, end: `av:${ay}-31~` })]);
+    const [m, kullanicilar, kd, avM, ayKasa] = await Promise.all([this.st.list({ start: `p:${ay}-01`, end: `p:${ay}-31~` }), this.kullaniciListesi(),
+      this.kesintiDagit(`${ay}-31`), this.st.list({ start: `av:${ay}-01`, end: `av:${ay}-31~` }), this.st.list({ start: `kasa:${ay}-01`, end: `kasa:${ay}-31~` })]);
+    // Avanslar: Admin'in puantajdan girdikleri + kasadan verilen günlük ödemeler
     const avanslar = [...avM.entries()].map(([k, v]) => ({ ...v, anahtar: k }));
+    for (const k of ayKasa.values()) for (const a of k.avanslar || []) avanslar.push({ ...a, gun: k.gun, not: "kasadan", kasadan: true });
     const kisiler = new Map();
     for (const [anahtar, k] of m) {
       const [, gun, ...ep] = anahtar.split(":");
@@ -1004,7 +1007,7 @@ export class RezervasyonDeposu extends DurableObject {
       }
       const kisi = kisiler.get(a.eposta);
       kisi.avans = (kisi.avans || 0) + a.tutar;
-      (kisi.avansListe ||= []).push({ gun: a.gun, tutar: a.tutar, not: a.not || "", anahtar: a.anahtar, ekleyen: a.ekleyen || "" });
+      (kisi.avansListe ||= []).push({ gun: a.gun, tutar: a.tutar, not: a.not || "", anahtar: a.anahtar, ekleyen: a.ekleyen || "", kasadan: Boolean(a.kasadan) });
     }
     // Ödenecek = saat × saatlik ücret − kantin tüketimi; kalan = ödenecek − verilen avanslar
     for (const kisi of kisiler.values()) {
@@ -1336,6 +1339,10 @@ export class RezervasyonDeposu extends DurableObject {
           ekstra: [...new Set(Array.isArray(m?.ekstra) ? m.ekstra : [])].filter((x) => EKSTRALAR[x]),
         })).sort((a, b) => SAAT_SIRA(a.saat || "00:00") - SAAT_SIRA(b.saat || "00:00")),
         girisler: satirlar(g.girisler), cikislar: satirlar(g.cikislar),
+        avanslar: (Array.isArray(g.avanslar) ? g.avanslar : []).slice(0, 30)
+          .map((x) => ({ eposta: epostaNormalize(x?.eposta), tutar: tutar(x?.tutar) }))
+          .filter((x) => x.eposta && x.tutar && tumKullanicilar.some((u) => u.eposta === x.eposta))
+          .map((x) => ({ ...x, ad: tumKullanicilar.find((u) => u.eposta === x.eposta).ad })),
         gelenKaporalar: await this.gelenKaporalar(gun),
         veresiye: (Array.isArray(g.veresiye) ? g.veresiye : []).slice(0, 40)
           .map((x) => ({ aciklama: kirp(x?.aciklama, 120), tutar: tutar(x?.tutar) })).filter((x) => x.aciklama || x.tutar),
@@ -1629,33 +1636,35 @@ export class RezervasyonDeposu extends DurableObject {
    * kapsam: "saat" (sadece `saat`), "gun" (o işletme gününün tüm saatleri), "hafta" (o haftanın tüm saatleri).
    */
   /**
-   * Abone o hafta başka gün/saatte oynamak istiyor: asıl saat "gelmiyor" olur (boşa çıkar),
-   * yeni gün/saate abone adına onaylı rezervasyon açılır (abone ücretiyle).
+   * Abonenin bir saatini kalıcı olarak başka gün/saate taşır (ör. Perşembe 20:00 → Cuma 22:00, her hafta).
+   * Sadece o haftalık değişiklik için "bu hafta gelmiyor" kullanılır.
    */
-  async aboneTasi({ id, gun, saat, yeniGun, yeniSaat }) {
+  async aboneTasi({ id, gun: eskiGun, saat, yeniGun, yeniSaat }) {
     return this.kilitli(async () => {
       const a = await this.st.get(`a:${id}`);
-      const g = tarihNormalize(gun), s1 = saatNormalize(saat);
-      const yg = tarihNormalize(yeniGun), ys = saatNormalize(yeniSaat);
-      if (!a || !g || !s1) return { hata: "Abone veya tarih bulunamadı." };
-      if (!yg || !ys) return { hata: "Yeni gün ve saati seçin." };
-      if (yg === g && ys === s1) return { hata: "Yeni gün/saat asıl saatle aynı." };
-      if (!slotlarOf(a).some((x) => x.gun === gunNo(g) && x.saat === s1)) return { hata: "Bu tarih abonenin günlerine denk gelmiyor." };
-      const d = await this.durumYukle(yg, yg);
-      const hedef = this.slot(d, yg, ys);
-      if (hedef.tur === "rez" || hedef.tur === "abone") return { hata: `${yg.split("-").reverse().join(".")} ${ys} dolu. Başka saat seçin.` };
-      const f = await this.fiyatAyar();
+      const s1 = saatNormalize(saat), ys = saatNormalize(yeniSaat);
+      const eg = Number(eskiGun), yg = Number(yeniGun);
+      if (!a || !s1 || !(eg >= 0 && eg <= 6)) return { hata: "Abone veya saat bulunamadı." };
+      if (!(yg >= 0 && yg <= 6) || !ys || !gecerliSaat(ys)) return { hata: "Yeni gün ve saati seçin." };
+      if (eg === yg && s1 === ys) return { hata: "Yeni gün/saat eskisiyle aynı." };
+      const slotlar = slotlarOf(a);
+      if (!slotlar.some((x) => x.gun === eg && x.saat === s1)) return { hata: "Bu saat abonenin saatlerinde yok." };
+      if (slotlar.some((x) => x.gun === yg && x.saat === ys)) return { hata: "Abone zaten bu gün/saatte oynuyor." };
+      const diger = (await this.aboneler()).find((x) => x.id !== a.id && !x.bitis && slotlarOf(x).some((sl) => sl.gun === yg && sl.saat === ys));
+      if (diger) return { hata: `${GUNLER[yg]} ${ys} saatinde başka abone var: ${diger.ad}.` };
+      // Yeni saate denk gelen ileri tarihli rezervasyonlar (4 hafta)
+      const n = simdi();
+      const bugun = isletmeGunu(n.tarih, n.saat);
+      const cakisan = (await this.rezervasyonlar(bugun, gunEkle(bugun, 30)))
+        .filter((r) => !iptalMi(r.durum) && !opsiyonDustu(r) && r.saat === ys && gunNo(r.isletmeGunu || r.tarih) === yg && (r.isletmeGunu || r.tarih) >= bugun);
+      if (cakisan.length) {
+        const ilk = cakisan.sort((x, y) => (x.isletmeGunu || x.tarih).localeCompare(y.isletmeGunu || y.tarih))[0];
+        return { hata: `${GUNLER[yg]} ${ys}: ${(ilk.isletmeGunu || ilk.tarih).split("-").reverse().join(".")} tarihinde rezervasyon var (${ilk.ad}). Önce onu taşıyın / iptal edin.` };
+      }
+      const yeni = slotSirala(slotlar.map((x) => (x.gun === eg && x.saat === s1 ? { gun: yg, saat: ys } : x)));
+      await this.st.put(`a:${a.id}`, { ...a, slotlar: yeni, gun: undefined, saat: undefined });
       const no = aboneNo(a);
-      const ucret = tutar(a.ucret) || f.abone;
-      const r = await this.rezervasyonYaz({
-        gunTarihi: yg, saat: ys, ad: `${no ? `Abone ${no} · ` : ""}${a.ad}`, telefon: a.telefon || "", durum: DURUM.onayli, kaynak: "Abone",
-        not: `Abone taşıma: asıl ${GUNLER[gunNo(g)]} ${g.split("-").reverse().join(".")} ${s1}`,
-      }, true);
-      if (!r.basarili) return r;
-      const anahtar = `r:${r.tarih}:${r.saat}:${r.kayitNo}`;
-      await this.st.put(anahtar, { ...(await this.st.get(anahtar)), ucret, aboneId: a.id, tasimaKaynak: { gun: g, saat: s1 } });
-      await this.st.put(`x:${g}:${s1}:${a.id}`, { olusturma: simdiYazi(), tasindi: { gun: yg, saat: ys, kayitNo: r.kayitNo } });
-      return { basarili: true, kayitNo: r.kayitNo, ad: r.ad, eski: `${g} ${s1}`, yeni: `${yg} ${ys}` };
+      return { basarili: true, ad: `${no ? `Abone ${no} · ` : ""}${a.ad}`, eski: `${GUNLER[eg]} ${s1}`, yeni: `${GUNLER[yg]} ${ys}` };
     });
   }
 

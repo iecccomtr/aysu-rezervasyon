@@ -1,6 +1,7 @@
 // Günlük kasa raporu PDF'i (Admin'e e-postayla gider).
 
 import { Pdf } from "./pdf.js";
+import { KURALLAR } from "./config.js";
 import { kasaOzet, personelFiyat } from "./store.js";
 
 const GUNLER = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"];
@@ -102,7 +103,7 @@ export function kasaPdf(k) {
     baslik("Personel kantini ve ücretsiz ikram", `personel ${para(o.personelKantin)} · ikram ${para(o.ikramDeger)}`);
     for (const [kim, v] of ikram) {
       const p = kim.startsWith("p:");
-      satir(p ? `${k.ikramAdlari?.[kim] || kim.slice(2)} (%30 indirimli, ücretinden düşülür)` : kim,
+      satir(p ? `${k.ikramAdlari?.[kim] || kim.slice(2)} (%${Math.round(KURALLAR.personelIndirim * 100)} indirimli, ücretinden düşülür)` : kim,
         para(Object.entries(v).reduce((t, [id, a]) => t + a * (p ? personelFiyat(b[id]?.satis || 0) : b[id]?.satis || 0), 0)), { alt: urunListe(v) });
     }
   }
@@ -122,6 +123,7 @@ export function kasaPdf(k) {
   satir("Kasa toplamı", para(o.kasaToplam), { kalin: true });
   satir("Kasa çıkışı", "−" + para(o.cikis), { renk: KIRMIZI });
   if (o.veresiye) satir("Veresiye", "−" + para(o.veresiye), { renk: KIRMIZI });
+  if (o.avans) satir("Çalışan ödeme / avans", "−" + para(o.avans), { renk: KIRMIZI, alt: (k.avanslar || []).map((x) => `${x.ad} ${para(x.tutar)}`).join(" · ") });
   satir("KASADA OLMASI GEREKEN", para(o.olmasiGereken), { kalin: true, renk: MAVI });
   if (k.sayilan !== null && k.sayilan !== undefined) {
     satir("Sayılan kasa", para(k.sayilan), { kalin: true });

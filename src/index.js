@@ -500,7 +500,7 @@ function islemDetayi(yol, g, r) {
     case "rez-guncelle": return `${k.kayitNo || g.kayitNo} · ${k.isletmeGunu || k.tarih || ""} ${k.saat || ""} · ${k.ad || ""} · ${(r.degisen || []).join(" · ") || "değişiklik yok"}`;
     case "abone": return `${g.id ? "Düzenledi" : "Yeni"} · ${r.abone?.no ? "Abone " + r.abone.no + " · " : ""}${g.ad || ""} · ${(r.abone?.slotlar || []).map((x) => ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"][x.gun] + " " + x.saat).join(", ")}`;
     case "abone-sil": return `${r.ad || g.id} · açıklama: ${String(g.neden || "").slice(0, 150)}`;
-    case "abone-tasi": return `${r.ad || ""} · ${r.eski} → ${r.yeni} (${r.kayitNo})`;
+    case "abone-tasi": return `${r.ad || ""} · ${r.eski} → ${r.yeni} (kalıcı)`;
     case "abone-atla": return `${g.gun} ${g.saat || ""} · ${g.gelmiyor ? "gelmiyor" : "geliyor"} (${g.kapsam || "saat"})`;
     case "musteri-not": return `${g.telefon || ""} · etiket: ${g.etiket || "—"} · not: ${String(g.not || "—").slice(0, 80)}`;
     case "kullanici": return `${g.eposta} · ${[g.rol, g.durum].filter(Boolean).join(" · ")}`;

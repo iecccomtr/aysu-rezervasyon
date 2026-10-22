@@ -50,7 +50,7 @@ export const KURALLAR = {
   dekontTarihKontrol: false,
   // Aynı dekontun ikinci bir rezervasyonda kullanılmasını engelle. ŞİMDİLİK KAPALI (deneme dönemi). Canlıda true.
   dekontTekrarKontrol: false,
-  personelIndirim: 0.30,        // personel kantin indirimi; indirimli birim fiyat 5 TL'nin katına yukarı yuvarlanır
+  personelIndirim: 0.40,        // personel kantin indirimi; indirimli birim fiyat 5 TL'nin katına yukarı yuvarlanır
   puantajYolSaat: 0.5,          // tamamlanan her iş gününe yol parası olarak eklenen saat
   puantajCikisEk: 30,           // beklenen çıkış: son maçın bitişinden bu kadar dakika sonra
   opsiyonDakika: 15,            // online rezervasyon: dekont gelmezse yer bu kadar dakika sonra kendiliğinden boşa çıkar

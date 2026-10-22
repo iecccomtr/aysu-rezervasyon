@@ -650,19 +650,16 @@ test("Veresiye: abonenin sonraki maçında o gün GELDİM diyen yöneticiye hat�
   assert.equal((await d.veresiyeHatirlatmalari()).length, 0, "ödendi");
 });
 
-test("Abone maçını bu hafta başka gün/saate taşır: asıl saat boşalır, yeni saate abone ücretiyle rezervasyon", async () => {
-  const d = demoDepo({ PANEL_KURULUM_KODU: "k" });
-  const admin = await d.oturum((await d.panelKur({ kurulumKodu: "k", eposta: "admin@aysu.com", ad: "Admin", sifre: "aysu-2026!" })).token);
-  const a = await d.aboneKaydet({ ad: "Ekip", telefon: "0545 123 01 23", gun: 3, saat: "20:00", no: 13, ucret: "3200" });
-  const r = await d.aboneTasi({ id: a.abone.id, gun: "2026-10-22", saat: "20:00", yeniGun: "2026-10-23", yeniSaat: "22:00" });
+test("Abone saatini kalıcı olarak başka gün/saate taşır; dolu saate taşımaz", async () => {
+  const d = demoDepo();
+  const a = await d.aboneKaydet({ ad: "Ekip", telefon: "0545 123 01 23", gun: 3, saat: "20:00", no: 13 });
+  await d.panelRezEkle({ gunTarihi: "2026-10-30", saat: "21:00", ad: "Kerem", telefon: "" });
+  assert.match((await d.aboneTasi({ id: a.abone.id, gun: 3, saat: "20:00", yeniGun: 4, yeniSaat: "21:00" })).hata, /rezervasyon var/);
+  const r = await d.aboneTasi({ id: a.abone.id, gun: 3, saat: "20:00", yeniGun: 4, yeniSaat: "22:00" });
   assert.ok(r.basarili, JSON.stringify(r));
-  assert.equal(await tur(d, "2026-10-22", "20:00"), "abone-gelmiyor");
-  assert.equal(await tur(d, "2026-10-23", "22:00"), "rez");
-  assert.equal(await tur(d, "2026-10-29", "20:00"), "abone", "sonraki hafta değişmez");
-  saatiAyarla("2026-10-23T12:00");
-  const k = await d.kasaGetir("2026-10-23", admin);
-  assert.deepEqual(k.kayit.maclar.map((m) => [m.saat, m.tur, m.ad, m.ucret]), [["22:00", "abone", "Abone 13 · Ekip", 3200]]);
-  assert.match((await d.aboneTasi({ id: a.abone.id, gun: "2026-10-29", saat: "20:00", yeniGun: "2026-10-23", yeniSaat: "22:00" })).hata, /dolu/);
+  assert.equal(await tur(d, "2026-10-22", "20:00"), "bos");
+  assert.equal(await tur(d, "2026-10-23", "22:00"), "abone");
+  assert.equal(await tur(d, "2026-11-06", "22:00"), "abone", "her hafta");
 });
 
 test("Personel kantini ücretinden düşülür; stok bitince satış durur", async () => {
@@ -678,10 +675,10 @@ test("Personel kantini ücretinden düşülür; stok bitince satış durur", asy
   assert.equal(biskrem.stok, 0);
   const r = await d.kasaKaydet({ ...k.kayit, ikram: { "p:p@aysu.com": { [su.id]: 2 } } }, admin);
   assert.ok(r.basarili, JSON.stringify(r));
-  assert.equal(r.kayit.ozet.personelKantin, 2 * 20, "%30 indirimli (25 → 20)");
+  assert.equal(r.kayit.ozet.personelKantin, 2 * 15, "%40 indirimli (25 → 15)");
   const ay = await d.puantajAy("2026-10");
-  assert.equal(ay.kisiler[0].brut, 900); assert.equal(ay.kisiler[0].kesinti, 40); assert.equal(ay.kisiler[0].ucret, 860);
-  assert.equal((await d.kasaGetir("2026-10-19", admin)).calisanlar[0].ucret, 860);
+  assert.equal(ay.kisiler[0].brut, 900); assert.equal(ay.kisiler[0].kesinti, 30); assert.equal(ay.kisiler[0].ucret, 870);
+  assert.equal((await d.kasaGetir("2026-10-19", admin)).calisanlar[0].ucret, 870);
   assert.match((await d.kasaKaydet({ ...r.kayit, ikram: { "VIP / ücretsiz ikram": { [biskrem.id]: 1 } } }, admin)).hata, /stokta yok/);
 });
 
@@ -702,17 +699,17 @@ test("Puantaj: süre yarım saate yuvarlanır; çalışmadığı gün aldığı 
   saatiAyarla("2026-10-21T23:20"); await d.puantajCikis(p);
   const kisi = (await d.puantajAy("2026-10")).kisiler[0];
   assert.equal(kisi.saat, 6);
-  assert.equal(kisi.gunler[0].kesinti, 40, "ziyaret günündeki kantin ilk iş gününden düşülür");
-  assert.equal(kisi.ucret, 600 - 40);
+  assert.equal(kisi.gunler[0].kesinti, 30, "ziyaret günündeki kantin ilk iş gününden düşülür");
+  assert.equal(kisi.ucret, 600 - 30);
 });
 
-test("Personel kantin fiyatı %30 indirimli, 5 TL katına yukarı yuvarlanır", async () => {
+test("Personel kantin fiyatı %40 indirimli, 5 TL katına yukarı yuvarlanır", async () => {
   const { personelFiyat } = await import("../src/store.js");
-  assert.equal(personelFiyat(25), 20);  // 17,5 → 20
-  assert.equal(personelFiyat(50), 35);
-  assert.equal(personelFiyat(95), 70);  // 66,5 → 70
-  assert.equal(personelFiyat(10), 10);  // 7 → 10
-  assert.equal(personelFiyat(100), 70);
+  assert.equal(personelFiyat(25), 15);
+  assert.equal(personelFiyat(50), 30);
+  assert.equal(personelFiyat(95), 60);  // 57 → 60
+  assert.equal(personelFiyat(10), 10);  // 6 → 10
+  assert.equal(personelFiyat(35), 25);  // 21 → 25
 });
 
 test("Kasa: online dekontla bugün gelen kapora bugünün kasasına eklenir (tutar okunamasa da), maç günü düşülür", async () => {
@@ -762,6 +759,12 @@ test("Avans: Admin girer, puantajda kalan hakediş görünür; kasayı etkilemez
   assert.ok((await d.avansSil(kisi.avansListe[0].anahtar, admin)).basarili);
   kisi = (await d.puantajAy("2026-10")).kisiler[0];
   assert.equal(kisi.kalan, 600);
+  // Kasadan günlük ödeme: kasa çıkışı sayılır, aylık hakedişten düşülür
+  const k = await d.kasaGetir("2026-10-19", admin);
+  const r = await d.kasaKaydet({ ...k.kayit, avanslar: [{ eposta: "p@aysu.com", tutar: "400" }] }, admin);
+  assert.equal(r.kayit.ozet.avans, 400); assert.equal(r.kayit.ozet.olmasiGereken, -400);
+  kisi = (await d.puantajAy("2026-10")).kisiler[0];
+  assert.equal(kisi.avans, 400); assert.equal(kisi.kalan, 200); assert.ok(kisi.avansListe[0].kasadan);
 });
 
 test("Dekont: tutar metinden bulunur; IBAN'da 1-2 rakam okuma hatası ve adda 1 harf hatası tolere edilir", async () => {

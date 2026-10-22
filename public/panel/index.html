@@ -1774,10 +1774,18 @@
       <button type="button" class="kullanici" data-p="${i}">
         <span><b>${kacis(k.ad)}</b><small>${kacis(k.rol)} · ${k.gunler.length} gün${k.gunler.some((g) => g.acik) ? " · açık giriş var" : ""}${k.saatlikUcret ? ` · ${saatSayi(k.saatlikUcret)} ₺/saat` : " · saatlik ücret yok"}</small></span>
         <span style="text-align:right"><b>${saatSayi(k.saat)} saat</b><small>${para(k.ucret)}${k.avans ? ` · avans ${para(k.avans)} · <b>kalan ${para(k.kalan)}</b>` : ""}</small>
-          ${ben.rol === "admin" ? `<span role="button" tabindex="0" class="dugme ikincil kucuk" data-p-eposta="${i}" style="margin-top:4px;padding:4px 10px;font-size:12px">✉ Maaşı e-postala</span>` : ""}</span>
+          ${ben.rol === "admin" ? `<span style="display:flex;gap:4px;justify-content:flex-end;margin-top:4px"><span role="button" tabindex="0" class="dugme ikincil kucuk" data-p-eposta="${i}" style="padding:4px 10px;font-size:12px">✉ Maaşı e-postala</span><span role="button" tabindex="0" class="x-sil" data-p-kaldir="${i}" title="Bu kişiyi bu ayın puantajından kaldır" aria-label="Puantajdan kaldır">×</span></span>` : ""}</span>
       </button>`).join("") + (puantaj.kisiler.length ? `<div class="kullanici" style="cursor:default"><b>Toplam</b><b>${para(top)}</b></div>` : '<p class="soluk" style="padding:14px">Bu ay puantaj kaydı yok.</p>')
       + (["admin", "mudur"].includes(ben.rol) ? `<div style="padding:10px 14px;display:flex;gap:8px;flex-wrap:wrap"><button class="dugme ikincil kucuk" type="button" id="p-ekle">+ Elle kayıt ekle</button>${ben.rol === "admin" ? '<button class="dugme ikincil kucuk" type="button" id="p-avans">+ Avans / ödeme</button>' : ""}</div>` : "");
     $("puantaj-liste").querySelectorAll("[data-p]").forEach((el) => el.addEventListener("click", () => puantajDetay(puantaj.kisiler[el.dataset.p])));
+    $("puantaj-liste").querySelectorAll("[data-p-kaldir]").forEach((b) => b.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const k = puantaj.kisiler[b.dataset.pKaldir];
+      if (!confirm(`${k.ad} bu ayın puantajından tamamen kaldırılsın mı? Giriş-çıkış günleri, avansları ve personel kantini silinir (kantin stoğu geri eklenir).`)) return;
+      const r = await api("puantaj/kisi-sil", { eposta: k.eposta, ay: $("puantaj-ay").value });
+      bildir(r.hata || `${k.ad} puantajdan kaldırıldı`);
+      puantajYukle(); kullaniciYukle();
+    }));
     $("puantaj-liste").querySelectorAll("[data-p-eposta]").forEach((b) => b.addEventListener("click", async (e) => {
       e.stopPropagation();
       const k = puantaj.kisiler[b.dataset.pEposta];

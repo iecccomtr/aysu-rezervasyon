@@ -364,6 +364,7 @@ async function panel(request, env, ctx, yol) {
     }
     case "POST kasa/kapora-sil": { const r = await d.gelenKaporaSil(g, ben); return json(r, r.hata ? 400 : 200); }
     case "POST veresiye-ode": return sonuc(await d.veresiyeOde(g, ben));
+    case "POST puantaj/kisi-sil": { const r = await d.puantajKisiSil(g.ay, g.eposta, ben); return json(r, r.hata ? 400 : 200); }
     case "POST puantaj/eposta": {
       // Admin: bir çalışanın aylık maaş dökümü Admin'in e-postasına
       if (ben.rol !== "admin") return json({ hata: "Sadece Admin." }, 403);

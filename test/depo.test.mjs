@@ -964,3 +964,15 @@ test("Gelen kaporalar IBAN'a yatar: kasa toplamına girer, nakitte beklenmez", a
   assert.equal(o.kasaToplam, 3960);
   assert.equal(o.olmasiGereken, 3000 - 100);
 });
+
+test("Admin bir kişiyi aylık puantajdan tamamen kaldırır", async () => {
+  const d = demoDepo();
+  saatiAyarla("2026-10-21T20:00");
+  const admin = { eposta: "a@a.com", ad: "Admin", rol: "admin" };
+  await d.avansEkle?.({ eposta: "deneme@x.com", ad: "Denem", tutar: 100, gun: "2026-10-21" }, admin);
+  await d.st.put("p:2026-10-20:deneme@x.com", { ad: "Denem", giris: Date.parse("2026-10-20T16:00:00Z"), cikis: Date.parse("2026-10-20T20:00:00Z") });
+  assert.ok((await d.puantajAy("2026-10")).kisiler.some((k) => k.eposta === "deneme@x.com"));
+  assert.match((await d.puantajKisiSil("2026-10", "deneme@x.com", { rol: "mudur" })).hata, /Admin/);
+  assert.ok((await d.puantajKisiSil("2026-10", "deneme@x.com", admin)).basarili);
+  assert.ok(!(await d.puantajAy("2026-10")).kisiler.some((k) => k.eposta === "deneme@x.com"));
+});

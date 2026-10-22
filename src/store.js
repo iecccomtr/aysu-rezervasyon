@@ -1179,6 +1179,34 @@ export class RezervasyonDeposu extends DurableObject {
     });
   }
 
+  /** Admin: bir kişiyi o ayın puantajından tamamen kaldırır (giriş-çıkış günleri, avanslar, kasadaki ödemeler ve personel kantini; kantin stoğu geri gelir). */
+  async puantajKisiSil(ay, eposta, yapan) {
+    return this.kilitli(async () => {
+      if (yapan?.rol !== "admin") return { hata: "Sadece Admin." };
+      if (!/^\d{4}-\d{2}$/.test(ay || "") || !eposta) return { hata: "Eksik bilgi." };
+      const [pM, avM, ayKasa, urunler] = await Promise.all([this.st.list({ start: `p:${ay}-01`, end: `p:${ay}-31~` }),
+        this.st.list({ start: `av:${ay}-01`, end: `av:${ay}-31~` }), this.st.list({ start: `kasa:${ay}-01`, end: `kasa:${ay}-31~` }), this.urunler()]);
+      const sil = [...pM.keys()].filter((k) => k.split(":").slice(2).join(":") === eposta)
+        .concat([...avM.entries()].filter(([, v]) => v.eposta === eposta).map(([k]) => k));
+      const yaz = {}, stok = {};
+      for (const [k, kayit] of ayKasa) {
+        const ikram = kayit.ikram?.[`p:${eposta}`], av = (kayit.avanslar || []).some((x) => x.eposta === eposta);
+        if (!ikram && !av) continue;
+        const y = { ...kayit, ikram: { ...(kayit.ikram || {}) }, avanslar: (kayit.avanslar || []).filter((x) => x.eposta !== eposta) };
+        delete y.ikram[`p:${eposta}`];
+        for (const [id, a] of Object.entries(stokTuketimi(ikram || {}, urunler))) stok[id] = (stok[id] || 0) + a;
+        y.ozet = kasaOzet(y);
+        yaz[k] = y;
+      }
+      for (const u of urunler) if (stok[u.id]) yaz[`urun:${u.id}`] = { ...u, stok: (u.stok || 0) + stok[u.id] };
+      if (!sil.length && !Object.keys(yaz).length) return { hata: "Bu ay için kayıt yok." };
+      if (sil.length) await this.st.delete(sil);
+      if (Object.keys(yaz).length) await this.st.put(yaz);
+      await this.kayitTut(yapan, "Puantajdan kişi kaldırdı", `${eposta} · ${ay} · ${sil.length} kayıt, ${Object.keys(yaz).filter((k) => k.startsWith("kasa:")).length} kasa günü`);
+      return { basarili: true };
+    });
+  }
+
   /** Yönetici düzeltmesi (unutulan çıkış vb.): saatler "HH:MM", gece yarısını geçen çıkış ertesi güne yazılır. */
   async puantajDuzelt({ eposta, gun, giris, cikis, sil }, yapan) {
     return this.kilitli(async () => {

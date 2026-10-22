@@ -199,6 +199,7 @@
   .dugme.ana { background: var(--kirmizi); color: var(--cim-koyu); }
   .dugme.ana:hover { background: #d96d0c; }
   .dugme.ikinci { border-color: rgba(244,247,241,.7); color: var(--tebesir); }
+  section[id] { scroll-margin-top: 12px; }
   /* Maç kayıtları */
   .mac-kayit { padding: 40px 0; }
   .mac-kutu { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap;
@@ -345,6 +346,8 @@
 <script>
   // Eski "/#rezervasyon" bağlantıları rezervasyon sayfasına gider
   if (location.hash === "#rezervasyon") location.replace("/rezervasyon/");
+  // Eski "/#mac-kayitlari" bağlantıları maç kayıtları sitesine gider
+  if (location.hash === "#mac-kayitlari") location.replace("https://sosyalhalisaha.com");
 </script>
 </head>
 <body>
@@ -355,7 +358,7 @@
     <nav aria-label="Ana menü">
       <a href="/rezervasyon/">Rezervasyon</a>
       <a href="#tesis">Tesis</a>
-      <a href="#mac-kayitlari">Maç kayıtları</a>
+      <a href="https://sosyalhalisaha.com" target="_blank" rel="noopener">Maç kayıtları</a>
       <a href="#sss">Sorular</a>
       <a href="#konum">İletişim</a>
     </nav>
@@ -370,7 +373,7 @@
     <div class="kap">
       <h1 id="baslik">Aysu Halı Saha</h1>
       <p class="alt-baslik">Batıkent'te kapalı halı saha. Yağmurda, karda, gece 2'ye kadar maç sizi bekliyor.</p>
-      <a class="puan" href="https://www.google.com/maps/place/?q=place_id:ChIJZ76wIWcXzBQRD1Ja6OQDysA" target="_blank" rel="noopener" aria-label="Google'da 5 üzerinden 4,0 puan, 209 yorum. Yorumları Google'da okuyun.">
+      <a class="puan" href="https://www.google.com/maps/search/?api=1&amp;query=Aysu+Hal%C4%B1+Saha+Eski%C5%9Fehir&amp;query_place_id=ChIJZ76wIWcXzBQRD1Ja6OQDysA" target="_blank" rel="noopener" aria-label="Google'da 5 üzerinden 4,0 puan, 209 yorum. Yorumları Google'da okuyun.">
         <span class="g" aria-hidden="true">G</span>
         <b>4,0</b>
         <span class="yildiz" aria-hidden="true">★★★★<span class="bos">★</span></span>
@@ -485,7 +488,7 @@
           <a href="tel:+905555102626">0 555 510 26 26</a>
           <a href="tel:+902223353555">0 222 335 35 55</a>
           <a href="mailto:aysuhalisaha@gmail.com">aysuhalisaha@gmail.com</a>
-          <a href="https://www.google.com/maps/search/?api=1&query=Aysu+Hal%C4%B1saha+Eski%C5%9Fehir" target="_blank" rel="noopener">Yol tarifi al</a>
+          <a href="https://www.google.com/maps/dir/?api=1&amp;destination=Aysu+Hal%C4%B1+Saha+Eski%C5%9Fehir&amp;destination_place_id=ChIJZ76wIWcXzBQRD1Ja6OQDysA" target="_blank" rel="noopener">Yol tarifi al</a>
         </div>
       </div>
       <iframe class="harita" title="Aysu Halı Saha harita konumu" loading="lazy" referrerpolicy="no-referrer-when-downgrade"
@@ -503,7 +506,7 @@
       <a href="https://www.facebook.com/aysuhalisahaa" target="_blank" rel="noopener">Facebook</a>
       <a href="/rezervasyon/">Online rezervasyon</a>
       <a href="https://wa.me/905555102626" target="_blank" rel="noopener">WhatsApp</a>
-      <a href="https://www.google.com/maps/place/?q=place_id:ChIJZ76wIWcXzBQRD1Ja6OQDysA" target="_blank" rel="noopener">Google Haritalar</a>
+      <a href="https://www.google.com/maps/search/?api=1&amp;query=Aysu+Hal%C4%B1+Saha+Eski%C5%9Fehir&amp;query_place_id=ChIJZ76wIWcXzBQRD1Ja6OQDysA" target="_blank" rel="noopener">Google Haritalar</a>
       <a href="/kvkk.html">Aydınlatma metni</a>
     </nav>
   </div>
@@ -515,6 +518,19 @@
 
 <a class="dugme ana sabit" id="sabit" href="/rezervasyon/" tabindex="-1" aria-hidden="true">Online rezervasyon yap</a>
 
+<script>
+  // Sayfa içi menü bağlantıları (Tesis, Sorular, İletişim) adrese "#..." eklemeden yumuşak kaydırır
+  document.querySelectorAll('a[href^="#"]').forEach((a) => a.addEventListener("click", (e) => {
+    const hedef = document.querySelector(a.getAttribute("href"));
+    if (!hedef) return;
+    e.preventDefault();
+    hedef.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+  }));
+  // Başka yerden "#tesis" gibi bir adresle gelinirse bölüme git, adresi temizle
+  if (location.hash && document.querySelector(location.hash)) {
+    addEventListener("load", () => { document.querySelector(location.hash)?.scrollIntoView(); history.replaceState(null, "", location.pathname + location.search); });
+  }
+</script>
 <script>
 (() => {
   document.getElementById("yil").textContent = new Date().getFullYear();

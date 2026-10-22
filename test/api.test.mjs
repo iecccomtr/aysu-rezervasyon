@@ -381,7 +381,7 @@ test("İşlem kaydı: kim neyi neyden neye değiştirdi Admin'de görünür", as
   assert.ok(k.some((x) => x.islem === "Rezervasyon ekledi" && /Eren/.test(x.detay)));
 });
 
-test("Rezervasyon iptali: Müdür ve Müdür Yardımcısı'na e-posta (siteden ve panelden)", async () => {
+test("Rezervasyon iptali: Admin, Müdür ve Müdür Yardımcısı'na e-posta (siteden ve panelden)", async () => {
   const { istek, cerezSil } = await kur({ RESEND_API_KEY: "re_test" });
   await istek("/api/panel/kur", { kurulumKodu: "kurulum-kodu", eposta: "admin@aysu.com", ad: "Admin", sifre: "aysu-sifre-1" });
   for (const [eposta, rol] of [["mudur@aysu.com", "mudur"], ["yrd@aysu.com", "mudur_yrd"]]) {
@@ -392,7 +392,7 @@ test("Rezervasyon iptali: Müdür ve Müdür Yardımcısı'na e-posta (siteden v
   const n = epostalar.length;
   await istek("/api/panel/rez-guncelle", { kayitNo: t.kayitNo, durum: "İptal", iptalNedeni: "Müşteri aradı" });
   let e = epostalar.slice(n).find((x) => /iptal edildi/.test(x.subject));
-  assert.deepEqual(e.to.sort(), ["mudur@aysu.com", "yrd@aysu.com"]); assert.match(e.text, /Admin \(Admin, panel\)/);
+  assert.deepEqual(e.to.sort(), ["admin@aysu.com", "mudur@aysu.com", "yrd@aysu.com"]); assert.match(e.text, /Admin \(Admin, panel\)/);
   const t2 = (await istek("/api/panel/rez", { gun: "2026-10-25", saat: "20:00", ad: "Ali", telefon: "0532 111 22 33", kapora: "1200" })).veri;
   cerezSil();
   const m = epostalar.length;

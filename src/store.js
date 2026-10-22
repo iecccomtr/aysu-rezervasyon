@@ -194,9 +194,9 @@ export const kasaOzet = (k) => {
   o.giris = top(k.girisler); o.cikis = top(k.cikislar); o.veresiye = top(k.veresiye);
   o.devir = Number(k.devir) || 0;
   o.gelenKapora = (k.gelenKaporalar || []).reduce((t, x) => t + (Number(x.tutar) || 0), 0);
-  o.kasaToplam = o.ciro + o.giris + o.gelenKapora; // kasa devri bilgi amaçlıdır, toplamlara katılmaz
+  o.kasaToplam = o.ciro - o.onOdeme + o.giris; // maçların alınan kaporası düşülür; o gün gelen kaporalar bilgi amaçlı (IBAN), devir katılmaz // kasa devri bilgi amaçlıdır, toplamlara katılmaz
   // Önceden alınan kapora ve veresiye kasaya bugün girmez
-  o.olmasiGereken = o.kasaToplam - o.cikis - o.veresiye - o.onOdeme;
+  o.olmasiGereken = o.kasaToplam - o.cikis - o.veresiye;
   o.fark = k.sayilan === null || k.sayilan === undefined ? null : k.sayilan - o.olmasiGereken;
   o.teslim = k.birakilan === null || k.birakilan === undefined ? null : (k.sayilan ?? o.olmasiGereken) - k.birakilan;
   return o;
@@ -979,6 +979,7 @@ export class RezervasyonDeposu extends DurableObject {
         mac: k.mac ?? FIYATLAR.gunduz, kapora: k.kapora ?? FIYATLAR.kapora,
         spiker: k.spiker ?? EKSTRALAR.spiker.ucret, hakem: k.hakem ?? EKSTRALAR.hakem.ucret,
         abone: k.abone ?? 3200, krampon: k.krampon ?? 100, eldiven: k.eldiven ?? 100,
+        siparisTel: k.siparisTel ?? "05434764687", // kantin tedarikçisi (Tespo) WhatsApp
       };
     }
     return this._fiyat;
@@ -995,11 +996,16 @@ export class RezervasyonDeposu extends DurableObject {
         if (!Number.isFinite(n) || n < enAz || n > enCok) return { hata: "Geçersiz tutar." };
         yeni[a] = n;
       }
+      if (girdi.siparisTel !== undefined && girdi.siparisTel !== "") {
+        const t = telefonNormalize(girdi.siparisTel);
+        if (!t) return { hata: "Sipariş numarası geçersiz (05XX XXX XX XX)." };
+        yeni.siparisTel = t;
+      }
       if (yeni.kapora > yeni.mac) return { hata: "Kapora maç ücretinden büyük olamaz." };
       await this.st.put("ayar:fiyat", yeni);
       this._fiyat = yeni;
-      const ad = { mac: "Maç", kapora: "Kapora", spiker: "VIP spiker", hakem: "VIP hakem", abone: "Abone maç", krampon: "Krampon kirası", eldiven: "Eldiven kirası" };
-      const fark = Object.keys(ad).filter((a) => eski[a] !== yeni[a]).map((a) => `${ad[a]}: ${eski[a]} → ${yeni[a]} TL`);
+      const ad = { mac: "Maç", kapora: "Kapora", spiker: "VIP spiker", hakem: "VIP hakem", abone: "Abone maç", krampon: "Krampon kirası", eldiven: "Eldiven kirası", siparisTel: "Tespo sipariş no" };
+      const fark = Object.keys(ad).filter((a) => eski[a] !== yeni[a]).map((a) => `${ad[a]}: ${eski[a]} → ${yeni[a]}${a === "siparisTel" ? "" : " TL"}`);
       if (fark.length) await this.kayitTut(yapan, "Fiyatları değiştirdi", fark.join(" · "));
       return { basarili: true, fiyat: yeni };
     });
@@ -1078,7 +1084,8 @@ export class RezervasyonDeposu extends DurableObject {
       } else if (s.tur === "rez" && s.rez.durum === DURUM.onayli) {
         const r = s.rez;
         const vip = (r.ekstra || []).reduce((t, x) => t + (f[x] ?? EKSTRALAR[x]?.ucret ?? 0), 0);
-        const onOdeme = Number(r.kaporaToplam) || kaporaSayi(r.kapora);
+        // Kapora maç günü alındıysa ayrıca düşülmez: maçın toplamı bugün kasaya girer
+        const onOdeme = r.kaporaGunu === gun ? 0 : Number(r.kaporaToplam) || kaporaSayi(r.kapora);
         satirlar.push({ saat, tur: "normal", ad: r.ad, ucret: Math.max(0, (Number(r.ucret) || f.mac) - vip), vip, ekstra: (r.ekstra || []).filter((x) => EKSTRALAR[x]), onOdeme, tkOn: onOdeme, kayitNo: r.kayitNo, kaynak: "takvim" });
       }
     }
@@ -1118,7 +1125,7 @@ export class RezervasyonDeposu extends DurableObject {
   /** O gün alınan kaporalar (ileri tarihli maçlar için; iptal olsa da kapora iade edilmediği için sayılır) */
   async gelenKaporalar(gun) {
     const l = await this.rezervasyonlar(gunEkle(gun, -2), gunEkle(gun, KURALLAR.enFazlaGunSonra + 3));
-    return l.filter((r) => r.kaporaGunu === gun)
+    return l.filter((r) => r.kaporaGunu === gun && (r.isletmeGunu || r.tarih) !== gun) // aynı gün maçın kaporası maç toplamında
       .map((r) => ({ kayitNo: r.kayitNo, mac: `${(r.isletmeGunu || r.tarih).split("-").reverse().slice(0, 2).join(".")} ${r.saat}`, ad: r.ad,
         tutar: Number(r.kaporaToplam) || kaporaSayi(r.kapora), yol: r.kaynak === "Online" ? "IBAN (dekont)" : (r.kaynak || "Panel"), iptal: iptalMi(r.durum) }))
       .filter((x) => x.tutar > 0);

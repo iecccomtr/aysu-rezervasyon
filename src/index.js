@@ -333,7 +333,7 @@ async function panel(request, env, ctx, yol) {
       ctx.waitUntil(epostaYolla(env, {
         kime, konu: `Kantin siparişi verildi (${satirlar.length} ürün)`,
         satirlar: [["Sipariş veren", `${ben.ad} (${ROLLER[ben.rol]?.ad || ""})`], ["Zaman", simdi().tarih.split("-").reverse().join(".") + " " + simdi().saat], ...satirlar.map((x, i) => [`${i + 1}.`, x])],
-        alt: "Sipariş WhatsApp'tan tedarikçiye (0543 476 46 87) gönderildi. Mal gelince Kasa → Kantin stok'tan 'Gelen mal' girin.",
+        alt: "Sipariş WhatsApp'tan Tespo'ya gönderildi. Mal gelince Kasa → Kantin stok'tan 'Gelen mal' girin.",
       }).catch((e) => console.error("Sipariş e-postası", e)));
       return json({ basarili: true });
     }

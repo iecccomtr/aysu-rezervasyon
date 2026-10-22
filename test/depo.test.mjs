@@ -518,7 +518,8 @@ test("Kasa defteri: takvimden maçlar, kantin/krampon cirosu, stok farkı, yetki
 
   const k = await d.kasaGetir("2026-10-19", mudur);
   assert.equal(k.kayitli, false);
-  assert.deepEqual(k.kayit.maclar.map((x) => [x.saat, x.tur, x.ad, x.ucret, x.onOdeme]), [["21:00", "abone", "Abone 13", 3200, 0], ["23:00", "normal", "Berat", 3700, 1200]]);
+  // Berat'ın kaporası maç günü alındı: düşülmez, maç toplamına dahil
+  assert.deepEqual(k.kayit.maclar.map((x) => [x.saat, x.tur, x.ad, x.ucret, x.onOdeme]), [["21:00", "abone", "Abone 13", 3200, 0], ["23:00", "normal", "Berat", 3700, 0]]);
   const su = k.urunler.find((u) => u.ad === "SU 0,50"), cay = k.urunler.find((u) => u.ad.startsWith("ÇAY"));
   assert.equal(su.stok, 305);
 
@@ -532,8 +533,7 @@ test("Kasa defteri: takvimden maçlar, kantin/krampon cirosu, stok farkı, yetki
   const o = r.kayit.ozet;
   assert.equal(o.maclar[1].toplam, 3700 + 100 + 11 * 25 + 25); // 4100 (Excel'deki gibi)
   assert.equal(o.ciro, 3200 + 4100);
-  // Berat'ın kaporası aynı gün alındı: "o gün gelen kapora" (+1200) ve maçından düşülen kapora (−1200) birbirini götürür
-  assert.equal(o.gelenKapora, 1200);
+  assert.equal(o.gelenKapora, 0, "aynı gün kapora ayrıca listelenmez");
   assert.equal(o.olmasiGereken, 7300 + 960 - 1120, "devir toplama katılmaz");
   assert.equal((await d.urunler()).find((u) => u.id === su.id).stok, 294);
   // Aynı günü tekrar kaydetmek stoğu iki kez düşmez; adet azalınca stok geri gelir
@@ -579,14 +579,16 @@ test("Kasa: alınan kapora otomatik gelir, sonradan girilen kapora da güncellen
   const k = await d.kasaGetir("2026-10-19", admin);
   assert.equal(k.kayit.maclar[0].onOdeme, 0);
   assert.ok((await d.kasaKaydet({ ...k.kayit }, admin)).basarili);
+  saatiAyarla("2026-10-18T15:00"); // kapora maçtan önceki gün alındı
   await d.panelRezGuncelle({ kayitNo: r.kayitNo, kapora: "500 + 700" });
+  saatiAyarla("2026-10-19T10:00");
   const k2 = await d.kasaGetir("2026-10-19", admin);
   assert.equal(k2.kayit.maclar[0].onOdeme, 1200);
-  assert.equal(k2.kayit.ozet.olmasiGereken, 3700, "kapora bugün alındı: +1200 gelen, −1200 maçtan");
+  assert.equal(k2.kayit.ozet.olmasiGereken, 3700 - 1200);
   saatiAyarla("2026-10-18T12:00"); // ertesi haftanın maçına bugün kapora
   const r2 = await d.panelRezEkle({ gunTarihi: "2026-10-25", saat: "21:00", ad: "Fevzi", telefon: "", kapora: "960" });
   assert.ok(r2.basarili);
-  assert.deepEqual((await d.kasaGetir("2026-10-18", admin)).kayit.gelenKaporalar.map((x) => [x.ad, x.tutar]), [["Fevzi", 960]]);
+  assert.deepEqual((await d.kasaGetir("2026-10-18", admin)).kayit.gelenKaporalar.map((x) => [x.ad, x.tutar]), [["Yusuf", 1200], ["Fevzi", 960]]);
 });
 
 

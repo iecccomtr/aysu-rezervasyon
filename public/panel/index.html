@@ -155,6 +155,7 @@
   .ozet-t td:last-child { text-align: right; font-weight: 600; white-space: nowrap; }
   .ozet-t tr.buyuk td { font: 700 22px/1.2 "Barlow Condensed", sans-serif; border-bottom: 2px solid var(--cim); color: var(--cim); }
   .ozet-t tr.eksi td:last-child { color: var(--hata); }
+  .ozet-t tr.kalin td { font-weight: 700; }
   .ozet-t input { width: 130px; border: 1px solid #b5c3cf; border-radius: 8px; padding: 6px 8px; font-size: 16px; text-align: right; }
   .kasa-kaydet { position: sticky; bottom: calc(70px + env(safe-area-inset-bottom)); z-index: 4; display: flex; gap: 8px; align-items: center; background: var(--kart); border: 1px solid var(--cizgi); border-radius: 999px; padding: 6px 6px 6px 16px; box-shadow: 0 4px 18px rgba(0,0,0,.12); margin: 14px 0; }
   .kasa-kaydet .degisti { color: var(--sari-koyu); font-weight: 600; }
@@ -461,7 +462,7 @@
           </div>
           <div class="iki-alan">
             <div class="alan"><label for="f-eldiven">Eldiven kirası (TL)</label><input id="f-eldiven" inputmode="numeric"></div>
-            <div></div>
+            <div class="alan"><label for="f-siparis">Tespo sipariş no (WhatsApp)</label><input id="f-siparis" type="tel" inputmode="tel" placeholder="05XX XXX XX XX"></div>
           </div>
           <p class="soluk" style="font-size:14px;margin:-4px 0 12px">Yeni fiyatlar kaydettiğiniz andan sonraki rezervasyonlarda geçerli olur; önceki rezervasyonların ücreti değişmez.</p>
           <button class="dugme" type="submit">Fiyatları kaydet</button>
@@ -1362,11 +1363,11 @@
     const f = await api("fiyat").catch(() => null);
     if (!f || f.hata) return;
     $("f-mac").value = f.mac; $("f-kapora").value = f.kapora; $("f-spiker").value = f.spiker; $("f-hakem").value = f.hakem;
-    $("f-abone").value = f.abone; $("f-krampon").value = f.krampon; $("f-eldiven").value = f.eldiven;
+    $("f-abone").value = f.abone; $("f-krampon").value = f.krampon; $("f-eldiven").value = f.eldiven; $("f-siparis").value = telYazi(f.siparisTel);
   }
   $("fiyat-form").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const g = { mac: $("f-mac").value, kapora: $("f-kapora").value, spiker: $("f-spiker").value, hakem: $("f-hakem").value, abone: $("f-abone").value, krampon: $("f-krampon").value, eldiven: $("f-eldiven").value };
+    const g = { mac: $("f-mac").value, kapora: $("f-kapora").value, spiker: $("f-spiker").value, hakem: $("f-hakem").value, abone: $("f-abone").value, krampon: $("f-krampon").value, eldiven: $("f-eldiven").value, siparisTel: $("f-siparis").value };
     if (!confirm(`Yeni fiyatlar: Maç ${g.mac} TL, kapora ${g.kapora} TL, VIP spiker ${g.spiker} TL, VIP hakem ${g.hakem} TL, abone ${g.abone} TL, krampon ${g.krampon} TL, eldiven ${g.eldiven} TL. Kaydedilsin mi?`)) return;
     const r = await api("fiyat", g);
     if (r.hata) return bildir(r.hata);
@@ -1490,7 +1491,8 @@
 
   // ================= Kasa defteri =================
   let kasa = null, kk = null, kasaGun = null, kasaDegisti = false;
-  const SIPARIS_TEL = "905434764687", SIPARIS_TEL_YAZI = "0543 476 46 87"; // kantin tedarikçisi
+  // Kantin tedarikçisi (Tespo) WhatsApp numarası: Admin, Fiyatlar bölümünden değiştirir
+  const siparisTel = () => String(kasa?.fiyat?.siparisTel || "05434764687");
   const kopya = (o) => JSON.parse(JSON.stringify(o));
   const sayi = (v) => { const n = Math.round(Number(String(v ?? "").replace(/\./g, "").replace(",", ".").replace(/[^\d.]/g, ""))); return Number.isFinite(n) ? Math.max(0, n) : 0; };
   const urunBul = (id) => kasa.urunler.find((u) => u.id === id);
@@ -1520,8 +1522,8 @@
     o.ciro = o.mac + o.vip + o.kantin + o.krampon + o.eldiven;
     o.giris = top(kk.girisler); o.cikis = top(kk.cikislar); o.veresiye = top(kk.veresiye); o.devir = sayi(kk.devir);
     o.gelenKapora = (kk.gelenKaporalar || []).reduce((t, x) => t + (Number(x.tutar) || 0), 0);
-    o.kasaToplam = o.ciro + o.giris + o.gelenKapora; // kasa devri toplamlara katılmaz
-    o.olmasiGereken = o.kasaToplam - o.cikis - o.veresiye - o.onOdeme;
+    o.kasaToplam = o.ciro - o.onOdeme + o.giris; // maçların alınan kaporası düşülür; o gün gelen kaporalar bilgi amaçlı (IBAN), devir katılmaz // kasa devri toplamlara katılmaz
+    o.olmasiGereken = o.kasaToplam - o.cikis - o.veresiye;
     const bosMu = (v) => v === null || v === undefined || v === "";
     o.fark = bosMu(kk.sayilan) ? null : sayi(kk.sayilan) - o.olmasiGereken;
     o.teslim = bosMu(kk.birakilan) ? null : (bosMu(kk.sayilan) ? o.olmasiGereken : sayi(kk.sayilan)) - sayi(kk.birakilan);
@@ -1618,7 +1620,7 @@
       <div class="kutu kasa-kart"><h3>O gün gelen kaporalar<span class="sag">${para((kk.gelenKaporalar || []).reduce((t, x) => t + x.tutar, 0))}</span></h3>
         ${(kk.gelenKaporalar || []).map((x) => `<div class="k-sat" style="grid-template-columns:1fr auto"><span><b>${kacis(x.ad)}</b> <small class="soluk">${kacis(x.mac)} maçı · ${kacis(x.yol)}${x.iptal ? " · iptal (iade yok)" : ""}</small></span><b>${para(x.tutar)}</b></div>`).join("")
           || '<p class="soluk">Bugün kapora alınmadı.</p>'}
-        <p class="soluk" style="font-size:13px;margin-top:6px">Bugün alınan, ileri tarihli maçların kaporaları rezervasyonlardan kendiliğinden gelir ve kasa toplamına eklenir; maç günü o maçın toplamından düşülür.</p></div>
+        <p class="soluk" style="font-size:13px;margin-top:6px">Bugün alınan, ileri tarihli maçların kaporaları rezervasyonlardan kendiliğinden listelenir (bilgi amaçlı, kasa toplamına eklenmez). Maç günü o maçın kaporası kasa toplamından düşülür.</p></div>
       ${satirListesi("girisler", "Diğer kasa girişi", "Açıklama")}
       ${satirListesi("cikislar", "Kasa çıkışı", "Ör. Maaş, yemek, alışveriş", kasa.calisanlar.length ? '<button class="dugme ikincil kucuk" type="button" id="k-maas">Puantajdan maaşları ekle</button>' : "")}
       ${kk.veresiye?.length ? satirListesi("veresiye", "Veresiye (eski kayıt)", "Kim, ne için") : ""}
@@ -1657,11 +1659,12 @@
       sat("Maç ücretleri", para(o.mac)) + (o.vip ? sat("VIP hizmet", para(o.vip)) : "") +
       sat("Kantin", para(o.kantin)) + sat(`Krampon (${o.kramponAdet} adet)`, para(o.krampon)) + sat(`Eldiven (${o.eldivenAdet} adet)`, para(o.eldiven)) +
       sat("Günlük ciro", para(o.ciro), "buyuk") +
-      sat("Kasa girişi", para(o.giris)) + sat("O gün gelen kaporalar", para(o.gelenKapora)) + sat("Kasa toplamı", para(o.kasaToplam)) +
+      (o.onOdeme ? sat("Alınan kaporalar (bugünkü maçlar)", "− " + para(o.onOdeme), "eksi") : "") +
+      sat("Diğer kasa girişi", para(o.giris)) + sat("Kasa toplamı", para(o.kasaToplam), "kalin") +
       sat("Kasa çıkışı", "− " + para(o.cikis), "eksi") + (o.veresiye ? sat("Veresiye", "− " + para(o.veresiye), "eksi") : "") +
       (o.ikramDeger ? sat('<span class="soluk">İkram (ücretsiz, kasaya girmedi)</span>', `<span class="soluk">${para(o.ikramDeger)}</span>`) : "") +
       (o.veresiyeKantin ? sat('<span class="soluk">Veresiye kantin (kasaya girmedi)</span>', `<span class="soluk">${para(o.veresiyeKantin)}</span>`) : "") +
-      (o.onOdeme ? sat("Önceden alınan kaporalar", "− " + para(o.onOdeme), "eksi") : "") +
+      (o.gelenKapora ? sat('<span class="soluk">O gün gelen kaporalar (ileri tarihli, toplama katılmaz)</span>', `<span class="soluk">${para(o.gelenKapora)}</span>`) : "") +
       sat("Kasada olması gereken", para(o.olmasiGereken), "buyuk") +
       `<tr><td><label for="k-sayilan">Sayılan kasa</label></td><td><input id="k-sayilan" data-yol="sayilan" inputmode="numeric" value="${kk.sayilan ?? ""}" placeholder="Sayın"></td></tr>` +
       (o.fark !== null ? sat(o.fark === 0 ? "Fark" : o.fark > 0 ? "Fazla" : "Eksik", para(Math.abs(o.fark)), o.fark < 0 ? "eksi" : "") : "") +
@@ -1814,8 +1817,8 @@
       ${azalan.length ? `<p class="soluk" style="font-size:13px;margin-bottom:8px">İstediğiniz sipariş adedini yazın (boş bırakılan ürün listeye adetsiz eklenir, 0 yazılan eklenmez).</p>
       ${azalan.map((u) => `<div class="k-sat" style="grid-template-columns:1fr 60px 90px"><span><b>${kacis(u.ad)}</b></span><span class="${u.stok <= 0 ? "" : "soluk"}" style="${u.stok <= 0 ? "color:#b42318;font-weight:700" : ""}">stok ${u.stok}</span>
         <input data-siparis="${u.id}" inputmode="numeric" placeholder="adet" value="${kacis(siparisAdet[u.id] || "")}" aria-label="${kacis(u.ad)} sipariş adedi"></div>`).join("")}
-      <button class="dugme wp tam" type="button" id="s-wp" style="margin-top:8px">WhatsApp'tan sipariş listesini gönder</button>
-      <p class="soluk" style="font-size:13px;margin-top:6px">Liste ${SIPARIS_TEL_YAZI} numarasına WhatsApp'ta hazır mesaj olarak açılır; gönder'e basmanız yeterli.</p>`
+      <button class="dugme wp tam" type="button" id="s-wp" style="margin-top:8px">Tespo'ya WhatsApp'tan sipariş gönder</button>
+      <p class="soluk" style="font-size:13px;margin-top:6px">Liste Tespo'ya (${telYazi(siparisTel())}) WhatsApp'ta hazır mesaj olarak açılır; gönder'e basmanız yeterli.</p>`
       : '<p class="soluk">Stoğu azalan ürün yok.</p>'}</div>`;
     $("kasa-stok-alan").innerHTML = siparis + `<details class="kutu kasa-kart"${stokAcik ? " open" : ""}><summary style="cursor:pointer"><b style="font-size:20px">Kantin stok</b> <span class="soluk">· ${l.filter((u) => u.aktif !== false && u.stok <= 5).length} ürün azaldı</span></summary>
       <table class="stok-t" style="margin-top:8px"><thead><tr><th>Ürün</th>${admin ? "<th>Alış</th>" : ""}<th>Satış</th><th>Stok</th></tr></thead><tbody>
@@ -1835,7 +1838,7 @@
       if (!satirlar.length) return bildir("Listede ürün yok");
       const tarih = new Date(Date.now() + 3 * 3600000).toISOString().slice(0, 10).split("-").reverse().join(".");
       const metin = `Merhaba, Aysu Halı Saha kantin sipariş listesi (${tarih}):\n\n${satirlar.join("\n")}\n\nSipariş veren: Aysu Halı Saha`;
-      window.open(`https://wa.me/${SIPARIS_TEL}?text=${encodeURIComponent(metin)}`, "_blank", "noopener");
+      window.open(`${wa(siparisTel())}?text=${encodeURIComponent(metin)}`, "_blank", "noopener");
       // Yöneticilere bilgi e-postası
       api("siparis", { satirlar: satirlar.map((x) => x.replace(/^• /, "")) }).then((r) => r.hata || bildir("Sipariş yöneticilere e-postayla bildirildi"));
     });

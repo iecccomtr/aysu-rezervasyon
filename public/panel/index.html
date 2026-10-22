@@ -646,6 +646,8 @@
   function girisTamam(metin) { $("giris-tamam").textContent = metin; $("giris-tamam").hidden = !metin; }
 
   function girisGoster(yeniMod) {
+    // Mod değişince (ör. Giriş → Kayıt ol) tarayıcının doldurduğu e-posta / şifre temizlenir
+    if (yeniMod && yeniMod !== mod) ["g-sifre", "g-sifre2", "g-ad", "g-tel", "g-kod"].concat(yeniMod === "unuttum" ? [] : ["g-eposta"]).forEach((id) => { if ($(id)) $(id).value = ""; });
     if (yeniMod) mod = yeniMod;
     const m = MODLAR[mod];
     $("uygulama").hidden = true; $("giris").hidden = false;
@@ -657,6 +659,7 @@
     const yeni = mod !== "giris";
     $("g-sifre-etiket").textContent = yeni ? "Şifre (en az 8 karakter)" : "Şifre";
     $("g-sifre").autocomplete = yeni ? "new-password" : "current-password";
+    $("g-eposta").autocomplete = mod === "kayit" ? "off" : "username";
     const link = (m2, yazi) => `<a href="#" data-git="${m2}">${yazi}</a>`;
     $("giris-not").innerHTML = mod === "onay" ? '<a href="/panel/">Panele git</a>' : mod === "giris" ? link("unuttum", "Şifremi unuttum") + link("kayit", "Kayıt ol")
       : mod === "kur" ? (kurulu ? link("giris", "← Girişe dön") : "")
@@ -1820,12 +1823,12 @@
       <button class="dugme wp tam" type="button" id="s-wp" style="margin-top:8px">Tespo'ya WhatsApp'tan sipariş gönder</button>
       <p class="soluk" style="font-size:13px;margin-top:6px">Liste Tespo'ya (${telYazi(siparisTel())}) WhatsApp'ta hazır mesaj olarak açılır; gönder'e basmanız yeterli.</p>`
       : '<p class="soluk">Stoğu azalan ürün yok.</p>'}</div>`;
-    $("kasa-stok-alan").innerHTML = siparis + `<details class="kutu kasa-kart"${stokAcik ? " open" : ""}><summary style="cursor:pointer"><b style="font-size:20px">Kantin stok</b> <span class="soluk">· ${l.filter((u) => u.aktif !== false && u.stok <= 5).length} ürün azaldı</span></summary>
+    $("kasa-stok-alan").innerHTML = `<details class="kutu kasa-kart"${stokAcik ? " open" : ""}><summary style="cursor:pointer"><b style="font-size:20px">Kantin stok</b> <span class="soluk">· ${l.filter((u) => u.aktif !== false && u.stok <= 5).length} ürün azaldı</span></summary>
       <table class="stok-t" style="margin-top:8px"><thead><tr><th>Ürün</th>${admin ? "<th>Alış</th>" : ""}<th>Satış</th><th>Stok</th></tr></thead><tbody>
       ${l.map((u, i) => `<tr data-s="${i}" class="${u.aktif !== false && u.stok <= 5 ? "az" : ""}"${u.aktif === false ? ' style="opacity:.5"' : ""}><td>${kacis(u.ad)}</td>${admin ? `<td>${para(u.alis)}</td>` : ""}<td>${para(u.satis)}</td><td>${u.stok}</td></tr>`).join("")}
       </tbody></table>
       ${duzenler ? '<div class="k-alt"><button class="dugme ikincil kucuk" type="button" id="s-ekle">+ Yeni ürün</button><span class="soluk" style="font-size:13px">Mal girişi, sayım ve fiyat için ürüne dokunun.</span></div>' : ""}
-    </details>`;
+    </details>` + siparis;
     $("kasa-stok-alan").querySelector("details").addEventListener("toggle", (e) => { stokAcik = e.target.open; });
     $("kasa-stok-alan").querySelectorAll("[data-siparis]").forEach((el) => el.addEventListener("input", () => { siparisAdet[el.dataset.siparis] = el.value; }));
     $("s-wp")?.addEventListener("click", () => {

@@ -714,3 +714,23 @@ test("Personel kantin fiyatı %30 indirimli, 5 TL katına yukarı yuvarlanır", 
   assert.equal(personelFiyat(10), 10);  // 7 → 10
   assert.equal(personelFiyat(100), 70);
 });
+
+test("Kasa: online dekontla bugün gelen kapora bugünün kasasına eklenir (tutar okunamasa da), maç günü düşülür", async () => {
+  const d = demoDepo({ PANEL_KURULUM_KODU: "k" });
+  const admin = await d.oturum((await d.panelKur({ kurulumKodu: "k", eposta: "admin@aysu.com", ad: "Admin", sifre: "aysu-2026!" })).token);
+  // Perşembe: Cumartesi 01:00 (Cuma gecesi) için online rezervasyon + dekont
+  saatiAyarla("2026-10-22T16:00");
+  const r = await d.olustur({ gunTarihi: "2026-10-23", saat: "01:00", ...ALI });
+  assert.ok(r.basarili, JSON.stringify(r));
+  await d.dekontYukle({ kayitNo: r.kayitNo, telefon: ALI.telefon, tur: "image/jpeg", ad: "d.jpg", veri: new Uint8Array(200) });
+  await d.dekontSonuc(r.kayitNo, "ozet1", { nedenler: [], tutar: null, okunan: {} }); // onaylı, tutar okunamadı
+  const k = await d.kasaGetir("2026-10-22", admin);
+  assert.deepEqual(k.kayit.gelenKaporalar.map((x) => [x.ad, x.tutar]), [["Ali Veli", 1200]]);
+  const s = await d.kasaKaydet({ ...k.kayit }, admin);
+  assert.equal(s.kayit.ozet.gelenKapora, 1200);
+  assert.equal(s.kayit.ozet.kasaToplam, 1200, "bugün giren para bugünün kasasında");
+  saatiAyarla("2026-10-23T20:00");
+  const mg = await d.kasaGetir("2026-10-23", admin);
+  assert.equal(mg.kayit.maclar.find((m) => m.saat === "01:00").onOdeme, 1200, "maç günü düşülür");
+  assert.equal(mg.kayit.gelenKaporalar.length, 0);
+});

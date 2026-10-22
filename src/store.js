@@ -162,6 +162,9 @@ const tutar = (v) => {
 };
 /** "1200", "1.200 TL", "500 + 700" → toplam kapora */
 const kaporaSayi = (v) => String(v ?? "").split(/[+&]|\s(?:ve|\/)\s/).reduce((t, p) => t + tutar(p), 0);
+/** Rezervasyonun alınan kaporası; dekont onaylı ama tutar okunamadıysa beklenen kapora tutarı */
+const kaporaTutari = (r) => Number(r.kaporaToplam) || kaporaSayi(r.kapora)
+  || (r.kaynak === "Online" && r.durum === DURUM.onayli && r.kaporaGunu ? Number(r.kaporaTutar) || 0 : 0);
 /** Personel / ücretsiz tüketim satırları (kasaya para girmez, stoktan düşer) */
 const IKRAM_KIMLER = ["VIP / ücretsiz ikram", "Müdür", "Müdür Yardımcısı", "Şef", "Personel"];
 /** Bir kasa günündeki toplam ürün çıkışı {urunId: adet} (satış + ikram) */
@@ -213,8 +216,9 @@ export const kasaOzet = (k) => {
   o.giris = top(k.girisler); o.cikis = top(k.cikislar); o.veresiye = top(k.veresiye);
   o.devir = Number(k.devir) || 0;
   o.gelenKapora = (k.gelenKaporalar || []).reduce((t, x) => t + (Number(x.tutar) || 0), 0);
-  // Maçların alınan kaporası düşülür; personel kantini (maaştan kesilir) eklenir; o gün gelen kaporalar (IBAN) ve devir katılmaz
-  o.kasaToplam = o.ciro - o.onOdeme + o.giris + o.personelKantin;
+  // Kapora parası geldiği günün kasasına girer (o gün gelen kaporalar +); maç günü o maçın kaporası düşülür (−).
+  // Personel kantini (maaştan kesilir) eklenir; devir katılmaz
+  o.kasaToplam = o.ciro - o.onOdeme + o.giris + o.gelenKapora + o.personelKantin;
   // Önceden alınan kapora ve veresiye kasaya bugün girmez
   o.olmasiGereken = o.kasaToplam - o.cikis - o.veresiye;
   o.fark = k.sayilan === null || k.sayilan === undefined ? null : k.sayilan - o.olmasiGereken;
@@ -520,7 +524,7 @@ export class RezervasyonDeposu extends DurableObject {
       if (parcalar.length) {
         kayit.kapora = tutarlar.length ? tutarlar.join(" + ") : "dekontta okunamadı";
         const yeniToplam = tutarlar.reduce((t, x) => t + x, 0);
-        if (yeniToplam !== kayit.kaporaToplam) kayit.kaporaGunu = bugunIsletme();
+        if (yeniToplam !== kayit.kaporaToplam || !kayit.kaporaGunu) kayit.kaporaGunu = bugunIsletme();
         kayit.kaporaToplam = yeniToplam;
         const gereken = kayit.kaporaTutar ?? (await this.fiyatAyar()).kapora;
         kayit.eksikKapora = tutarlar.length !== parcalar.length || kayit.kaporaToplam < gereken;
@@ -1144,7 +1148,7 @@ export class RezervasyonDeposu extends DurableObject {
         const r = s.rez;
         const vip = (r.ekstra || []).reduce((t, x) => t + (f[x] ?? EKSTRALAR[x]?.ucret ?? 0), 0);
         // Kapora maç günü alındıysa ayrıca düşülmez: maçın toplamı bugün kasaya girer
-        const onOdeme = r.kaporaGunu === gun ? 0 : Number(r.kaporaToplam) || kaporaSayi(r.kapora);
+        const onOdeme = r.kaporaGunu === gun ? 0 : kaporaTutari(r);
         satirlar.push({ saat, tur: r.aboneId ? "abone" : "normal", ...(r.aboneId ? { aboneId: r.aboneId } : {}), ad: r.ad, ucret: Math.max(0, (Number(r.ucret) || f.mac) - vip), vip, ekstra: (r.ekstra || []).filter((x) => EKSTRALAR[x]), onOdeme, tkOn: onOdeme, kayitNo: r.kayitNo, kaynak: "takvim" });
       }
     }
@@ -1186,7 +1190,7 @@ export class RezervasyonDeposu extends DurableObject {
     const l = await this.rezervasyonlar(gunEkle(gun, -2), gunEkle(gun, KURALLAR.enFazlaGunSonra + 3));
     return l.filter((r) => r.kaporaGunu === gun && (r.isletmeGunu || r.tarih) !== gun) // aynı gün maçın kaporası maç toplamında
       .map((r) => ({ kayitNo: r.kayitNo, mac: `${(r.isletmeGunu || r.tarih).split("-").reverse().slice(0, 2).join(".")} ${r.saat}`, ad: r.ad,
-        tutar: Number(r.kaporaToplam) || kaporaSayi(r.kapora), yol: r.kaynak === "Online" ? "IBAN (dekont)" : (r.kaynak || "Panel"), iptal: iptalMi(r.durum) }))
+        tutar: kaporaTutari(r), yol: r.kaynak === "Online" ? "IBAN (dekont)" : (r.kaynak || "Panel"), iptal: iptalMi(r.durum) }))
       .filter((x) => x.tutar > 0);
   }
 

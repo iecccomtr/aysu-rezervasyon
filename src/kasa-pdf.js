@@ -91,7 +91,7 @@ export function kasaPdf(k) {
 
   // ---- Kaporalar / giriş / çıkış ----
   if ((k.gelenKaporalar || []).length) {
-    baslik("O gün gelen kaporalar (bilgi)", para(o.gelenKapora));
+    baslik("Bugün gelen kaporalar (ileri tarihli maçlar)", para(o.gelenKapora));
     for (const x of k.gelenKaporalar) satir(`${x.ad} — ${x.mac} maçı`, para(x.tutar), { alt: `${x.yol}${x.iptal ? " · iptal (iade yok)" : ""}` });
   }
   if ((k.girisler || []).length) { baslik("Diğer kasa girişi", para(o.giris)); for (const x of k.girisler) satir(x.aciklama || "—", para(x.tutar)); }
@@ -115,13 +115,13 @@ export function kasaPdf(k) {
   satir(`Krampon (${o.kramponAdet} adet)`, para(o.krampon));
   satir(`Eldiven (${o.eldivenAdet} adet)`, para(o.eldiven));
   satir("GÜNLÜK CİRO", para(o.ciro), { kalin: true, renk: MAVI });
-  if (o.onOdeme) satir("Alınan kaporalar (bugünkü maçlar)", "−" + para(o.onOdeme), { renk: KIRMIZI });
+  if (o.onOdeme) satir("Önceki günlerde alınan kaporalar (bugünkü maçlar)", "−" + para(o.onOdeme), { renk: KIRMIZI });
+  satir("Bugün gelen kaporalar (ileri tarihli maçlar)", para(o.gelenKapora));
   satir("Diğer kasa girişi", para(o.giris));
   if (o.personelKantin) satir("Personel kantini (maaştan düşülür)", para(o.personelKantin));
   satir("Kasa toplamı", para(o.kasaToplam), { kalin: true });
   satir("Kasa çıkışı", "−" + para(o.cikis), { renk: KIRMIZI });
   if (o.veresiye) satir("Veresiye", "−" + para(o.veresiye), { renk: KIRMIZI });
-  if (o.gelenKapora) satir("O gün gelen kaporalar (ileri tarihli, toplama katılmaz)", para(o.gelenKapora), { renk: GRI });
   satir("KASADA OLMASI GEREKEN", para(o.olmasiGereken), { kalin: true, renk: MAVI });
   if (k.sayilan !== null && k.sayilan !== undefined) {
     satir("Sayılan kasa", para(k.sayilan), { kalin: true });

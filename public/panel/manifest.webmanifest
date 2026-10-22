@@ -1,0 +1,18 @@
+{
+  "name": "Aysu Halı Saha Panel",
+  "short_name": "Aysu Panel",
+  "description": "Aysu Halı Saha yönetim paneli",
+  "lang": "tr",
+  "id": "/panel/",
+  "start_url": "/panel/",
+  "scope": "/panel/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#004a77",
+  "theme_color": "#004a77",
+  "icons": [
+    { "src": "/img/panel-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/img/panel-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/img/panel-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

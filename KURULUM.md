@@ -75,6 +75,12 @@ Takvim tablosunda aboneler adla değil **numarayla** görünür ("Abone 3"). Num
 - Telefonla / panelden girdiğiniz rezervasyonlar Onaylı kaydedilir.
 - **Dekont tarih ve tekrar kontrolü şu an KAPALI** (denemeler aynı eski dekontla yapılıyor). Canlıya geçerken `src/config.js` → `dekontTarihKontrol: true` ve `dekontTekrarKontrol: true` yapılmalı.
 
+### Telefon uygulaması
+Site ve panel telefona uygulama olarak yüklenebilir (uygulama mağazası gerekmez):
+- **Android (Chrome):** siteyi ya da paneli açın → "📱 Uygulamayı yükle" düğmesi ya da menü (⋮) → **Uygulamayı yükle / Ana ekrana ekle**.
+- **iPhone (Safari):** Paylaş (□↑) → **Ana Ekrana Ekle**.
+İki ayrı simge oluşur: **Aysu Halı Saha** (müşteriler, rezervasyon sayfası açılır) ve **Aysu Panel** (çalışanlar, panel açılır). Uygulama her zaman güncel veriyi internetten alır; bağlantı yoksa "İnternet bağlantısı yok" ekranı çıkar.
+
 ### Fiyatlar (sadece Admin)
 Panel → Kullanıcılar → **Fiyatlar**: maç ücreti, kapora, VIP spiker ve VIP hakem ücretleri. Kaydedilen fiyatlar sonraki rezervasyonlardan itibaren geçerlidir; değişiklik İşlem kaydına yazılır.
 

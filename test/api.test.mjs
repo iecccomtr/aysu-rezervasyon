@@ -420,3 +420,13 @@ test("Fiyatlar: sadece Admin değiştirir; yeni rezervasyonlar yeni fiyatla, esk
   assert.equal((await istek("/api/panel/fiyat", { mac: "1" })).durum, 400, "Müdür fiyat değiştiremez");
   assert.ok(eski.kayitNo);
 });
+
+test("Rezervasyon kontrol sayfası temiz adreste: /rezervasyon/kontrol; eski ?kontrol yönlenir", async () => {
+  const { depo } = await kur();
+  const env = { REZERVASYON_DEPOSU: { idFromName: () => "aysu", get: () => depo }, ASSETS: { fetch: async (r) => new Response("sayfa:" + new URL(r.url).pathname) } };
+  const ctx = { waitUntil() {} };
+  const a = await worker.fetch(new Request("https://site.test/rezervasyon/kontrol"), env, ctx);
+  assert.equal(await a.text(), "sayfa:/rezervasyon/");
+  const y = await worker.fetch(new Request("https://site.test/rezervasyon/?kontrol"), env, ctx);
+  assert.equal(y.status, 301); assert.equal(y.headers.get("location"), "https://site.test/rezervasyon/kontrol");
+});

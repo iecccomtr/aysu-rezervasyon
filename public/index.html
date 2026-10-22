@@ -7,6 +7,13 @@
 <meta name="description" content="Eskişehir Tepebaşı Batıkent'te kapalı (balon çatılı) halı saha. Her gün 08:00–02:00 açık, duş, soyunma odası, kafeterya. Boş saatleri görün, online rezervasyon yapın. Google'da 4,0 ★ (209 yorum).">
 <meta name="robots" content="index, follow, max-image-preview:large">
 <link rel="icon" href="/img/favicon.png">
+<link rel="manifest" href="/site.webmanifest">
+<link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Aysu Halı Saha">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+
 <meta name="theme-color" content="#0067a4">
 <link rel="canonical" href="https://aysuhalisaha.com/">
 <meta name="geo.region" content="TR-26">
@@ -200,6 +207,7 @@
   .dugme.ana:hover { background: #d96d0c; }
   .dugme.ikinci { border-color: rgba(244,247,241,.7); color: var(--tebesir); }
   section[id] { scroll-margin-top: 12px; }
+  .uyg-yukle { background: none; border: 1px solid currentColor; color: inherit; border-radius: 999px; padding: 4px 12px; font: inherit; cursor: pointer; }
   /* Maç kayıtları */
   .mac-kayit { padding: 40px 0; }
   .mac-kutu { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap;
@@ -348,6 +356,27 @@
   if (location.hash === "#rezervasyon") location.replace("/rezervasyon/");
   // Eski "/#mac-kayitlari" bağlantıları maç kayıtları sitesine gider
   if (location.hash === "#mac-kayitlari") location.replace("https://sosyalhalisaha.com");
+</script>
+<script>
+  // Telefon uygulaması (PWA): hizmet çalışanı + "Uygulamayı yükle" düğmesi
+  if ("serviceWorker" in navigator) addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
+  (() => {
+    const dugmeler = () => document.querySelectorAll("[data-uygulama-yukle]");
+    const yuklu = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+    const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    let istem = null;
+    addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); istem = e; dugmeler().forEach((b) => { b.hidden = false; }); });
+    addEventListener("DOMContentLoaded", () => {
+      if (yuklu) return;
+      if (ios) dugmeler().forEach((b) => { b.hidden = false; });
+      dugmeler().forEach((b) => b.addEventListener("click", async () => {
+        if (istem) { istem.prompt(); await istem.userChoice.catch(() => {}); istem = null; return; }
+        alert(ios ? "iPhone'da: alttaki Paylaş (□↑) düğmesine basın, sonra \"Ana Ekrana Ekle\"yi seçin." :
+          "Tarayıcı menüsünden (⋮) \"Uygulamayı yükle\" ya da \"Ana ekrana ekle\"yi seçin.");
+      }));
+    });
+    addEventListener("appinstalled", () => dugmeler().forEach((b) => { b.hidden = true; }));
+  })();
 </script>
 </head>
 <body>
@@ -508,6 +537,7 @@
       <a href="https://wa.me/905555102626" target="_blank" rel="noopener">WhatsApp</a>
       <a href="https://www.google.com/maps/search/?api=1&amp;query=Aysu+Hal%C4%B1+Saha+Eski%C5%9Fehir&amp;query_place_id=ChIJZ76wIWcXzBQRD1Ja6OQDysA" target="_blank" rel="noopener">Google Haritalar</a>
       <a href="/kvkk.html">Aydınlatma metni</a>
+      <button type="button" class="uyg-yukle" data-uygulama-yukle hidden>📱 Uygulamayı yükle</button>
     </nav>
   </div>
 </footer>

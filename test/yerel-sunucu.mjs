@@ -19,7 +19,7 @@ for (let i = 0; i < 3; i++) {
   await depo.olustur({ gunTarihi: g, saat: ["21:00", "19:00", "23:00"][i], ad: ["Eren Yıldız", "Abdurrahman K.", "Yusuf Demir"][i], telefon: ["05321112233", "05334445566", "05357778899"][i] });
 }
 
-const TURLER = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg" };
+const TURLER = { ".webmanifest": "application/manifest+json", ".xml": "application/xml", ".txt": "text/plain", ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg" };
 const ASSETS = {
   async fetch(req) {
     let p = new URL(req.url).pathname;

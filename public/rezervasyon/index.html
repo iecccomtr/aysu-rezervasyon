@@ -17,6 +17,13 @@
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="https://aysuhalisaha.com/img/paylas.jpg">
 <link rel="icon" href="/img/favicon.png">
+<link rel="manifest" href="/site.webmanifest">
+<link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Aysu Halı Saha">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+
 <meta name="theme-color" content="#0067a4">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -180,6 +187,7 @@
   .iptal-baslik p { margin-bottom: 10px; }
   .iptal-baslik a { font-weight: 600; color: var(--cim, #0067a4); }
   .ipucu.kotu { color: #b42318; font-weight: 600; } .ipucu.iyi { color: #14532d; font-weight: 600; }
+  .uyg-yukle { background: #fff; border: 2px solid var(--cim, #0067a4); color: var(--cim, #0067a4); border-radius: 999px; padding: 10px 16px; font: 600 15px "Barlow", sans-serif; cursor: pointer; }
   .iade-not { font-weight: 700; color: #b42318; margin: 0 0 10px; font-size: 15px; }
   .vip { border: 2px solid #f3c97a; background: #fff8ec; border-radius: 12px; padding: 10px 14px 12px; margin: 0 0 16px; }
   .vip legend { font-weight: 700; padding: 0 6px; }
@@ -226,6 +234,27 @@
 
   @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
 </style>
+<script>
+  // Telefon uygulaması (PWA): hizmet çalışanı + "Uygulamayı yükle" düğmesi
+  if ("serviceWorker" in navigator) addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
+  (() => {
+    const dugmeler = () => document.querySelectorAll("[data-uygulama-yukle]");
+    const yuklu = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+    const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    let istem = null;
+    addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); istem = e; dugmeler().forEach((b) => { b.hidden = false; }); });
+    addEventListener("DOMContentLoaded", () => {
+      if (yuklu) return;
+      if (ios) dugmeler().forEach((b) => { b.hidden = false; });
+      dugmeler().forEach((b) => b.addEventListener("click", async () => {
+        if (istem) { istem.prompt(); await istem.userChoice.catch(() => {}); istem = null; return; }
+        alert(ios ? "iPhone'da: alttaki Paylaş (□↑) düğmesine basın, sonra \"Ana Ekrana Ekle\"yi seçin." :
+          "Tarayıcı menüsünden (⋮) \"Uygulamayı yükle\" ya da \"Ana ekrana ekle\"yi seçin.");
+      }));
+    });
+    addEventListener("appinstalled", () => dugmeler().forEach((b) => { b.hidden = true; }));
+  })();
+</script>
 </head>
 <body>
   <header class="saha">
@@ -347,9 +376,10 @@
 
     <!-- ===== İptal (en altta): ayrı iptal sayfasını açar ===== -->
     <div class="iptal-alan" id="iptal-alan">
-      <a class="dugme ikincil tam" id="iptal-ac" href="/rezervasyon/?kontrol">Rezervasyonumu kontrol et</a>
+      <a class="dugme ikincil tam" id="iptal-ac" href="/rezervasyon/kontrol">Rezervasyonumu kontrol et</a>
     </div>
 
+    <p class="alt-bilgi"><button type="button" class="uyg-yukle" data-uygulama-yukle hidden>📱 Rezervasyon uygulamasını telefona yükle</button></p>
     <p class="alt-bilgi"><a href="/">Ana sayfa</a> · Abonelik ve toplu rezervasyon için <a href="https://wa.me/905555102626" target="_blank" rel="noopener">WhatsApp'tan yazın</a></p>
   </main>
 
@@ -714,7 +744,7 @@
   // İptal modunda dolu / ⏳ saatler de seçilebilir; seçince telefon sorulur.
   // /rezervasyon/?iptal → iptal sayfası: rezervasyon formu yok, dolu saatler seçilir
   // /rezervasyon/?kontrol (eski ?iptal bağlantıları da) → rezervasyon kontrol sayfası
-  const iptalModu = new URLSearchParams(location.search).has("kontrol") || new URLSearchParams(location.search).has("iptal");
+  const iptalModu = location.pathname.startsWith("/rezervasyon/kontrol");
   if (iptalModu) {
     $("iptal-baslik").hidden = false;
     $("iptal-alan").hidden = true;

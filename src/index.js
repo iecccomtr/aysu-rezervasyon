@@ -566,6 +566,14 @@ export default {
     if (ESKI_ADRESLER[yol]) return Response.redirect(url.origin + ESKI_ADRESLER[yol], 301);
     if (yol.startsWith("/blog/") || yol.startsWith("/form/")) return Response.redirect(url.origin + "/", 301);
     if (yol === "/rezervasyon") return Response.redirect(url.origin + "/rezervasyon/", 301);
+    // Rezervasyon kontrol sayfası: temiz adres /rezervasyon/kontrol (eski ?kontrol / ?iptal adresleri yönlenir)
+    if (yol === "/rezervasyon/" && (url.searchParams.has("kontrol") || url.searchParams.has("iptal"))) {
+      return Response.redirect(url.origin + "/rezervasyon/kontrol", 301);
+    }
+    if (yol === "/rezervasyon/kontrol" || yol === "/rezervasyon/kontrol/") {
+      const sayfa = await env.ASSETS.fetch(new Request(url.origin + "/rezervasyon/", { headers: request.headers }));
+      return new Response(sayfa.body, sayfa);
+    }
 
     const statik = await env.ASSETS.fetch(request);
     const fotoAd = yol.startsWith("/galeri/") ? yol.slice("/galeri/".length) : null;

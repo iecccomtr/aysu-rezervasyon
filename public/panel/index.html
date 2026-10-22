@@ -174,6 +174,8 @@
   .urun { border: 1px solid var(--cizgi); border-radius: 10px; padding: 6px 8px; font-size: 13px; line-height: 1.2; }
   .urun.var { border-color: var(--cim); background: var(--cim-acik); }
   .urun.yok { opacity: .45; }
+  .od-dugme { display: block; width: 100%; margin-top: 4px; border: 1px solid #f2c4c4; background: #fde8e8; color: var(--hata); border-radius: 999px; font: 700 12px/1 inherit; padding: 6px 4px; cursor: pointer; }
+  .od-dugme.tamam { border-color: #9fd3a8; background: #e7f6ec; color: #1a7f37; }
   .urun b { display: block; font-size: 13px; min-height: 2.4em; }
   .urun .adim { margin-top: 4px; width: 100%; justify-content: space-between; }
   .urun .adim span { min-width: 0; font-weight: 700; font-size: 16px; }
@@ -1893,14 +1895,14 @@
       const l = document.querySelectorAll(`[data-yol^="${b.dataset.ekle}."][data-yol$=".aciklama"]`); l[l.length - 1]?.focus();
     } else if (b.dataset.kantin !== undefined) {
       const m = kk.maclar[b.dataset.kantin];
-      urunSec(`${m.saat} · ${m.ad || "maç"} · kantin`, m.kantin || {}, (yeni, _k, odendi) => {
+      urunSec(`${m.saat} · ${m.ad || "maç"} · kantin`, m.kantin || {}, (yeni, _k, odendi, odSec) => {
         m.kantin = yeni;
-        // Ödendi: şu ana kadarki tüm kantin ödendi sayılır; değilse ödenen adetler yeni adetleri aşamaz
+        // "Ödendi": hepsi ödendi; değilse ürün kutularında işaretlenen ödenen adetler (adetten fazla olamaz)
         const od = {};
-        for (const [id, a] of Object.entries(yeni)) od[id] = odendi ? a : Math.min(a, m.kantinOdenen?.[id] || 0);
+        for (const [id, a] of Object.entries(yeni)) od[id] = odendi ? a : Math.min(a, odSec?.[id] || 0);
         m.kantinOdenen = Object.fromEntries(Object.entries(od).filter(([, a]) => a > 0));
         degisti(); kasaCiz();
-      }, { odeme: true, aciklama: "Adetleri seçin. Müşteri hemen öderse 'Ödendi'ye, maç sonunda ödeyecekse 'Maç sonunda alınacak'a basın." });
+      }, { odeme: true, odenen: m.kantinOdenen || {}, aciklama: "Adetleri seçin. Her ürünün altındaki düğmeyle o ürünün ödendiğini işaretleyin. Hepsi ödendiyse alttaki 'Ödendi'ye, sonra ödenecekse 'Maç sonunda alınacak'a basın." });
     } else if (b.dataset.kaporaSil !== undefined) {
       const x = kk.gelenKaporalar[b.dataset.kaporaSil];
       if (!confirm(`${x.ad} — ${para(x.tutar)} kapora bugünkü kasadan silinsin mi? (Rezervasyon değişmez)`)) return;
@@ -1966,14 +1968,17 @@
   /** Ürün seçici: adet artır/azalt; kapanınca geri çağırır */
   function urunSec(baslik, mevcut, bitti, ek = null) {
     const sec = { ...mevcut };
+    const od = { ...(ek?.odenen || {}) }; // ürün ürün ödenen adet (müşteri kantini)
     const aktif = canliUrunler().filter((u) => u.aktif !== false || sec[u.id]);
+    const odYazi = (id) => !sec[id] ? "" : (od[id] || 0) >= sec[id] ? "✓ Ödendi" : (od[id] ? `${od[id]}/${sec[id]} ödendi` : "Ödenmedi");
     const ic = ac(baslik, `
       ${ek ? `<p class="bilgi" style="margin-bottom:8px">${kacis(ek.aciklama)}</p>
         ${ek.kim !== undefined ? `<div class="alan"><label for="us-kim">Kim (borçlu)</label><input id="us-kim" value="${kacis(ek.kim)}" placeholder="Ad soyad / takım"></div>` : ""}` : ""}
       <input type="search" id="us-ara" placeholder="Ürün ara" style="width:100%;border:1px solid #b5c3cf;border-radius:10px;padding:9px 12px;font-size:16px;margin-bottom:8px">
       <div class="urun-grid">${aktif.map((u) => `<div class="urun${sec[u.id] ? " var" : ""}${u.stok <= 0 && !sec[u.id] ? " yok" : ""}" data-u="${u.id}" data-ad="${kacis(u.ad.toLocaleLowerCase("tr"))}">
         <b>${kacis(u.ad)}</b><small class="soluk">${ek?.personel ? `<s>${para(birim(u.id).satis)}</s> <b style="color:#1a7f37">${para(personelFiyat(birim(u.id).satis))}</b>` : para(birim(u.id).satis)} · stok ${u.stok}</small>
-        <span class="adim"><button type="button" data-d="-1">−</button><span>${sec[u.id] || 0}</span><button type="button" data-d="1">+</button></span></div>`).join("")}</div>
+        <span class="adim"><button type="button" data-d="-1">−</button><span>${sec[u.id] || 0}</span><button type="button" data-d="1">+</button></span>
+        ${ek?.odeme ? `<button type="button" class="od-dugme${(od[u.id] || 0) >= (sec[u.id] || 0) && sec[u.id] ? " tamam" : ""}" data-od ${sec[u.id] ? "" : "hidden"}>${odYazi(u.id)}</button>` : ""}</div>`).join("")}</div>
       ${ek?.odeme ? `<div style="margin-top:12px"><div style="display:flex;align-items:center;gap:8px"><b id="us-top"></b>
           <button class="dugme ikincil kucuk" type="button" id="us-kaydet" style="margin-left:auto" title="Adet düzeltmesi: ödeme durumu değişmez">Kaydet</button></div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
@@ -1985,21 +1990,25 @@
     const topCiz = () => { $("us-top").textContent = `Toplam ${para(Object.entries(sec).reduce((t, [id, a]) => t + a * fiyatOf(id), 0))}${ek?.personel ? " (personel fiyatı)" : ""}`; };
     topCiz();
     ic.querySelectorAll("[data-u]").forEach((el) => el.addEventListener("click", (e) => {
-      const d = e.target.closest("button")?.dataset.d; if (!d) return;
+      const btn = e.target.closest("button"); if (!btn) return;
       const id = el.dataset.u;
+      const odCiz = () => { const b = el.querySelector("[data-od]"); if (!b) return; b.hidden = !sec[id]; b.textContent = odYazi(id); b.classList.toggle("tamam", Boolean(sec[id]) && (od[id] || 0) >= sec[id]); };
+      if (btn.dataset.od !== undefined) { od[id] = (od[id] || 0) >= (sec[id] || 0) ? 0 : sec[id]; odCiz(); return; }
+      const d = btn.dataset.d; if (!d) return;
       const kalan = (aktif.find((u) => u.id === id)?.stok ?? 0) - ((sec[id] || 0) - (mevcut[id] || 0));
       if (Number(d) > 0 && kalan <= 0) return bildir("Stokta yok");
       sec[id] = Math.max(0, (sec[id] || 0) + Number(d)); if (!sec[id]) delete sec[id];
       el.querySelector(".adim span").textContent = sec[id] || 0;
-      el.classList.toggle("var", Boolean(sec[id])); topCiz();
+      if ((od[id] || 0) > (sec[id] || 0)) od[id] = sec[id] || 0;
+      el.classList.toggle("var", Boolean(sec[id])); topCiz(); odCiz();
     }));
     $("us-ara").addEventListener("input", (e) => {
       const q = e.target.value.trim().toLocaleLowerCase("tr");
       ic.querySelectorAll("[data-u]").forEach((el) => { el.hidden = q && !el.dataset.ad.includes(q); });
     });
-    $("us-tamam").addEventListener("click", () => { const kim = $("us-kim")?.value.trim() || ""; dlg.close(); bitti(sec, kim, false); });
-    $("us-odendi")?.addEventListener("click", () => { dlg.close(); bitti(sec, "", true); });
-    $("us-kaydet")?.addEventListener("click", () => { dlg.close(); bitti(sec, "", null); bildir("Kantin düzeltildi"); });
+    $("us-tamam").addEventListener("click", () => { const kim = $("us-kim")?.value.trim() || ""; dlg.close(); bitti(sec, kim, false, od); });
+    $("us-odendi")?.addEventListener("click", () => { dlg.close(); bitti(sec, "", true, od); });
+    $("us-kaydet")?.addEventListener("click", () => { dlg.close(); bitti(sec, "", null, od); bildir("Kantin kaydedildi"); });
   }
 
   // ---- Stok ----

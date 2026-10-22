@@ -63,7 +63,7 @@ export async function smtpGonder(p) {
   const o = new Oturum(soket);
   try {
     await o.komut(null, [220]);
-    await o.komut("EHLO aysuhalisaha.com", [250]);
+    await o.komut("EHLO localhost", [250]);
     await o.komut("AUTH LOGIN", [334]);
     await o.komut(b64(p.kullanici), [334]);
     await o.komut(b64(p.sifre), [235]);
@@ -108,7 +108,8 @@ export async function smtpGonder(p) {
       `To: ${p.kime.join(", ")}`,
       `Subject: ${baslik(p.konu)}`,
       `Date: ${new Date().toUTCString()}`,
-      `Message-ID: <${crypto.randomUUID()}@aysuhalisaha.com>`,
+      // Message-ID'yi Gmail kendisi ekler (gönderen alan adıyla uyumlu olsun diye, aksi spam puanını artırır)
+      `Reply-To: ${p.kimden}`,
       "MIME-Version: 1.0",
       ...icerik,
       ".",

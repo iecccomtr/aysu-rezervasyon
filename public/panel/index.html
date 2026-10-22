@@ -132,7 +132,10 @@
   .vip-sec input { width: 20px; height: 20px; accent-color: #ef7f1a; }
   .vip-sec small { color: var(--gri); font-weight: 500; }
   .mac .k-alt { border-top: 1px dashed #cfdbe5; padding-top: 8px; }
-  .mac-ust { display: grid; grid-template-columns: 66px 104px 1fr 28px; gap: 6px; align-items: center; margin-bottom: 6px; }
+  .mac-ust { display: grid; grid-template-columns: 70px auto 1fr auto; gap: 6px; align-items: center; margin-bottom: 6px; }
+  .mac-ust .saat-i { display: block; border-radius: 8px; padding: 7px 2px; }
+  .tur-y { font-size: 13px; font-weight: 700; text-transform: uppercase; color: var(--gri); }
+  .ad-y { font-size: 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .mac-ust input, .mac-ust select, .k-ic input { width: 100%; border: 1px solid #b5c3cf; border-radius: 8px; padding: 7px 8px; font-size: 16px; background: var(--kart); min-width: 0; }
   .mac-ust .saat-i { font: 700 20px/1 "Barlow Condensed", sans-serif; text-align: center; padding: 6px 2px; }
   .k-ic { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
@@ -166,7 +169,7 @@
   .stok-t tr.az td { color: var(--hata); font-weight: 600; }
   .stok-t tbody tr { cursor: pointer; }
   .mac-ust select { padding: 7px 4px; }
-  @media (max-width: 420px) { .mac-ust { grid-template-columns: 60px 98px 1fr 26px; } .k-sat { grid-template-columns: 1fr 92px 26px; } }
+  @media (max-width: 420px) { .k-sat { grid-template-columns: 1fr 92px 26px; } }
   /* ---------- Kapora bekleyenler ---------- */
   .bekleyenler { margin-bottom: 18px; border-color: #ecd97a; background: #fffbe6; }
   .bekleyenler h3 { font-size: 20px; padding: 12px 14px 4px; color: var(--sari-koyu); }
@@ -437,7 +440,8 @@
       <div id="puantaj-alan" hidden>
         <div class="baslik-satir" style="margin-top:22px"><h2>Puantaj</h2>
           <input type="month" id="puantaj-ay" class="sag" style="border:1px solid #b5c3cf;border-radius:10px;padding:7px 10px;font-size:15px;background:var(--kart)"></div>
-        <p class="soluk" style="margin-bottom:10px;font-size:14px">Çalışanlar her gün panelden işe giriş ve çıkışlarını onaylar. Ücret = çalışılan saat × saatlik ücret (kullanıcıya dokunup Admin belirler).</p>
+        <p class="soluk" style="margin-bottom:10px;font-size:14px">Çalışanlar panele girince GELDİM, çıkarken ÇIKTIM'a basar. Ücret = (çalışılan saat + yarım saat yol) × saatlik ücret (kullanıcıya dokunup Admin belirler).</p>
+        <div id="vardiya-alan"></div>
         <div class="kutu" id="puantaj-liste"></div>
       </div>
       <div id="fiyat-alan" hidden>
@@ -1390,6 +1394,7 @@
   // ================= Puantaj (işe giriş / çıkış) =================
   const para = (n) => `${Math.round(Number(n) || 0).toLocaleString("tr-TR")} ₺`;
   const saatSayi = (n) => (Number(n) || 0).toLocaleString("tr-TR", { maximumFractionDigits: 2 });
+  let geldimSoruldu = false;
   async function puantajKartYukle() {
     const el = $("puantaj-kart");
     if (!ben || ben.rol === "admin") { el.hidden = true; return; }
@@ -1397,23 +1402,35 @@
     if (!p || p.hata) { el.hidden = true; return; }
     const k = p.kayit || {};
     const saatYaz = (ms) => new Date(ms).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Istanbul" });
-    const beklenen = p.baslama ? `Bugün beklenen giriş: <b>${p.baslama}</b> <small class="soluk">(ilk maç ${p.ilkMac})</small>` : `<span class="soluk">Bugün takvimde maç yok.</span>`;
+    const plan = p.baslama
+      ? `Bugün iş başı <b>${p.baslama}</b>${p.bitis ? ` · çıkış ~<b>${p.bitis}</b>` : ""}${p.vardiyada === false ? '<br><small class="soluk">Bugünkü vardiyada adınız yok.</small>' : ""}`
+      : `<span class="soluk">Bugün takvimde maç yok.</span>`;
     let durum, dugme = "";
-    if (!k.giris) { durum = "Giriş yapılmadı"; dugme = `<button class="dugme" type="button" id="p-giris">Girişi onayla</button>`; }
-    else if (!k.cikis) { durum = `Giriş: <b>${saatYaz(k.giris)}</b>`; dugme = `<button class="dugme" type="button" id="p-cikis" style="background:#b42318">Çıkışı onayla</button>`; }
-    else { durum = `Giriş ${saatYaz(k.giris)} · Çıkış ${saatYaz(k.cikis)} · <b>${saatSayi((k.cikis - k.giris) / 3600000)} saat</b>`; }
+    if (!k.giris) { durum = "Henüz GELDİM demediniz"; dugme = `<button class="dugme" type="button" id="p-giris" style="background:#1a7f37;font-size:20px;font-weight:800">GELDİM</button>`; }
+    else if (!k.cikis) { durum = `Geldim: <b>${saatYaz(k.giris)}</b>`; dugme = `<button class="dugme" type="button" id="p-cikis" style="background:#b42318;font-size:20px;font-weight:800">ÇIKTIM</button>`; }
+    else { const sa = (k.cikis - k.giris) / 3600000; durum = `Geldim ${saatYaz(k.giris)} · Çıktım ${saatYaz(k.cikis)} · <b>${saatSayi(sa)} + ${saatSayi(p.yolSaat)} yol = ${saatSayi(Math.round((sa + p.yolSaat) * 100) / 100)} saat</b>`; }
     el.className = `kutu puantaj${k.giris && !k.cikis ? " acik" : ""}`;
-    el.innerHTML = `<div class="bilgi-k">${beklenen}<br>${durum}<br><small class="soluk">Bu ay: ${saatSayi(p.buAy.saat)} saat${p.saatlikUcret ? ` · ${para(p.buAy.ucret)}` : ""}</small></div>${dugme}`;
+    el.innerHTML = `<div class="bilgi-k">${plan}<br>${durum}<br><small class="soluk">Bu ay: ${saatSayi(p.buAy.saat)} saat${p.saatlikUcret ? ` · ${para(p.buAy.ucret)}` : ""}</small></div>${dugme}`;
     el.hidden = false;
-    const tikla = (id, yol, soru) => el.querySelector(id)?.addEventListener("click", async () => {
-      if (!confirm(soru)) return;
+    const isle = async (yol) => {
       const r = await api(yol, {});
       if (r.hata) return bildir(r.hata);
-      bildir(yol.endsWith("giris") ? "Girişiniz kaydedildi" : "Çıkışınız kaydedildi");
+      bildir(yol.endsWith("giris") ? "GELDİM kaydedildi" : "ÇIKTIM kaydedildi");
       puantajKartYukle();
-    });
-    tikla("#p-giris", "puantaj/giris", "İşe girişinizi şimdi onaylıyor musunuz?");
-    tikla("#p-cikis", "puantaj/cikis", "İşten çıkışınızı şimdi onaylıyor musunuz?");
+    };
+    el.querySelector("#p-giris")?.addEventListener("click", () => confirm("Sahaya geldiğinizi şimdi onaylıyor musunuz?") && isle("puantaj/giris"));
+    el.querySelector("#p-cikis")?.addEventListener("click", () => confirm("İşten çıktığınızı şimdi onaylıyor musunuz?") && isle("puantaj/cikis"));
+    // Panele girişte (bir kez) sor: bugün maç var, vardiyadasınız ve henüz GELDİM demediniz
+    const dk = (x) => { const [h, m] = x.split(":").map(Number); return (h < 6 ? h + 24 : h) * 60 + m; };
+    const simdiDk = dk(new Date(Date.now() + 3 * 3600000).toISOString().slice(11, 16));
+    if (!geldimSoruldu && !k.giris && p.baslama && p.vardiyada !== false && simdiDk >= dk(p.baslama) - 120) {
+      geldimSoruldu = true;
+      const ic = ac(`Merhaba ${ben.ad}`, `<p style="margin-bottom:14px">Bugün iş başı <b>${p.baslama}</b>. Sahaya geldiyseniz onaylayın; çalışma saatiniz şimdi başlar.</p>
+        <button class="dugme tam" type="button" id="pg-evet" style="background:#1a7f37;font-size:22px;font-weight:800;padding:16px">GELDİM</button>
+        <button class="dugme ikincil tam" type="button" id="pg-hayir" style="margin-top:8px">Henüz gelmedim</button>`);
+      ic.querySelector("#pg-evet").addEventListener("click", () => { dlg.close(); isle("puantaj/giris"); });
+      ic.querySelector("#pg-hayir").addEventListener("click", () => dlg.close());
+    }
   }
 
   let puantaj = null;
@@ -1421,6 +1438,7 @@
     $("puantaj-alan").hidden = !yonetici();
     if (!yonetici()) return;
     if (!$("puantaj-ay").value) $("puantaj-ay").value = new Date(Date.now() + 3 * 3600000).toISOString().slice(0, 7);
+    vardiyaYukle();
     puantaj = await api(`puantaj?ay=${$("puantaj-ay").value}`).catch(() => null);
     if (!puantaj || puantaj.hata) return;
     const top = puantaj.kisiler.reduce((t, k) => t + k.ucret, 0);
@@ -1434,6 +1452,33 @@
     $("p-ekle")?.addEventListener("click", () => puantajDuzeltAc(null, null));
   }
   $("puantaj-ay").addEventListener("change", puantajYukle);
+
+  // ---- Günlük vardiya (Admin) ----
+  let vardiyaGun = null;
+  async function vardiyaYukle() {
+    const alan = $("vardiya-alan");
+    if (ben.rol !== "admin") { alan.innerHTML = ""; return; }
+    const v = await api("vardiya" + (vardiyaGun ? `?gun=${vardiyaGun}` : "")).catch(() => null);
+    if (!v || v.hata) return;
+    vardiyaGun = v.gun;
+    alan.innerHTML = `<div class="kutu kasa-kart"><h3>Günlük vardiya <input type="date" id="v-gun" value="${v.gun}" class="sag" style="border:1px solid #b5c3cf;border-radius:8px;padding:5px 8px;font-size:15px"></h3>
+      <p class="soluk" style="font-size:14px;margin-bottom:8px">${v.ilkMac ? `${kacis(v.gunAd)}: maçlar ${v.ilkMac} – ${v.sonMac}. İş başı ilk maçtan 1 saat önce, çıkış son maç bitişinden 30 dk sonra; her güne yarım saat yol eklenir.` : "Bu gün takvimde maç yok."}</p>
+      <div style="display:grid;gap:6px;margin-bottom:10px">${v.calisanlar.map((c) => `<label style="display:flex;gap:8px;align-items:center;font-weight:600"><input type="checkbox" data-v="${kacis(c.eposta)}"${c.secili ? " checked" : ""} style="width:20px;height:20px"> ${kacis(c.ad)} <small class="soluk">${kacis(c.rol)}</small></label>`).join("") || '<span class="soluk">Aktif çalışan yok.</span>'}</div>
+      <div class="iki-alan">
+        <div class="alan"><label for="v-bas">İş başı</label><input type="time" id="v-bas" value="${v.baslama || ""}"></div>
+        <div class="alan"><label for="v-bit">Çıkış</label><input type="time" id="v-bit" value="${v.bitis || ""}"></div>
+      </div>
+      <p class="soluk" style="font-size:13px;margin:-6px 0 10px">Saatler otomatik hesaplanır${v.otomatikBaslama ? ` (${v.otomatikBaslama} – ${v.otomatikBitis})` : ""}; o gün farklıysa değiştirin.</p>
+      <button class="dugme" type="button" id="v-kaydet">Vardiyayı kaydet</button></div>`;
+    $("v-gun").addEventListener("change", (e) => { vardiyaGun = e.target.value; vardiyaYukle(); });
+    $("v-kaydet").addEventListener("click", async () => {
+      const bas = $("v-bas").value, bit = $("v-bit").value;
+      const r = await api("vardiya", { gun: vardiyaGun, kisiler: [...alan.querySelectorAll("[data-v]:checked")].map((x) => x.dataset.v),
+        baslama: bas && bas !== v.otomatikBaslama ? bas : "", bitis: bit && bit !== v.otomatikBitis ? bit : "" });
+      if (r.hata) return bildir(r.hata);
+      bildir("Vardiya kaydedildi"); vardiyaYukle();
+    });
+  }
 
   function puantajDetay(k) {
     const duzeltir = ["admin", "mudur"].includes(ben.rol);
@@ -1542,10 +1587,10 @@
       <div class="kutu kasa-kart"><h3>Maçlar<span class="sag soluk" data-top="maclar"></span></h3>
         ${kk.maclar.map((m, i) => `<div class="mac t-${m.tur}">
           <div class="mac-ust">
-            <input class="saat-i" data-yol="maclar.${i}.saat" value="${kacis(m.saat)}" aria-label="Saat" placeholder="SS:DD">
-            <select data-yol="maclar.${i}.tur" aria-label="Tür">${[["normal", "Normal"], ["abone", "Abone"], ["bos", "Boş"]].map(([v, a]) => `<option value="${v}"${m.tur === v ? " selected" : ""}>${a}</option>`).join("")}</select>
-            <input data-yol="maclar.${i}.ad" value="${kacis(m.ad)}" placeholder="İsim / abone no" aria-label="İsim">
-            <button class="x-sil" type="button" data-sil="maclar.${i}" aria-label="Maçı sil">×</button>
+            <span class="saat-i">${kacis(m.saat)}</span>
+            <span class="tur-y">${m.tur === "abone" ? "Abone" : m.tur === "bos" ? "Boş" : "Normal"}</span>
+            <b class="ad-y">${kacis(m.ad)}</b>
+            ${m.kaynak === "takvim" ? "" : `<button class="x-sil" type="button" data-sil="maclar.${i}" aria-label="Satırı sil">×</button>`}
           </div>
           <div class="k-ic" style="grid-template-columns:1fr 1fr">
             <div><label>Maç ücreti</label><input data-yol="maclar.${i}.ucret" value="${m.ucret || ""}" inputmode="numeric" placeholder="0"></div>
@@ -1560,8 +1605,7 @@
             <span class="mac-top" data-mt="${i}"></span>
           </div>
         </div>`).join("") || '<p class="soluk">Bu gün maç yok.</p>'}
-        <div class="k-alt" style="margin-top:10px"><button class="dugme ikincil kucuk" type="button" id="k-mac-ekle">+ Elle maç satırı</button></div>
-        <p class="soluk" style="font-size:13px;margin-top:8px">Maçlar o günün rezervasyon ve abone listesinden kendiliğinden gelir; rezervasyon eklenince / iptal edilince burası da güncellenir. Krampon ${para(kr.krampon)}, eldiven ${para(kr.eldiven)}. Alınan kapora maçın toplamından düşülür; müşteriden kalan tahsil edilir.</p>
+        <p class="soluk" style="font-size:13px;margin-top:8px">Maçlar o günün rezervasyon ve abone listesinden kendiliğinden gelir; kasaya maç eklemek ya da çıkarmak için Takvim'de rezervasyonu ekleyin / iptal edin. Krampon ${para(kr.krampon)}, eldiven ${para(kr.eldiven)}. Alınan kapora maçın toplamından düşülür; müşteriden kalan tahsil edilir.</p>
       </div>
 
       ${satirListesi("girisler", "Kasa girişi", "Ör. Fevzi 23.10 19:00 kapora")}

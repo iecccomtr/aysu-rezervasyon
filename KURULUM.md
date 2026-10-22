@@ -159,12 +159,27 @@ Tüm kayıtlar Cloudflare'in **Durable Object** veritabanında tutulur. Cloudfla
 
 ## Puantaj (çalışan giriş / çıkış)
 
-- Admin dışındaki herkes panelde Takvim'in üstünde **"Girişi onayla" / "Çıkışı onayla"** kartını görür. Kartta o günün beklenen giriş saati de yazar (ilk maçtan 1 saat önce).
-- Gece yarısını geçen çıkış aynı iş gününe yazılır.
-- **Saatlik ücret:** Admin, Kullanıcılar sekmesinde kişiye dokunup girer.
-- **Puantaj raporu:** Kullanıcılar sekmesinde ay ay, kişi başına saat ve ücret listelenir.
-  - Admin ve Müdür unutulan girişleri düzeltebilir, elle kayıt ekleyebilir. Her düzeltme işlem kaydına yazılır.
-  - Müdür Yardımcısı raporda yalnızca kendi kaydını görür.
+**GELDİM / ÇIKTIM**
+- Admin dışındaki kullanıcılar panele girince Takvim'in üstünde **GELDİM**, sonra **ÇIKTIM** düğmesini görür.
+- İş başından 2 saat öncesinden itibaren panele girişte "GELDİM" penceresi bir kez açılır.
+
+**Saatler**
+- İş başı: ilk maçtan 1 saat önce.
+- Beklenen çıkış: son maç bitişinden 30 dk sonra.
+
+**Ödenecek saat ve ücret**
+- Ödenecek saat = GELDİM–ÇIKTIM arası + **yarım saat yol**.
+- Ücret = ödenecek saat × saatlik ücret.
+- Saatlik ücreti Admin, Kullanıcılar sekmesinde kişiye dokunup girer.
+
+**Günlük vardiya (Admin)**
+- Kullanıcılar → Puantaj bölümünden o gün kimin çalışacağı seçilir.
+- Gerekirse iş başı ve çıkış saati değiştirilir.
+- Vardiyada adı olmayan kişiye GELDİM penceresi açılmaz.
+
+**Puantaj raporu**
+- Ay ay listelenir.
+- Admin ve Müdür düzeltme yapabilir ve elle kayıt ekleyebilir.
 
 ## Kasa defteri
 

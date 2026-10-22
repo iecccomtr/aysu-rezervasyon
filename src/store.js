@@ -81,6 +81,8 @@ const slotSirala = (l) => [...l].sort((x, y) => x.gun - y.gun || SAAT_SIRA(x.saa
 const zamanYazi = (ms) => new Date(ms + 3 * 3600_000).toISOString().slice(11, 16);
 /** Puantaj kaydındaki çalışılan saat (2 ondalık); çıkış yoksa 0 */
 const saatFark = (k) => (k?.giris && k?.cikis ? Math.round(((k.cikis - k.giris) / 3600_000) * 100) / 100 : 0);
+/** Ödenecek saat: geldim–çıktım arası + yol parası (tamamlanan günlerde) */
+const odenecekSaat = (k) => { const s = saatFark(k); return s ? Math.round((s + KURALLAR.puantajYolSaat) * 100) / 100 : 0; };
 const simdiYazi = () => new Date(Date.now() + 3 * 3600_000).toISOString().slice(0, 16).replace("T", " ");
 const kirp = (s, n) => String(s ?? "").trim().slice(0, n);
 
@@ -848,10 +850,19 @@ export class RezervasyonDeposu extends DurableObject {
   /** Bir işletme günü için beklenen işe başlama: ilk maçtan 1 saat önce. */
   async beklenenBaslama(gun) {
     const d = await this.durumYukle(gun, gun);
-    const ilk = this.saatListesi(d, gun, gun).find((saat) => { const t = this.slot(d, gun, saat).tur; return t === "rez" || t === "abone"; });
-    if (!ilk) return { gun, ilkMac: null, baslama: null };
+    const dolu = this.saatListesi(d, gun, gun).filter((saat) => { const t = this.slot(d, gun, saat).tur; return t === "rez" || t === "abone"; });
+    const ilk = dolu[0], son = dolu.at(-1);
+    const [vardiya, ozel] = await Promise.all([this.st.get(`v:${gun}`), this.st.get(`vs:${gun}`)]);
+    if (!ilk) return { gun, ilkMac: null, baslama: ozel?.baslama || null, sonMac: null, bitis: ozel?.bitis || null, vardiya: vardiya || null };
     const h = (Number(ilk.slice(0, 2)) + 23) % 24;
-    return { gun, ilkMac: ilk, baslama: `${String(h).padStart(2, "0")}:00` };
+    // Beklenen çıkış: son maç bitişi (+1 saat) + 30 dk
+    const bitisDk = (Number(son.slice(0, 2)) + 1) * 60 + Number(son.slice(3, 5)) + KURALLAR.puantajCikisEk;
+    const bitis = `${String(Math.floor(bitisDk / 60) % 24).padStart(2, "0")}:${String(bitisDk % 60).padStart(2, "0")}`;
+    return {
+      gun, ilkMac: ilk, sonMac: son,
+      baslama: ozel?.baslama || `${String(h).padStart(2, "0")}:00`, bitis: ozel?.bitis || bitis,
+      otomatikBaslama: `${String(h).padStart(2, "0")}:00`, otomatikBitis: bitis, vardiya: vardiya || null,
+    };
   }
 
   /** Çalışanın bugünkü kartı: beklenen saat, kendi giriş/çıkışı, bu ayki toplam. */
@@ -863,7 +874,8 @@ export class RezervasyonDeposu extends DurableObject {
       this.st.get(`u:${ben.eposta}`),
     ]);
     const k = ay.kisiler[0];
-    return { ...b, kayit: kayit || null, buAy: { saat: k?.saat || 0, ucret: k?.ucret || 0 }, saatlikUcret: u?.saatlikUcret || 0 };
+    const { vardiya, ...bb } = b;
+    return { ...bb, vardiyada: vardiya ? vardiya.includes(ben.eposta) : null, yolSaat: KURALLAR.puantajYolSaat, kayit: kayit || null, buAy: { saat: k?.saat || 0, ucret: k?.ucret || 0 }, saatlikUcret: u?.saatlikUcret || 0 };
   }
 
   async puantajGiris(ben) {
@@ -902,58 +914,36 @@ export class RezervasyonDeposu extends DurableObject {
   }
 
   /**
-   * Günlük "GELDİM / ÇIKTIM" e-postası: ilk maçtan 2 saat önce (beklenen girişten 1 saat önce)
-   * Admin dışındaki aktif kullanıcılara bir kez gider. Dönen listeyi Worker gönderir.
+   * Günlük vardiya (Admin): o gün kimler çalışacak; isteğe bağlı başlama/bitiş saati
+   * (boş bırakılırsa ilk maçtan 1 saat önce / son maç bitişinden 30 dk sonra).
+   *   v:<gün>  [eposta]     vs:<gün>  { baslama, bitis }
    */
-  async puantajEpostalari(simdiMs = Date.now()) {
-    return this.kilitli(async () => {
-      const n = simdi();
-      const gun = isletmeGunu(n.tarih, n.saat);
-      const b = await this.beklenenBaslama(gun);
-      if (!b.baslama) return [];
-      const baslamaMs = macZamani(takvimTarihi(gun, b.baslama), b.baslama);
-      if (simdiMs < baslamaMs - 3600_000 || simdiMs > baslamaMs + 4 * 3600_000) return [];
-      const liste = [];
-      for (const u of await this.kullaniciListesi()) {
-        if (u.durum !== "aktif" || u.rol === "admin" || !ROLLER[u.rol]) continue;
-        if (await this.st.get(`pe:${gun}:${u.eposta}`)) continue;
-        const token = hex(crypto.getRandomValues(new Uint8Array(24)));
-        await this.st.put(`pt:${token}`, { eposta: u.eposta, gun, bitis: baslamaMs + 30 * 3600_000 });
-        await this.st.put(`pe:${gun}:${u.eposta}`, { zaman: simdiYazi() });
-        liste.push({ eposta: u.eposta, ad: u.ad, gun, gunAd: gunAdi(gun), baslama: b.baslama, ilkMac: b.ilkMac, token });
-      }
-      return liste;
-    });
-  }
-
-  /** E-postadaki bağlantı: kişi, gün ve o günkü giriş/çıkış durumu */
-  async puantajBaglanti(token) {
-    const t = typeof token === "string" && /^[0-9a-f]{48}$/.test(token) ? await this.st.get(`pt:${token}`) : null;
-    if (!t || t.bitis < Date.now()) return { hata: "Bağlantının süresi dolmuş. Panelden giriş / çıkış yapabilirsiniz." };
-    const u = await this.st.get(`u:${t.eposta}`);
-    if (!u || u.durum !== "aktif") return { hata: "Hesap bulunamadı." };
-    const k = (await this.st.get(`p:${t.gun}:${u.eposta}`)) || null;
-    const b = await this.beklenenBaslama(t.gun);
+  async vardiyaGetir(gunGirdi) {
+    const n = simdi();
+    const gun = tarihNormalize(gunGirdi) || isletmeGunu(n.tarih, n.saat);
+    const [b, kullanicilar] = await Promise.all([this.beklenenBaslama(gun), this.kullaniciListesi()]);
     return {
-      ben: { eposta: u.eposta, ad: u.ad, rol: u.rol }, gun: t.gun, gunAd: gunAdi(t.gun), baslama: b.baslama, ilkMac: b.ilkMac,
-      giris: k?.giris ? zamanYazi(k.giris) : null, cikis: k?.cikis ? zamanYazi(k.cikis) : null, saat: saatFark(k),
+      ...b, gunAd: gunAdi(gun),
+      calisanlar: kullanicilar.filter((u) => u.durum === "aktif" && u.rol !== "admin" && ROLLER[u.rol])
+        .sort((a, c) => (ROL_SIRA[a.rol] ?? 9) - (ROL_SIRA[c.rol] ?? 9))
+        .map((u) => ({ eposta: u.eposta, ad: u.ad, rol: ROLLER[u.rol].ad, secili: b.vardiya ? b.vardiya.includes(u.eposta) : false })),
     };
   }
 
-  async puantajBaglantiIsle(token, islem) {
-    const b = await this.puantajBaglanti(token);
-    if (b.hata) return b;
-    const n = simdi();
-    if (islem === "geldim") {
-      if (isletmeGunu(n.tarih, n.saat) !== b.gun) return { hata: "Bu bağlantı başka bir gün içindir. Panelden giriş yapın." };
-      const r = await this.puantajGiris(b.ben);
-      return r.hata ? r : this.puantajBaglanti(token);
-    }
-    if (islem === "ciktim") {
-      const r = await this.puantajCikis(b.ben);
-      return r.hata ? r : this.puantajBaglanti(token);
-    }
-    return { hata: "Geçersiz işlem." };
+  async vardiyaKaydet({ gun: gunGirdi, kisiler, baslama, bitis }, yapan) {
+    return this.kilitli(async () => {
+      if (yapan?.rol !== "admin") return { hata: "Günlük vardiyayı sadece Admin belirler." };
+      const gun = tarihNormalize(gunGirdi);
+      if (!gun) return { hata: "Gün gerekli." };
+      const tum = await this.kullaniciListesi();
+      const l = [...new Set((Array.isArray(kisiler) ? kisiler : []).map(epostaNormalize))].filter((e) => tum.some((u) => u.eposta === e));
+      await this.st.put(`v:${gun}`, l);
+      const b = baslama ? saatNormalize(baslama) : null, c = bitis ? saatNormalize(bitis) : null;
+      if ((baslama && !b) || (bitis && !c)) return { hata: "Saat SS:DD biçiminde olmalı." };
+      if (b || c) await this.st.put(`vs:${gun}`, { baslama: b, bitis: c }); else await this.st.delete(`vs:${gun}`);
+      await this.kayitTut(yapan, "Vardiya belirledi", `${gun} · ${l.map((e) => tum.find((u) => u.eposta === e)?.ad).join(", ") || "kimse"}${b ? " · başlama " + b : ""}${c ? " · bitiş " + c : ""}`);
+      return { basarili: true };
+    });
   }
 
   /** Aylık puantaj: kişi kişi günler, saatler ve ödenecek tutar. eposta verilirse sadece o kişi. */
@@ -968,7 +958,7 @@ export class RezervasyonDeposu extends DurableObject {
       const u = kullanicilar.find((x) => x.eposta === e);
       if (!kisiler.has(e)) kisiler.set(e, { eposta: e, ad: u?.ad || k.ad || e, rol: ROLLER[u?.rol]?.ad || "", saatlikUcret: u?.saatlikUcret || 0, gunler: [], saat: 0, ucret: 0 });
       const kisi = kisiler.get(e);
-      const saat = saatFark(k);
+      const saat = odenecekSaat(k);
       kisi.gunler.push({ gun, giris: k.giris ? zamanYazi(k.giris) : null, cikis: k.cikis ? zamanYazi(k.cikis) : null, saat, acik: Boolean(k.giris && !k.cikis), duzelten: k.duzelten || null });
       kisi.saat = Math.round((kisi.saat + saat) * 100) / 100;
     }
@@ -1176,7 +1166,7 @@ export class RezervasyonDeposu extends DurableObject {
     const kullanicilar = await this.kullaniciListesi();
     const calisanlar = [...puantaj].map(([k, v]) => {
       const u = kullanicilar.find((x) => x.eposta === k.split(":").slice(2).join(":"));
-      const saat = saatFark(v);
+      const saat = odenecekSaat(v);
       return { ad: u?.ad || v.ad, rol: ROLLER[u?.rol]?.ad || "", saat, ucret: Math.round(saat * (u?.saatlikUcret || 0)), acik: Boolean(v.giris && !v.cikis) };
     });
     return {
@@ -1600,8 +1590,8 @@ export class RezervasyonDeposu extends DurableObject {
       for (const k of (await this.st.list({ prefix: "l:", end: `l:${gunEkle(sinir, -365)}` })).keys()) silinecek.push(k);
       // 90 günden eski dekont özetleri
       for (const [k, v] of await this.st.list({ prefix: "dh:" })) if (!v.tarih || v.tarih < gunEkle(sinir, -90)) silinecek.push(k);
-      for (const k of (await this.st.list({ start: "pe:", end: `pe:${gunEkle(sinir, -7)}` })).keys()) silinecek.push(k);
-      for (const onek of ["o:", "s:", "t:", "pt:"]) {
+      for (const on of ["v:", "vs:"]) for (const k of (await this.st.list({ start: on, end: `${on}${gunEkle(sinir, -7)}` })).keys()) silinecek.push(k);
+      for (const onek of ["o:", "s:", "t:"]) {
         for (const [k, v] of await this.st.list({ prefix: onek })) if (!v.bitis || v.bitis < Date.now()) silinecek.push(k);
       }
       for (let i = 0; i < silinecek.length; i += 128) await this.st.delete(silinecek.slice(i, i + 128));

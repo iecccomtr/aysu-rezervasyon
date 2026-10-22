@@ -499,10 +499,10 @@ test("Puantaj: beklenen giriş ilk maçtan 1 saat önce; giriş/çıkış, gece 
   const c = await d.puantajCikis(p);
   assert.ok(c.basarili, JSON.stringify(c)); assert.equal(c.gun, "2026-10-19");
   const ay = await d.puantajAy("2026-10");
-  assert.equal(ay.kisiler[0].saat, 7.5); assert.equal(ay.kisiler[0].ucret, 1125);
+  assert.equal(ay.kisiler[0].saat, 8, "7,5 saat + yarım saat yol"); assert.equal(ay.kisiler[0].ucret, 1200);
   assert.match((await d.puantajDuzelt({ eposta: "p@aysu.com", gun: "2026-10-19", giris: "18:00", cikis: "02:00" }, p)).hata, /Admin ve Müdür/);
   assert.ok((await d.puantajDuzelt({ eposta: "p@aysu.com", gun: "2026-10-19", giris: "18:00", cikis: "02:00" }, admin)).basarili);
-  assert.equal((await d.puantajAy("2026-10")).kisiler[0].saat, 8);
+  assert.equal((await d.puantajAy("2026-10")).kisiler[0].saat, 8.5);
   assert.match((await d.kullaniciGuncelle({ eposta: "p@aysu.com", saatlikUcret: 999 }, p)).hata, /yetki|Admin/);
 });
 
@@ -583,24 +583,20 @@ test("Kasa: alınan kapora otomatik gelir, sonradan girilen kapora da güncellen
   assert.equal(k2.kayit.ozet.olmasiGereken, 3700 - 1200);
 });
 
-test("Puantaj e-postası: ilk maçtan 2 saat önce bir kez; GELDİM / ÇIKTIM bağlantısı", async () => {
+
+test("Vardiya: Admin günün çalışanlarını ve saatini belirler; beklenen çıkış son maç + 30 dk", async () => {
   const d = demoDepo({ PANEL_KURULUM_KODU: "k" });
   const admin = await d.oturum((await d.panelKur({ kurulumKodu: "k", eposta: "admin@aysu.com", ad: "Admin", sifre: "aysu-2026!" })).token);
   await d.kayitOl({ eposta: "p@aysu.com", ad: "Personel Bir", sifre: "personel-1", rol: "personel" });
   await d.kullaniciGuncelle({ eposta: "p@aysu.com", rol: "personel", durum: "aktif" }, admin);
-  await d.panelRezEkle({ gunTarihi: "2026-10-19", saat: "20:00", ad: "Maç", telefon: "" });
-  saatiAyarla("2026-10-19T17:30");
-  assert.equal((await d.puantajEpostalari()).length, 0, "çok erken");
-  saatiAyarla("2026-10-19T18:00");
-  const l = await d.puantajEpostalari();
-  assert.deepEqual(l.map((x) => [x.eposta, x.baslama]), [["p@aysu.com", "19:00"]], "admin'e gitmez");
-  assert.equal((await d.puantajEpostalari()).length, 0, "bir kez");
-  saatiAyarla("2026-10-19T18:52");
-  const g = await d.puantajBaglantiIsle(l[0].token, "geldim");
-  assert.equal(g.giris, "18:52");
-  assert.match((await d.puantajBaglantiIsle(l[0].token, "geldim")).hata, /zaten/);
-  saatiAyarla("2026-10-20T01:22");
-  const c = await d.puantajBaglantiIsle(l[0].token, "ciktim");
-  assert.equal(c.cikis, "01:22"); assert.equal(c.saat, 6.5);
-  assert.match((await d.puantajBaglanti("yanlis")).hata, /süresi/);
+  const p = await d.oturum((await d.panelGiris({ eposta: "p@aysu.com", sifre: "personel-1" })).token);
+  await d.panelRezEkle({ gunTarihi: "2026-10-19", saat: "20:00", ad: "Ali", telefon: "" });
+  await d.panelRezEkle({ gunTarihi: "2026-10-19", saat: "00:00", ad: "Banu", telefon: "" });
+  let v = await d.vardiyaGetir("2026-10-19");
+  assert.equal(v.baslama, "19:00"); assert.equal(v.bitis, "01:30");
+  assert.match((await d.vardiyaKaydet({ gun: "2026-10-19", kisiler: ["p@aysu.com"] }, p)).hata, /Admin/);
+  assert.ok((await d.vardiyaKaydet({ gun: "2026-10-19", kisiler: ["p@aysu.com"], baslama: "18:30" }, admin)).basarili);
+  v = await d.vardiyaGetir("2026-10-19");
+  assert.equal(v.baslama, "18:30"); assert.ok(v.calisanlar.find((x) => x.eposta === "p@aysu.com").secili);
+  assert.equal((await d.puantajBugun(p)).baslama, "18:30");
 });

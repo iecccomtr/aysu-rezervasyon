@@ -308,6 +308,8 @@ async function panel(request, env, ctx, yol) {
       return json(await d.puantajAy(ay, ["admin", "mudur"].includes(ben.rol) ? null : ben.eposta));
     }
     case "POST puantaj/duzelt": return sonuc(await d.puantajDuzelt(g, ben));
+    case "GET vardiya": return json(await d.vardiyaGetir(url.searchParams.get("gun")));
+    case "POST vardiya": return sonuc(await d.vardiyaKaydet(g, ben));
     case "GET kasa": { const r = await d.kasaGetir(url.searchParams.get("gun"), ben); return json(alisGizle(r, ben), r.hata ? 403 : 200); }
     case "POST kasa": { const r = await d.kasaKaydet(g, ben); return json(alisGizle(r, ben), r.hata ? 400 : 200); }
     case "GET kasa/ay":
@@ -563,19 +565,6 @@ export default {
     }
 
     // Onay ekranı açıkken birkaç saniyede bir güncel durum (opsiyon süresi, onay, düşme)
-    // E-postadaki GELDİM / ÇIKTIM bağlantısı (giriş yapmadan, kişiye özel tek günlük bağlantı)
-    if (yol === "/api/puantaj" && request.method === "GET") {
-      const r = await depo(env).puantajBaglanti(url.searchParams.get("t"));
-      if (r.ben) delete r.ben.eposta;
-      return json(r, r.hata ? 400 : 200, { "cache-control": "no-store" });
-    }
-    if (yol === "/api/puantaj" && request.method === "POST") {
-      if (!ayniKaynak(request)) return json({ hata: "Geçersiz istek." }, 403);
-      const g = (await govdeOku(request)) || {};
-      const r = await depo(env).puantajBaglantiIsle(g.t, g.islem);
-      if (r.ben) delete r.ben.eposta;
-      return json(r, r.hata ? 400 : 200);
-    }
     if (yol === "/api/rezervasyon-durum" && request.method === "POST") {
       if (!ayniKaynak(request)) return json({ hata: "Yetkisiz istek." }, 403);
       const g = await govdeOku(request);
@@ -649,20 +638,6 @@ export default {
     }
     // 5 dakikada bir: dekontu gelmeyen online opsiyonları düşür, işletmeye haber ver
     ctx.waitUntil(depo(env).opsiyonlariDusur());
-    // Çalışanlara günlük GELDİM / ÇIKTIM e-postası (ilk maçtan 2 saat önce)
-    ctx.waitUntil((async () => {
-      const liste = await depo(env).puantajEpostalari();
-      const site = env.SITE_ADRESI || "https://aysuhalisaha.com";
-      await Promise.all(liste.map((x) => epostaYolla(env, {
-        kime: [x.eposta], konu: `Bugün işe giriş ${x.baslama} — GELDİM / ÇIKTIM`,
-        satirlar: [["Gün", `${x.gunAd} ${x.gun.split("-").reverse().join(".")}`], ["İlk maç", x.ilkMac], ["Beklenen giriş", x.baslama]],
-        dugme: [
-          { yazi: "GELDİM", link: `${site}/puantaj/?t=${x.token}&i=geldim`, renk: "#1a7f37" },
-          { yazi: "ÇIKTIM", link: `${site}/puantaj/?t=${x.token}&i=ciktim`, renk: "#b42318" },
-        ],
-        alt: `Merhaba ${x.ad}. Sahaya gelince GELDİM'e, işten çıkarken ÇIKTIM'a basın; açılan sayfada onaylayın. Çalışma saatiniz bu iki saat arasından hesaplanır. Bu bağlantı size özeldir, kimseyle paylaşmayın.`,
-      })));
-    })().catch((e) => console.error("Puantaj e-postası", e)));
     // İlk dekonttan 15 dk sonra kapora hâlâ eksikse Müdür ve Müdür Yardımcısı'na bir kez bilgi
     ctx.waitUntil((async () => {
       const d = depo(env);

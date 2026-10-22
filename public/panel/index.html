@@ -118,6 +118,7 @@
   .hafta-nav .ay { font: 700 22px/1 "Barlow Condensed", sans-serif; flex: 1; text-align: center; }
   .ok { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--cizgi); background: var(--kart); cursor: pointer; font-size: 20px; line-height: 1; }
   .ok:disabled { opacity: .3; cursor: default; }
+  .dugme.wp { background: #25d366; color: #073b1c; border-color: #25d366; text-decoration: none; text-align: center; display: block; }
   .gunler { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; margin-bottom: 12px; }
   .gun { border: 1px solid var(--cizgi); background: var(--kart); border-radius: 10px; padding: 6px 2px 7px; cursor: pointer; text-align: center; line-height: 1.1; }
   .gun small { display: block; font-size: 12px; color: var(--gri); }
@@ -889,10 +890,28 @@
       try {
         const v = await api("rez-guncelle", { kayitNo: r.kayitNo, durum, kapora: $("d-kapora").value, not: $("d-not").value });
         if (v.hata) return dlgUyari(v.hata);
-        dlg.close(); bildir(durum === "İptal" ? "İptal edildi, saat boşaldı" : "Kaydedildi");
         if (sekme === "takvim") haftaYukle(); else if (sekme === "musteriler") musteriYukle();
+        // Kesinleşmiş rezervasyon iptal edildiyse: müşteriye WhatsApp'tan haber ver
+        if (durum === "İptal" && r.durum === "Onaylı" && r.telefon) return iptalWhatsApp(r);
+        dlg.close(); bildir(durum === "İptal" ? "İptal edildi, saat boşaldı" : "Kaydedildi");
       } finally { btn.disabled = false; }
     });
+  }
+
+  /** Panelden iptal edilen kesinleşmiş rezervasyon: müşteriye gönderilecek hazır WhatsApp mesajı */
+  function iptalWhatsApp(r) {
+    const gun = r.isletmeGunu || r.tarih;
+    const zaman = `${GUNLER[gunNo(gun)]} ${tarihYazi(gun)}${gece(r.saat) ? " gecesi" : ""} saat ${r.saat}`;
+    const metin = `Merhaba ${r.ad}, Aysu Halı Saha'daki ${zaman} rezervasyonunuz iptal edilmiştir. Bilginize sunarız. Sorunuz olursa bu numaradan bize yazabilir ya da 0 555 510 26 26'yı arayabilirsiniz.`;
+    ac("Müşteriye haber verin", `
+      <div class="bilgi" style="margin-bottom:12px">Rezervasyon iptal edildi, saat boşaldı. <b>${kacis(r.ad)}</b> (${telYazi(r.telefon)}) kişisine haber verin:</div>
+      <div class="alan"><label for="d-wa-metin">Mesaj (düzenleyebilirsiniz)</label><textarea id="d-wa-metin" rows="5">${kacis(metin)}</textarea></div>
+      <a class="dugme wp tam" id="d-wa-gonder" target="_blank" rel="noopener" href="#">WhatsApp'tan müşteriye gönder</a>
+      <button class="dugme ikincil tam" type="button" id="d-wa-kapat" style="margin-top:8px">Kapat</button>`);
+    const link = () => `${wa(r.telefon)}?text=${encodeURIComponent($("d-wa-metin").value)}`;
+    $("d-wa-gonder").href = link();
+    $("d-wa-metin").addEventListener("input", () => { $("d-wa-gonder").href = link(); });
+    $("d-wa-kapat").addEventListener("click", () => dlg.close());
   }
 
   // Abonenin o gün / o hafta kaç saati var

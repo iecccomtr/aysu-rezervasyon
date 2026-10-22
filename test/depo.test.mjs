@@ -986,3 +986,16 @@ test("Kullanıcı ilk kez onaylanınca ilkOnay döner (kurallar e-postası için
   assert.ok(!(await d.kullaniciGuncelle({ eposta: "yeni@aysu.com", ad: "Yeni Çalışan 2" }, admin)).ilkOnay);
   assert.equal(await d.birKez("ayar:x"), true); assert.equal(await d.birKez("ayar:x"), false);
 });
+
+test("Hafta içi 17:00 öncesi maçlar abone ücretinden", async () => {
+  const { macFiyati } = await import("../src/store.js");
+  const f = { mac: 3700, abone: 3200 };
+  assert.equal(macFiyati(f, "2026-10-21", "16:00"), 3200); // Çarşamba
+  assert.equal(macFiyati(f, "2026-10-21", "17:00"), 3700);
+  assert.equal(macFiyati(f, "2026-10-21", "01:00"), 3700); // gece
+  assert.equal(macFiyati(f, "2026-10-24", "10:00"), 3700); // Cumartesi
+  const d = demoDepo();
+  saatiAyarla("2026-10-20T09:00");
+  const r = await d.olustur({ gunTarihi: "2026-10-21", saat: "15:00", ad: "Gündüz Ekibi", telefon: "05330000011" });
+  assert.equal((await d.kayitBul(r.kayitNo)).kayit.ucret, 3200);
+});

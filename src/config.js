@@ -52,6 +52,7 @@ export const KURALLAR = {
   dekontEnAzTutar: 500,
   // Aynı dekontun ikinci bir rezervasyonda kullanılmasını engelle. ŞİMDİLİK KAPALI (deneme dönemi). Canlıda true.
   dekontTekrarKontrol: true,
+  aboneUcretSaati: "17:00", // hafta içi bu saatten önceki maçlar abone ücretinden
   personelIndirim: 0.40,        // personel kantin indirimi; indirimli birim fiyat 5 TL'nin katına yukarı yuvarlanır
   puantajYolSaat: 0.5,          // tamamlanan her iş gününe yol parası olarak eklenen saat
   puantajCikisEk: 30,           // beklenen çıkış: son maçın bitişinden bu kadar dakika sonra

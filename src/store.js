@@ -68,6 +68,11 @@ export const adEslesir = (yazilan, kayitli) => {
 const iptalMi = (durum) => String(durum || "").toLocaleLowerCase("tr").includes("iptal");
 const geceSaati = (saat) => Number(saat.slice(0, 2)) < 6;
 /** İşletme günü + saat → maçın takvim tarihi */
+/** Saha ücreti: hafta içi (Pzt–Cum) 17:00'dan önce başlayan maçlar abone ücretinden, diğerleri normal maç ücretinden */
+export const macFiyati = (f, gun, saat) => {
+  const g = new Date(gun + "T00:00:00Z").getUTCDay();
+  return g >= 1 && g <= 5 && !geceSaati(saat) && saat < KURALLAR.aboneUcretSaati ? f.abone : f.mac;
+};
 const takvimTarihi = (gun, saat) => (geceSaati(saat) ? gunEkle(gun, 1) : gun);
 /** 0 = pazartesi */
 const gunNo = (tarih) => (new Date(tarih + "T00:00:00Z").getUTCDay() + 6) % 7;
@@ -492,11 +497,12 @@ export class RezervasyonDeposu extends DurableObject {
       kaporaTutar: f.kapora, // o anki kapora tutarı (fiyat sonradan değişse de bu rezervasyon için geçerli)
       ...(!panel ? { opsiyonBitis: Date.now() + KURALLAR.opsiyonDakika * 60_000 } : {}),
     };
-    kayit.ucret = f.mac + kayit.ekstra.reduce((t, x) => t + (f[x] ?? EKSTRALAR[x].ucret), 0);
+    const saha = macFiyati(f, gun, saat);
+    kayit.ucret = saha + kayit.ekstra.reduce((t, x) => t + (f[x] ?? EKSTRALAR[x].ucret), 0);
     if (kodBilgi) {
       await this.kodKullan(kodBilgi.kod, kayit.kayitNo);
       Object.assign(kayit, {
-        ucret: kayit.ucret - f.mac, kaporaTutar: 0, durum: DURUM.onayli, opsiyonBitis: null,
+        ucret: kayit.ucret - saha, kaporaTutar: 0, durum: DURUM.onayli, opsiyonBitis: null,
         ucretsiz: { kod: kodBilgi.kod, neden: kodBilgi.aciklama || "Ücretsiz maç kodu" },
       });
     }
@@ -1590,7 +1596,7 @@ export class RezervasyonDeposu extends DurableObject {
         const vip = (r.ekstra || []).reduce((t, x) => t + (f[x] ?? EKSTRALAR[x]?.ucret ?? 0), 0);
         // Kapora maç günü alındıysa ayrıca düşülmez: maçın toplamı bugün kasaya girer
         const onOdeme = r.kaporaGunu === gun ? 0 : kaporaTutari(r);
-        satirlar.push({ saat, tur: r.aboneId ? "abone" : "normal", ...(r.aboneId ? { aboneId: r.aboneId } : {}), ad: r.ad, ucret: Math.max(0, (Number.isFinite(Number(r.ucret)) && r.ucret !== null && r.ucret !== undefined ? Number(r.ucret) : f.mac) - vip), vip, ekstra: (r.ekstra || []).filter((x) => EKSTRALAR[x]), onOdeme, tkOn: onOdeme, kayitNo: r.kayitNo, kaynak: "takvim",
+        satirlar.push({ saat, tur: r.aboneId ? "abone" : "normal", ...(r.aboneId ? { aboneId: r.aboneId } : {}), ad: r.ad, ucret: Math.max(0, (Number.isFinite(Number(r.ucret)) && r.ucret !== null && r.ucret !== undefined ? Number(r.ucret) : macFiyati(f, gun, saat)) - vip), vip, ekstra: (r.ekstra || []).filter((x) => EKSTRALAR[x]), onOdeme, tkOn: onOdeme, kayitNo: r.kayitNo, kaynak: "takvim",
           ...(r.ucretsiz ? { ucretsiz: r.ucretsiz.neden || "Ücretsiz" } : {}) });
       }
     }

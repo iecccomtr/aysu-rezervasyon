@@ -656,7 +656,7 @@ export default {
         try {
           const f = await depo(env).fiyatAyar();
           return json({
-            gunler: await gunleriGetir(env), fiyat: f.mac, kapora: f.kapora,
+            gunler: await gunleriGetir(env), fiyat: f.mac, aboneFiyat: f.abone, aboneSaati: KURALLAR.aboneUcretSaati, kapora: f.kapora,
             ekstralar: { spiker: { ad: EKSTRALAR.spiker.ad, ucret: f.spiker }, hakem: { ad: EKSTRALAR.hakem.ad, ucret: f.hakem } },
             dogrulama: env.TURNSTILE_SITE_KEY || null,
           });

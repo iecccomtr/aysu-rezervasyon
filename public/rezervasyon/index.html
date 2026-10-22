@@ -524,7 +524,12 @@
   }
 
   const seciliEkstralar = () => [...document.querySelectorAll("[data-ekstra]")].filter((x) => x.checked).map((x) => x.dataset.ekstra);
-  const toplamUcret = () => veri.fiyat + seciliEkstralar().reduce((t, x) => t + ((veri.ekstralar || {})[x]?.ucret || 0), 0);
+  // Hafta içi 17:00 öncesi abone ücreti
+  const sahaUcreti = () => {
+    const g = veri.gunler[gunIdx], gn = new Date(g.tarih + "T00:00:00Z").getUTCDay();
+    return veri.aboneFiyat && secilenSaat && gn >= 1 && gn <= 5 && !gece(secilenSaat) && secilenSaat < (veri.aboneSaati || "17:00") ? veri.aboneFiyat : veri.fiyat;
+  };
+  const toplamUcret = () => sahaUcreti() + seciliEkstralar().reduce((t, x) => t + ((veri.ekstralar || {})[x]?.ucret || 0), 0);
   document.querySelectorAll("[data-ekstra]").forEach((x) => x.addEventListener("change", () => { $("ozet-ucret").textContent = tl(toplamUcret()); }));
 
   function formuGuncelle(kaydir) {
@@ -587,7 +592,7 @@
         istenen = {};
       } else if (gunIdx >= veri.gunler.length) gunIdx = 0;
       sayfa = sayfaOf(gunIdx);
-      $("fiyat-not").textContent = iptalModu ? "" : `Maç ${tl(veri.fiyat)}`;
+      $("fiyat-not").textContent = iptalModu ? "" : `Maç ${tl(veri.fiyat)}${veri.aboneFiyat && veri.aboneFiyat !== veri.fiyat ? ` · hafta içi ${veri.aboneSaati || "17:00"} öncesi ${tl(veri.aboneFiyat)}` : ""}`;
       // VIP ücretleri panelden değiştirilebilir
       if (veri.ekstralar) { $("vip-spiker-ucret").textContent = "+" + tl(veri.ekstralar.spiker.ucret); $("vip-hakem-ucret").textContent = "+" + tl(veri.ekstralar.hakem.ucret); }
       gunleriCiz(); saatleriCiz(); formuGuncelle(Boolean(secilenSaat));

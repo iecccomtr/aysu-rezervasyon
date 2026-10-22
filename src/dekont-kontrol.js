@@ -201,6 +201,8 @@ function tarihNorm(v) {
   if (m) return `${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}`;
   m = s.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})/);
   if (m) return `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+  m = s.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2})\b/); // 22.10.26 → 2026-10-22
+  if (m) return `20${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
   return null;
 }
 
@@ -236,7 +238,13 @@ export function dekontDegerlendir(okunan, { iban, alici, kapora, rezTarihi, bugu
     if (tutar == null) { /* okunamadıysa onay verilir; Müdür / Müdür Yardımcısı'na kontrol e-postası gider */ }
     else if (tutar < enAzTutar) nedenler.push(`Ödenen tutar (${tutar} TL) en az ${enAzTutar} TL olmalı.`);
   }
-  const tarih = tarihNorm(okunan.tarih);
+  let tarih = tarihNorm(okunan.tarih);
+  // Okuma hatası: yıl yanlış okunmuş olabilir (ör. 2026 → 2022). Gün ve ay, bu yıl/geçen yıl ile geçerli aralıktaysa yıl düzeltilir.
+  if (tarih && bugun && rezTarihi && (tarih < oncekiGun(rezTarihi) || tarih > bugun)) {
+    const yil = Number(bugun.slice(0, 4));
+    const aday = [yil, yil - 1].map((y) => `${y}${tarih.slice(4)}`).find((t) => t >= oncekiGun(rezTarihi) && t <= bugun);
+    if (aday) tarih = aday;
+  }
   if (!tarihKontrol) { /* tarih kontrolü kapalı (config.js → KURALLAR.dekontTarihKontrol) */ }
   else if (!tarih) { /* tarih okunamadıysa engellemez (okuma hatası); okunduysa eski / ileri tarih kontrol edilir */ }
   else if (rezTarihi && tarih < oncekiGun(rezTarihi)) nedenler.push(`Dekont tarihi (${tarih}) rezervasyondan önce.`);

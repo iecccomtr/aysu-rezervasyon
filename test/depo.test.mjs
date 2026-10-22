@@ -864,3 +864,12 @@ test("IBAN: sadece Admin şifresiyle değiştirir; geçersiz IBAN reddedilir", a
   assert.equal((await d.ibanAyar()).no, "TR33 0006 1005 1978 6457 8413 26");
   assert.ok((await d.islemler()).some((x) => x.islem === "KAPORA IBAN'INI DEĞİŞTİRDİ"));
 });
+
+test("Dekont tarihi: yıl yanlış okunsa da (2026 → 2022) gün/ay geçerliyse kabul; gerçekten eski dekont reddedilir", async () => {
+  const { dekontDegerlendir } = await import("../src/dekont-kontrol.js");
+  const k = { iban: "TR70 0015 7000 0000 0154 8342 35", alici: "AHMET AYSU", kapora: 1200, tarihKontrol: true, rezTarihi: "2026-10-22", bugun: "2026-10-22" };
+  const d = (tarih) => dekontDegerlendir({ alici_iban: "TR700015700000000154834235", alici_ad: "AHMET AYSU", tutar: 1200, tarih }, k);
+  assert.ok(d("2022-10-22").onay);
+  assert.ok(d("22.10.26").onay);
+  assert.equal(d("2026-09-15").onay, false);
+});

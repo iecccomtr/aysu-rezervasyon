@@ -1036,11 +1036,16 @@
     $("d-form").addEventListener("submit", async (e) => {
       e.preventDefault();
       const durum = durumAl();
-      if (durum === "İptal" && r.durum !== "İptal" && !confirm(`${r.ad} – ${r.saat} rezervasyonu iptal edilsin mi? Saat boşa çıkar.`)) return;
+      let iptalNedeni;
+      if (durum === "İptal" && r.durum !== "İptal") {
+        iptalNedeni = prompt(`${r.ad} – ${r.saat} rezervasyonu iptal ediliyor, saat boşa çıkacak.\n\nİptal açıklaması yazın (zorunlu):`);
+        if (iptalNedeni === null) return;
+        if (iptalNedeni.trim().length < 3) return dlgUyari("İptal için açıklama yazmanız gerekiyor.");
+      }
       const btn = e.submitter; btn.disabled = true;
       try {
         const v = await api("rez-guncelle", { kayitNo: r.kayitNo, durum, kapora: $("d-kapora").value, not: $("d-not").value,
-          ad: $("d-rad").value, telefon: $("d-rtel").value });
+          ad: $("d-rad").value, telefon: $("d-rtel").value, ...(iptalNedeni ? { iptalNedeni: iptalNedeni.trim() } : {}) });
         if (v.hata) return dlgUyari(v.hata);
         if (sekme === "takvim") haftaYukle(); else if (sekme === "musteriler") musteriYukle();
         // Kesinleşmiş rezervasyon iptal edildiyse: müşteriye WhatsApp'tan haber ver
@@ -1234,8 +1239,10 @@
     });
     const sil = $("d-sil");
     if (sil) sil.addEventListener("click", async () => {
-      if (!confirm(`${a.ad} aboneliği sonlandırılsın mı? (${slotOzet(a.slotlar || [])}) her hafta boşa çıkar.`)) return;
-      const r = await api("abone-sil", { id: a.id });
+      const neden = prompt(`${a.ad} aboneliği sonlandırılıyor (${slotOzet(a.slotlar || [])}), her hafta boşa çıkacak.\n\nAçıklama yazın (zorunlu):`);
+      if (neden === null) return;
+      if (neden.trim().length < 3) return dlgUyari("Aboneliği sonlandırmak için açıklama yazmanız gerekiyor.");
+      const r = await api("abone-sil", { id: a.id, neden: neden.trim() });
       if (r.hata) return dlgUyari(r.hata);
       dlg.close(); bildir("Abonelik sonlandırıldı"); aboneYukle();
     });
@@ -1317,12 +1324,17 @@
   let kullanicilar = [];
   async function kullaniciYukle() {
     try { kullanicilar = await api("kullanicilar"); } catch { return; }
+    // Admin: her çalışanın bu ayki puantajı (kantin ve avans düşülmüş kalan hakediş)
+    const buAy = new Date(Date.now() + 3 * 3600000).toISOString().slice(0, 7);
+    const pAy = ben.rol === "admin" ? await api(`puantaj?ay=${buAy}`).catch(() => null) : null;
+    const pMap = new Map((pAy?.kisiler || []).map((k) => [k.eposta, k]));
     if (kullanicilar.hata) return bildir(kullanicilar.hata);
     const bek = kullanicilar.filter((u) => u.durum === "bekliyor").length;
-    $("kullanici-sayi").textContent = `${kullanicilar.length} kişi${bek ? ` · ${bek} onay bekliyor` : ""}`;
+    $("kullanici-sayi").textContent = `${kullanicilar.length} kişi${bek ? ` · ${bek} onay bekliyor` : ""}${pAy?.kisiler?.length ? ` · bu ay kalan hakediş ${para(pAy.kisiler.reduce((t, k) => t + k.kalan, 0))}` : ""}`;
     $("kullanici-liste").innerHTML = kullanicilar.map((u, i) => `
       <button type="button" class="kullanici" data-i="${i}">
-        <span><b>${kacis(u.ad)}</b>${u.eposta === ben.eposta ? ' <span class="soluk">(siz)</span>' : ""}<small>${kacis(u.eposta)}${u.telefon ? " · " + telYazi(u.telefon) : ""}</small></span>
+        <span><b>${kacis(u.ad)}</b>${u.eposta === ben.eposta ? ' <span class="soluk">(siz)</span>' : ""}<small>${kacis(u.eposta)}${u.telefon ? " · " + telYazi(u.telefon) : ""}</small>
+          ${pMap.has(u.eposta) ? (() => { const k = pMap.get(u.eposta); return `<small style="color:var(--murekkep)">${AYLAR[Number(buAy.slice(5)) - 1]}: ${saatSayi(k.saat)} saat · ${para(k.brut)}${k.kesinti ? ` − kantin ${para(k.kesinti)}` : ""}${k.avans ? ` − avans ${para(k.avans)}` : ""} = <b>kalan ${para(k.kalan)}</b></small>`; })() : ""}</span>
         ${u.durum === "bekliyor" ? `<span class="rozet r-onay">Onay bekliyor${u.istenenRolAd ? " · " + kacis(u.istenenRolAd) : ""}</span>`
           : u.durum === "pasif" ? '<span class="rozet r-pasif">Kapalı</span>'
           : `<span class="rozet r-rol">${kacis(u.rolAd)}</span>`}

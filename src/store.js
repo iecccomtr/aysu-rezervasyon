@@ -1514,7 +1514,7 @@ export class RezervasyonDeposu extends DurableObject {
     }, true));
   }
 
-  async panelRezGuncelle({ kayitNo, durum, kapora, not, ad, telefon }) {
+  async panelRezGuncelle({ kayitNo, durum, kapora, not, ad, telefon, iptalNedeni }) {
     return this.kilitli(async () => {
       const b = await this.kayitBul(kayitNo);
       if (!b) return { hata: "Kayıt bulunamadı." };
@@ -1526,6 +1526,10 @@ export class RezervasyonDeposu extends DurableObject {
           const d = await this.durumYukle(k.isletmeGunu || k.tarih, k.isletmeGunu || k.tarih);
           const sl = this.slot(d, k.isletmeGunu || k.tarih, k.saat);
           if (sl.tur === "rez" || sl.tur === "abone") return { hata: "Bu saat artık dolu, iptal geri alınamaz." };
+        }
+        if (iptalMi(durum) && !iptalMi(k.durum)) {
+          if (kirp(iptalNedeni, 200).length < 3) return { hata: "İptal için açıklama yazmanız gerekiyor." };
+          k.iptalNedeni = kirp(iptalNedeni, 200);
         }
         k.durum = durum;
         if (iptalMi(durum)) k.iptalEden = "Panel";
@@ -1544,7 +1548,7 @@ export class RezervasyonDeposu extends DurableObject {
       k.guncelleme = simdiYazi();
       await this.st.put(b.anahtar, k);
       // İşlem kaydı için ne değişti (önce → sonra)
-      const degisen = [["durum", "Durum"], ["kapora", "Kapora"], ["not", "Not"], ["ad", "Ad"], ["telefon", "Telefon"]]
+      const degisen = [["durum", "Durum"], ["iptalNedeni", "İptal açıklaması"], ["kapora", "Kapora"], ["not", "Not"], ["ad", "Ad"], ["telefon", "Telefon"]]
         .filter(([a]) => (b.kayit[a] || "") !== (k[a] || ""))
         .map(([a, ad]) => `${ad}: ${b.kayit[a] || "—"} → ${k[a] || "—"}`);
       return { basarili: true, rez: k, degisen };

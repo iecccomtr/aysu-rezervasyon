@@ -127,7 +127,7 @@ test("Panel: telefon rezervasyonu sınırsız ve onaylı; kapora/durum güncelle
   assert.equal(g.rez.durum, "Onaylı");
   assert.equal(g.rez.kapora, "1000 + 200");
 
-  assert.ok((await d.panelRezGuncelle({ kayitNo: o.kayitNo, durum: "İptal" })).basarili);
+  assert.ok((await d.panelRezGuncelle({ kayitNo: o.kayitNo, durum: "İptal", iptalNedeni: "Müşteri aradı" })).basarili);
   assert.ok((await d.panelRezEkle({ gunTarihi: "2026-10-21", saat: "21:00", ad: "Yusuf", telefon: "05330000000" })).basarili);
   assert.match((await d.panelRezGuncelle({ kayitNo: o.kayitNo, durum: "Onaylı" })).hata, /artık dolu/);
   assert.ok((await d.panelRezGuncelle({ kayitNo: o.kayitNo, durum: "Bilinmeyen" })).hata);
@@ -565,7 +565,7 @@ test("Kasa: kayıtlı gün rezervasyon eklenince / iptal edilince kendiliğinden
   k.kayit.maclar[1].kantin = { [su]: 2 };
   assert.ok((await d.kasaKaydet({ ...k.kayit }, admin)).basarili);
   await d.panelRezEkle({ gunTarihi: "2026-10-19", saat: "23:00", ad: "Berat", telefon: "" });
-  await d.panelRezGuncelle({ kayitNo: r1.kayitNo, durum: "İptal" });
+  await d.panelRezGuncelle({ kayitNo: r1.kayitNo, durum: "İptal", iptalNedeni: "Müşteri aradı" });
   const k2 = await d.kasaGetir("2026-10-19", admin);
   assert.deepEqual(k2.kayit.maclar.map((m) => m.saat), ["22:00", "23:00"]);
   assert.equal(k2.kayit.maclar[0].kantin[su], 2, "girilmiş veri korunur");

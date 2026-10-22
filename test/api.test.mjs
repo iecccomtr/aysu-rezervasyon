@@ -371,7 +371,7 @@ test("İşlem kaydı: kim neyi neyden neye değiştirdi Admin'de görünür", as
   cerezSil();
   await istek("/api/panel/giris", { eposta: "yrd@aysu.com", sifre: "yrd-12345" });
   const t = (await istek("/api/panel/rez", { gun: "2026-10-23", saat: "20:00", ad: "Eren", telefon: "0533 000 00 00", kapora: "1200" })).veri;
-  await istek("/api/panel/rez-guncelle", { kayitNo: t.kayitNo, durum: "İptal", kapora: "0" });
+  await istek("/api/panel/rez-guncelle", { kayitNo: t.kayitNo, durum: "İptal", kapora: "0", iptalNedeni: "Müşteri aradı" });
   cerezSil();
   await istek("/api/panel/giris", { eposta: "admin@aysu.com", sifre: "aysu-sifre-1" });
   const k = (await istek("/api/panel/islemler")).veri;
@@ -390,7 +390,7 @@ test("Rezervasyon iptali: Müdür ve Müdür Yardımcısı'na e-posta (siteden v
   }
   const t = (await istek("/api/panel/rez", { gun: "2026-10-24", saat: "20:00", ad: "Eren", telefon: "0533 000 00 00", kapora: "1200" })).veri;
   const n = epostalar.length;
-  await istek("/api/panel/rez-guncelle", { kayitNo: t.kayitNo, durum: "İptal" });
+  await istek("/api/panel/rez-guncelle", { kayitNo: t.kayitNo, durum: "İptal", iptalNedeni: "Müşteri aradı" });
   let e = epostalar.slice(n).find((x) => /iptal edildi/.test(x.subject));
   assert.deepEqual(e.to.sort(), ["mudur@aysu.com", "yrd@aysu.com"]); assert.match(e.text, /Admin \(Admin, panel\)/);
   const t2 = (await istek("/api/panel/rez", { gun: "2026-10-25", saat: "20:00", ad: "Ali", telefon: "0532 111 22 33", kapora: "1200" })).veri;

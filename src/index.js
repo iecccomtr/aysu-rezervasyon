@@ -288,6 +288,7 @@ async function panel(request, env, ctx, yol) {
     case "GET aboneler": return json(await d.aboneListe());
     case "POST abone": return degisti(await d.aboneKaydet(g));
     case "POST abone-sil": {
+      if (String(g.neden || "").trim().length < 3) return json({ hata: "Aboneliği sonlandırmak için açıklama yazmanız gerekiyor." }, 400);
       const ab = (await d.aboneListe()).find((x) => x.id === g.id);
       const r = await d.aboneSil(g.id);
       return degisti(r && r.basarili ? { ...r, ad: ab ? `${ab.no ? "Abone " + ab.no + " · " : ""}${ab.ad}` : g.id } : r);
@@ -393,7 +394,7 @@ async function iptalBildir(env, d, r) {
   const ileti = {
     konu: `Rezervasyon iptal edildi: ${r.gun || ""} ${r.tarih} ${r.saat}`.replace(/\s+/g, " "),
     satirlar: [["Maç", `${r.gun ? r.gun + ", " : ""}${r.tarih} saat ${r.saat}`], ["Ad soyad", r.ad || "-"], ["Telefon", r.telefon || "-"],
-      ["Kayıt no", r.kayitNo], ["İptal eden", r.kimden], ["Kapora", r.kapora ? `${r.kapora} (iade yok)` : "-"]],
+      ["Kayıt no", r.kayitNo], ["İptal eden", r.kimden], ...(r.iptalNedeni ? [["Açıklama", r.iptalNedeni]] : []), ["Kapora", r.kapora ? `${r.kapora} (iade yok)` : "-"]],
   };
   if (kime.length) await epostaYolla(env, { kime, ...ileti });
   else await bildir(env, ileti);
@@ -495,7 +496,7 @@ function islemDetayi(yol, g, r) {
     case "rez": return `${g.gun} ${g.saat} · ${g.ad || ""}${g.telefon ? " · " + g.telefon : ""}${g.kapora ? " · kapora " + g.kapora : ""}${g.ekstra?.length ? " · VIP " + g.ekstra.join("+") : ""}`;
     case "rez-guncelle": return `${k.kayitNo || g.kayitNo} · ${k.isletmeGunu || k.tarih || ""} ${k.saat || ""} · ${k.ad || ""} · ${(r.degisen || []).join(" · ") || "değişiklik yok"}`;
     case "abone": return `${g.id ? "Düzenledi" : "Yeni"} · ${r.abone?.no ? "Abone " + r.abone.no + " · " : ""}${g.ad || ""} · ${(r.abone?.slotlar || []).map((x) => ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"][x.gun] + " " + x.saat).join(", ")}`;
-    case "abone-sil": return `${r.ad || g.id}`;
+    case "abone-sil": return `${r.ad || g.id} · açıklama: ${String(g.neden || "").slice(0, 150)}`;
     case "abone-tasi": return `${r.ad || ""} · ${r.eski} → ${r.yeni} (${r.kayitNo})`;
     case "abone-atla": return `${g.gun} ${g.saat || ""} · ${g.gelmiyor ? "gelmiyor" : "geliyor"} (${g.kapsam || "saat"})`;
     case "musteri-not": return `${g.telefon || ""} · etiket: ${g.etiket || "—"} · not: ${String(g.not || "—").slice(0, 80)}`;

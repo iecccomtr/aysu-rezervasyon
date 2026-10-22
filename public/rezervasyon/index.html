@@ -750,7 +750,9 @@
     $("iptal-alan").hidden = true;
     document.title = "Rezervasyon kontrolü · Aysu Halı Saha";
   }
+  let kontrolZaman = null;
   function iptalSor(g, saat) {
+    clearInterval(kontrolZaman);
     const u = $("ops-uyari");
     u.innerHTML = `<p><b>${g.gun} ${tarihYazi(g.tarih)}, ${saat}</b> rezervasyonunu görmek için rezervasyondaki bilgileri yazın:</p>
       <form class="ops-devam" novalidate><input type="text" name="ad" placeholder="Rezervasyondaki ad soyad" autocomplete="off" aria-label="Ad soyad">
@@ -781,7 +783,27 @@
         <button class="dugme iptal-dugme" type="button" id="rez-iptal">Rezervasyonu iptal et</button>
         <p style="margin-top:6px;font-size:14px">Kaporaların iadesi yoktur. Onaylı maça 3 saatten az kaldıysa iptal için arayın: 0 555 510 26 26</p>`;
       const devam = $("rez-devam");
-      if (devam) devam.addEventListener("click", () => { sonRez = { kayitNo: v.kayitNo, telefon }; basariGoster(v, g); });
+      if (devam) devam.addEventListener("click", () => { clearInterval(kontrolZaman); sonRez = { kayitNo: v.kayitNo, telefon }; basariGoster(v, g); });
+      // Sayfa açıkken işletme iptal eder / ödeme onaylanırsa 10 sn içinde burada da görünür
+      clearInterval(kontrolZaman);
+      const kontrolTazele = async () => {
+        if (!$("rez-ozet-alan") || document.visibilityState !== "visible") return;
+        const y = await fetch("/api/rezervasyon-durum", { method: "POST", headers: { "content-type": "application/json" }, cache: "no-store",
+          body: JSON.stringify({ kayitNo: v.kayitNo, telefon }) }).catch(() => null);
+        const d = y && y.ok ? await y.json().catch(() => null) : null;
+        if (!d || d.durum === v.durum) return;
+        if (d.durum === "İptal" || d.durum === "Düştü") {
+          clearInterval(kontrolZaman);
+          $("rez-ozet-alan").innerHTML = `<div class="rez-ozet"><div><span>Maç</span><b>${g.gun} ${tarihYazi(g.tarih)}, ${saat}</b></div>
+            <div><span>Durum</span><b style="color:#b42318">${d.durum === "Düştü" ? "Opsiyon süresi doldu, saat boşa çıktı" : "İptal edildi"}</b></div></div>
+            <p style="margin-top:8px;font-size:14px">Bilgi için arayın: <a href="tel:+905555102626">0 555 510 26 26</a></p>`;
+          yukle();
+        } else if (d.durum === "Onaylı" && v.durum !== "Onaylı") {
+          clearInterval(kontrolZaman);
+          u.querySelector("form").requestSubmit(); // kesinleşmiş hâliyle yeniden göster
+        }
+      };
+      kontrolZaman = setInterval(kontrolTazele, 10_000);
       $("rez-iptal").addEventListener("click", async () => {
         if (!confirm(`${g.gun} ${tarihYazi(g.tarih)} ${saat} rezervasyonu iptal edilsin mi?\nKaporaların iadesi yoktur.`)) return;
         const y = await fetch("/api/iptal", { method: "POST", headers: { "content-type": "application/json" },

@@ -390,7 +390,8 @@ async function panel(request, env, ctx, yol) {
 
 /** Rezervasyon iptali: Müdür ve Müdür Yardımcısı'na e-posta (yoksa işletme adresine). */
 async function iptalBildir(env, d, r) {
-  const kime = await d.rolEpostalari(["mudur", "mudur_yrd"]);
+  // Rolü o an Admin / Müdür / Müdür Yardımcısı olan herkes (yeni atananlar dahil)
+  const kime = await d.rolEpostalari(["admin", "mudur", "mudur_yrd"]);
   const ileti = {
     konu: `Rezervasyon iptal edildi: ${r.gun || ""} ${r.tarih} ${r.saat}`.replace(/\s+/g, " "),
     satirlar: [["Maç", `${r.gun ? r.gun + ", " : ""}${r.tarih} saat ${r.saat}`], ["Ad soyad", r.ad || "-"], ["Telefon", r.telefon || "-"],

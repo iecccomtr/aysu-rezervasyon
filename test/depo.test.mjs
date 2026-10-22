@@ -541,6 +541,21 @@ test("Kasa defteri: takvimden maçlar, kantin/krampon cirosu, stok farkı, yetki
   assert.ok((await d.kasaKaydet(g, mudur)).basarili);
   assert.equal((await d.urunler()).find((u) => u.id === su.id).stok, 296);
   assert.equal((await d.urunler()).find((u) => u.id === cay.id).stok, 904 - 3);
+  // Bardak kuralı: Nescafe 1 + 1 bardak, filtre kahve 1 bardak, Türk kahvesi 2 bardak (ayrı stok yok)
+  const ad = (a) => k.urunler.find((u) => u.ad === a);
+  const nes = ad("NESCAFE KLASİK"), fk = ad("FİLTRE KAHVE"), tk = ad("TÜRK KAHVESİ");
+  assert.ok(tk.bagli && tk.bardak === 2 && fk.bagli && nes.bardak === 1 && !nes.bagli);
+  g.maclar[0] = { ...g.maclar[0], kantin: { [nes.id]: 2, [fk.id]: 1, [tk.id]: 3 } };
+  assert.ok((await d.kasaKaydet(g, mudur)).basarili);
+  const st = Object.fromEntries((await d.urunlerGorunum()).map((u) => [u.ad, u.stok]));
+  assert.equal(st["ÇAY - BARDAK - ORALET"], 904 - 3 - 2 - 1 - 6);
+  assert.equal(st["NESCAFE KLASİK"], 41 - 2);
+  assert.equal(st["FİLTRE KAHVE"], 904 - 12); assert.equal(st["TÜRK KAHVESİ"], Math.floor((904 - 12) / 2));
+  await d.urunKaydet({ id: cay.id, stokEkle: 100 }, admin);
+  assert.equal((await d.urunlerGorunum()).find((u) => u.id === fk.id).stok, 992, "bardak girilince kahve stoğu da yenilenir");
+  g.maclar[0].kantin = {};
+  assert.ok((await d.kasaKaydet(g, mudur)).basarili);
+  assert.equal((await d.urunler()).find((u) => u.id === cay.id).stok, 904 - 3 + 100);
 
   // Ertesi gün devir önceki günün bırakılanı
   saatiAyarla("2026-10-20T12:00");
@@ -935,7 +950,8 @@ test("Görevler: bugünün görevi bir kez onaylanır, Admin listeyi düzenler, 
   assert.match((await d.gorevYap("wc", "", admin)).hata, /zaten/);
   assert.match((await d.gorevYap("yok", "", temiz)).hata, /bulunamadı/);
   assert.equal((await d.gorevHafta("2026-10-21")).yapilan["2026-10-21"].wc.ad, "Ayşe Temiz");
-  assert.match((await d.gorevGeriAl("2026-10-21", "wc", temiz)).hata, /yönetici/);
+  assert.match((await d.gorevGeriAl("2026-10-21", "wc", temiz)).hata, /Admin/);
+  assert.match((await d.gorevYap("cop", "", { eposta: "m@a.com", ad: "Müdür", rol: "mudur" })).hata, /sadece görür/);
   assert.ok((await d.gorevGeriAl("2026-10-21", "wc", admin)).basarili);
   assert.match((await d.gorevlerKaydet([{ ad: "X" }], temiz)).hata, /Admin/);
   const k = await d.gorevlerKaydet([{ ad: "Duşlar", aciklama: "Gider", rol: "temizlik" }, { ad: "" }], admin);

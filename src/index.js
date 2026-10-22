@@ -256,7 +256,8 @@ async function panel(request, env, ctx, yol) {
   }
 
   // Görevler: herkes görür, bugünün görevini "yaptım" diye onaylar → yöneticilere e-posta
-  if (yol === "gorevler" && request.method === "GET") return json(await d.gorevHafta(url.searchParams.get("bas")));
+  // Liste her hafta sıfırlanır: geçmiş haftaları sadece Admin görür
+  if (yol === "gorevler" && request.method === "GET") return json(await d.gorevHafta(ben.rol === "admin" ? url.searchParams.get("bas") : null));
   if (yol === "gorev" && post) {
     const g = (await govdeOku(request)) || {};
     const r = await d.gorevYap(g.id, g.not, ben);
@@ -407,12 +408,13 @@ async function panel(request, env, ctx, yol) {
       return json(await d.kodlar());
     case "POST kod": { const r = await d.kodKaydet(g, ben); return json(r, r.hata ? 400 : 200); }
     case "POST gorevler": { const r = await d.gorevlerKaydet(g.liste, ben); return json(r, r.hata ? 400 : 200); }
-    case "POST gorev/geri": { const r = await d.gorevGeriAl(g.gun, g.id, ben); return json(r, r.hata ? 400 : 200); }
+    case "POST gorev/geri": // sadece Admin (depo kontrol eder)
+      { const r = await d.gorevGeriAl(g.gun, g.id, ben); return json(r, r.hata ? 400 : 200); }
     case "GET rehber": return json(await d.rehber());
     case "POST rehber": { const r = await d.rehberKaydet(g.liste, ben); return json(r, r.hata ? 400 : 200); }
     case "GET temizlik": return json(await d.temizlikUrunleri());
     case "POST temizlik": { const r = await d.temizlikKaydet(g, ben); return json(r, r.hata ? 400 : 200); }
-    case "GET urunler": return json(alisGizle({ urunler: await d.urunler() }, ben).urunler);
+    case "GET urunler": return json(alisGizle({ urunler: await d.urunlerGorunum() }, ben).urunler);
     case "POST urun": {
       // Alış fiyatını sadece Admin değiştirir (diğerleri göremez de)
       const r = await d.urunKaydet(ben.rol === "admin" ? g : { ...g, alis: undefined }, ben);

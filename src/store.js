@@ -162,9 +162,44 @@ const KANTIN_TOHUM = [
   ["KUTU MEYVE SUYU ŞEFTALİ", 14, 35, 26],
   ["KUTU MEYVE SUYU KARIŞIK", 14, 35, 26],
   ["ENERJİ", 40, 100, 6],
-  ["FİLTRE / TÜRK KAHVESİ", 28, 70, 904],
+  ["FİLTRE KAHVE", 28, 70, 0],
+  ["TÜRK KAHVESİ", 28, 70, 0],
   ["JETON", 4, 10, 96],
 ];
+
+// ---- Bardak kuralı: sıcak içecekler "ÇAY - BARDAK - ORALET" stoğundan bardak düşer ----
+//   Nescafe çeşitleri: kendi stoğundan 1 + 1 bardak. Filtre kahve: 1 bardak, Türk kahvesi: 2 bardak (kahve + su);
+//   bu ikisinin ayrı stoğu yoktur, stokları bardak stoğuna bağlıdır (bardak girilince kendiliğinden yenilenir).
+const buyuk = (s) => String(s || "").toLocaleUpperCase("tr");
+export const bardakKurali = (ad) => {
+  const a = buyuk(ad);
+  if (a.includes("BARDAK")) return { bardakUrunu: true };
+  if (a.includes("NESCAFE") || a.includes("NESKAFE")) return { bardak: 1, bagli: false };
+  if (a.includes("TÜRK KAHVE")) return { bardak: 2, bagli: true };
+  if (a.includes("FİLTRE")) return { bardak: 1, bagli: true };
+  return {};
+};
+/** Satılan adetler {id: adet} → stoktan düşecek adetler (bardak dahil) */
+export const stokTuketimi = (t, urunler) => {
+  const m = new Map(urunler.map((u) => [u.id, u]));
+  const bardak = urunler.find((u) => bardakKurali(u.ad).bardakUrunu);
+  const r = {};
+  for (const [id, a] of Object.entries(t)) {
+    const k = bardakKurali(m.get(id)?.ad);
+    if (!(bardak && k.bagli)) r[id] = (r[id] || 0) + a;
+    if (bardak && k.bardak) r[bardak.id] = (r[bardak.id] || 0) + a * k.bardak;
+  }
+  return r;
+};
+/** Ekranda gösterilecek ürünler: bardağa bağlı ürünlerin stoğu = bardak stoğu ÷ bardak sayısı */
+export const bardakGorunum = (urunler) => {
+  const bardak = urunler.find((u) => bardakKurali(u.ad).bardakUrunu);
+  return urunler.map((u) => {
+    const k = bardakKurali(u.ad);
+    if (!bardak || !k.bardak) return k.bardakUrunu ? { ...u, bardakUrunu: true } : u;
+    return { ...u, bardak: k.bardak, bardakId: bardak.id, ...(k.bagli ? { bagli: true, stok: Math.floor((bardak.stok || 0) / k.bardak) } : {}) };
+  });
+};
 
 // ---- Kasa defteri yardımcıları ----
 /** "1.250 TL", "1250", 1250 → 1250 (negatif olmaz) */
@@ -1240,8 +1275,22 @@ export class RezervasyonDeposu extends DurableObject {
       }
       return Object.entries(yeni).filter(([k]) => k.startsWith("urun:")).map(([, v]) => v);
     }
+    if (!(await this.st.get("ayar:kahveAyrildi"))) {
+      // Eski tek ürün "FİLTRE / TÜRK KAHVESİ" ikiye ayrılır (Türk kahvesi 2 bardak düşer)
+      const yeni = { "ayar:kahveAyrildi": true };
+      const eski = [...m.values()].find((u) => buyuk(u.ad).includes("FİLTRE") && buyuk(u.ad).includes("TÜRK"));
+      if (eski) {
+        yeni[`urun:${eski.id}`] = { ...eski, ad: "FİLTRE KAHVE" };
+        const id = `u${Date.now().toString(36)}tk`;
+        yeni[`urun:${id}`] = { id, ad: "TÜRK KAHVESİ", alis: eski.alis, satis: eski.satis, stok: 0, sira: (eski.sira || 0) + 0.5, aktif: eski.aktif !== false };
+      }
+      await this.st.put(yeni);
+      for (const [k, v] of Object.entries(yeni)) if (k.startsWith("urun:")) m.set(k, v);
+    }
     return [...m.values()].sort((a, b) => (a.sira || 0) - (b.sira || 0));
   }
+
+  async urunlerGorunum() { return bardakGorunum(await this.urunler()); }
 
   /** Ürün ekle / düzenle / stok sayımı (Admin, Müdür). stokEkle: gelen mal adedi. */
   async urunKaydet({ id, ad, alis, satis, stok, stokEkle, aktif, sil }, yapan) {
@@ -1260,6 +1309,7 @@ export class RezervasyonDeposu extends DurableObject {
       if (!yeni.ad) return { hata: "Ürün adı gerekli." };
       if (alis !== undefined && alis !== "") yeni.alis = tutar(alis);
       if (satis !== undefined && satis !== "") yeni.satis = tutar(satis);
+      if (bardakKurali(yeni.ad).bagli) { stok = undefined; stokEkle = 0; } // stoğu bardak stoğuna bağlı
       if (stok !== undefined && stok !== "") yeni.stok = Math.round(Number(stok)) || 0;
       if (stokEkle) yeni.stok = (yeni.stok || 0) + (Math.round(Number(stokEkle)) || 0);
       if (aktif !== undefined) yeni.aktif = Boolean(aktif);
@@ -1428,6 +1478,7 @@ export class RezervasyonDeposu extends DurableObject {
   /** Bugünün görevini "yaptım" olarak işaretler (sadece bugün; geçmişi Admin/Müdür düzeltir). */
   async gorevYap(id, not, yapan) {
     return this.kilitli(async () => {
+      if (!["admin", "temizlik", "personel"].includes(yapan?.rol)) return { hata: "Görevleri personel ve temizlik şefi onaylar; Müdür ve Müdür Yardımcısı sadece görür." };
       const g = (await this.gorevler()).find((x) => x.id === id);
       if (!g) return { hata: "Görev bulunamadı." };
       const gun = bugunIsletme(), k = `gv:${gun}:${id}`;
@@ -1441,7 +1492,7 @@ export class RezervasyonDeposu extends DurableObject {
 
   async gorevGeriAl(gun, id, yapan) {
     return this.kilitli(async () => {
-      if (!["admin", "mudur", "mudur_yrd"].includes(yapan?.rol)) return { hata: "Sadece yöneticiler geri alabilir." };
+      if (yapan?.rol !== "admin") return { hata: "Onayı sadece Admin geri alabilir." };
       const k = `gv:${gun}:${id}`, v = await this.st.get(k);
       if (!v) return { hata: "Kayıt yok." };
       await this.st.delete(k);
@@ -1611,7 +1662,7 @@ export class RezervasyonDeposu extends DurableObject {
       gun, gunAd: gunAdi(gun), bugun: isletmeGunu(n.tarih, n.saat), kayitli: Boolean(kayit),
       kayit: kayit || { gun, gelenKaporalar: await this.gelenKaporalar(gun), devir: oncekiKasa?.birakilan ?? 0, maclar: takvim.map((x) => ({ ...x, krampon: 0, eldiven: 0, kantin: {} })), girisler: [], cikislar: [], veresiye: [], ikram: {}, birakilan: null, sayilan: null, not: "" },
       oncekiDevir: oncekiKasa ? { gun: oncekiKasa.gun, tutar: oncekiKasa.birakilan ?? 0 } : null,
-      takvim, urunler, fiyat, calisanlar, ikramKimler: IKRAM_KIMLER, temizlik: await this.temizlikUrunleri(), rehber: await this.rehber(), personelIndirim: KURALLAR.personelIndirim,
+      takvim, urunler: bardakGorunum(urunler), fiyat, calisanlar, ikramKimler: IKRAM_KIMLER, temizlik: await this.temizlikUrunleri(), rehber: await this.rehber(), personelIndirim: KURALLAR.personelIndirim,
       personel: kullanicilar.filter((u) => u.durum === "aktif" && u.rol !== "admin" && ROLLER[u.rol])
         .map((u) => ({ eposta: u.eposta, ad: u.ad, calisiyor: puantaj.has(`p:${gun}:${u.eposta}`) })), acikVeresiyeler: await this.acikVeresiyeler(),
     };
@@ -1683,13 +1734,13 @@ export class RezervasyonDeposu extends DurableObject {
       }
       kayit.ozet = kasaOzet(kayit);
       // Stok: önceki kayda göre fark kadar düşülür (aynı günü tekrar kaydetmek stoğu iki kez düşmez)
-      const once = kasaTuketim(eski || {}), simdiT = kasaTuketim(kayit);
+      const once = stokTuketimi(kasaTuketim(eski || {}), urunler), simdiT = stokTuketimi(kasaTuketim(kayit), urunler);
       const degisen = [];
       for (const id of new Set([...Object.keys(once), ...Object.keys(simdiT)])) {
         const fark = (simdiT[id] || 0) - (once[id] || 0);
         const u = urunMap.get(id);
         // Stok bitince satış durur
-        if (fark > 0 && u && (u.stok || 0) - fark < 0) return { hata: `${u.ad} stokta yok (kalan ${Math.max(0, u.stok || 0)}).` };
+        if (fark > 0 && u && (u.stok || 0) - fark < 0) return { hata: bardakKurali(u.ad).bardakUrunu ? `Bardak yetmiyor: ${u.ad} kalan ${Math.max(0, u.stok || 0)} (Türk kahvesi 2, Nescafe / filtre kahve 1 bardak düşer).` : `${u.ad} stokta yok (kalan ${Math.max(0, u.stok || 0)}).` };
         if (fark && u) { u.stok = (u.stok || 0) - fark; degisen.push([`urun:${id}`, u]); }
       }
       if (degisen.length) await this.st.put(Object.fromEntries(degisen));

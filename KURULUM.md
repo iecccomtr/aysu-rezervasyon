@@ -174,7 +174,7 @@ Panelde **Kasa** sekmesi var; Admin, Müdür ve Müdür Yardımcısı kullanır.
 - Gün açılınca o günün maçları takvimden otomatik gelir:
   - abonede abone no ve abone ücreti,
   - normal rezervasyonda isim ve ücret,
-  - VIP hizmetler ve önceden alınan kapora (ön ödeme).
+  - VIP hizmetler ve alınan kapora (maç toplamından otomatik düşülür, rezervasyona sonradan girilen kapora da kasaya yansır).
 - Her maça krampon/eldiven adedi ve **Kantin** (ürün seçici) girilir. Maç toplamı kendiliğinden hesaplanır.
 
 **Kasa hareketleri**

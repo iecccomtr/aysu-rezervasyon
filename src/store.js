@@ -153,6 +153,8 @@ const tutar = (v) => {
   const n = Math.round(Number(String(v ?? "").replace(/\./g, "").replace(",", ".").replace(/[^\d.]/g, "")));
   return Number.isFinite(n) ? Math.min(10_000_000, Math.max(0, n)) : 0;
 };
+/** "1200", "1.200 TL", "500 + 700" → toplam kapora */
+const kaporaSayi = (v) => String(v ?? "").split(/[+&]|\s(?:ve|\/)\s/).reduce((t, p) => t + tutar(p), 0);
 /** Personel / ücretsiz tüketim satırları (kasaya para girmez, stoktan düşer) */
 const IKRAM_KIMLER = ["VIP / ücretsiz ikram", "Müdür", "Müdür Yardımcısı", "Şef", "Personel"];
 /** Bir kasa günündeki toplam ürün çıkışı {urunId: adet} (satış + ikram) */
@@ -181,7 +183,7 @@ export const kasaOzet = (k) => {
   o.giris = top(k.girisler); o.cikis = top(k.cikislar); o.veresiye = top(k.veresiye);
   o.devir = Number(k.devir) || 0;
   o.kasaToplam = o.devir + o.ciro + o.giris;
-  // Ön ödeme (önceden alınan kapora / IBAN) ve veresiye kasaya bugün girmez
+  // Önceden alınan kapora ve veresiye kasaya bugün girmez
   o.olmasiGereken = o.kasaToplam - o.cikis - o.veresiye - o.onOdeme;
   o.fark = k.sayilan === null || k.sayilan === undefined ? null : k.sayilan - o.olmasiGereken;
   o.teslim = k.birakilan === null || k.birakilan === undefined ? null : (k.sayilan ?? o.olmasiGereken) - k.birakilan;
@@ -1057,8 +1059,8 @@ export class RezervasyonDeposu extends DurableObject {
       } else if (s.tur === "rez" && s.rez.durum === DURUM.onayli) {
         const r = s.rez;
         const vip = (r.ekstra || []).reduce((t, x) => t + (f[x] ?? EKSTRALAR[x]?.ucret ?? 0), 0);
-        const onOdeme = Number(r.kaporaToplam) || tutar(r.kapora);
-        satirlar.push({ saat, tur: "normal", ad: r.ad, ucret: Math.max(0, (Number(r.ucret) || f.mac) - vip), vip, ekstra: (r.ekstra || []).filter((x) => EKSTRALAR[x]), onOdeme, kayitNo: r.kayitNo, kaynak: "takvim" });
+        const onOdeme = Number(r.kaporaToplam) || kaporaSayi(r.kapora);
+        satirlar.push({ saat, tur: "normal", ad: r.ad, ucret: Math.max(0, (Number(r.ucret) || f.mac) - vip), vip, ekstra: (r.ekstra || []).filter((x) => EKSTRALAR[x]), onOdeme, tkOn: onOdeme, kayitNo: r.kayitNo, kaynak: "takvim" });
       }
     }
     return satirlar;
@@ -1079,6 +1081,11 @@ export class RezervasyonDeposu extends DurableObject {
       if (m.kaynak === "takvim" && !y && veriYok(m)) { degisenler.push(`${m.saat} kaldırıldı (${m.ad})`); continue; }
       if (m.kaynak === "takvim" && y && (y.ad !== m.ad || y.tur !== m.tur) && veriYok(m)) {
         maclar.push({ ...y, krampon: 0, eldiven: 0, kantin: {} }); degisenler.push(`${m.saat} ${m.ad} → ${y.ad}`); continue;
+      }
+      // Rezervasyona sonradan kapora girildiyse / değiştiyse kasadaki kapora da güncellenir
+      if (m.kaynak === "takvim" && y && y.ad === m.ad && (y.onOdeme || 0) !== (m.tkOn ?? m.onOdeme ?? 0)) {
+        degisenler.push(`${m.saat} ${m.ad} kapora ${m.onOdeme || 0} → ${y.onOdeme || 0}`);
+        maclar.push({ ...m, onOdeme: y.onOdeme || 0, tkOn: y.onOdeme || 0 }); continue;
       }
       maclar.push(m);
     }
@@ -1150,7 +1157,7 @@ export class RezervasyonDeposu extends DurableObject {
           krampon: Math.min(50, Math.max(0, Math.round(Number(m?.krampon)) || 0)),
           eldiven: Math.min(50, Math.max(0, Math.round(Number(m?.eldiven)) || 0)),
           kantin: kantinTemiz(m?.kantin), ...(m?.kayitNo ? { kayitNo: kirp(m.kayitNo, 20) } : {}),
-          ...(m?.kaynak === "takvim" ? { kaynak: "takvim" } : {}),
+          ...(m?.kaynak === "takvim" ? { kaynak: "takvim", tkOn: tutar(m?.tkOn ?? m?.onOdeme) } : {}),
           ekstra: [...new Set(Array.isArray(m?.ekstra) ? m.ekstra : [])].filter((x) => EKSTRALAR[x]),
         })).sort((a, b) => SAAT_SIRA(a.saat || "00:00") - SAAT_SIRA(b.saat || "00:00")),
         girisler: satirlar(g.girisler), cikislar: satirlar(g.cikislar),

@@ -569,3 +569,16 @@ test("Kasa: kayıtlı gün rezervasyon eklenince / iptal edilince kendiliğinden
   assert.equal(k2.kayit.maclar[0].kantin[su], 2, "girilmiş veri korunur");
   assert.ok((await d.islemler()).some((x) => x.islem === "Kasa takvimden güncellendi"));
 });
+
+test("Kasa: alınan kapora otomatik gelir, sonradan girilen kapora da güncellenir, '500 + 700' toplanır", async () => {
+  const d = demoDepo({ PANEL_KURULUM_KODU: "k" });
+  const admin = await d.oturum((await d.panelKur({ kurulumKodu: "k", eposta: "admin@aysu.com", ad: "Admin", sifre: "aysu-2026!" })).token);
+  const r = await d.panelRezEkle({ gunTarihi: "2026-10-19", saat: "20:00", ad: "Yusuf", telefon: "" });
+  const k = await d.kasaGetir("2026-10-19", admin);
+  assert.equal(k.kayit.maclar[0].onOdeme, 0);
+  assert.ok((await d.kasaKaydet({ ...k.kayit }, admin)).basarili);
+  await d.panelRezGuncelle({ kayitNo: r.kayitNo, kapora: "500 + 700" });
+  const k2 = await d.kasaGetir("2026-10-19", admin);
+  assert.equal(k2.kayit.maclar[0].onOdeme, 1200);
+  assert.equal(k2.kayit.ozet.olmasiGereken, 3700 - 1200);
+});

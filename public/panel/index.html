@@ -141,7 +141,8 @@
   .adim { display: inline-flex; align-items: center; border: 1px solid #b5c3cf; border-radius: 999px; overflow: hidden; }
   .adim button { border: 0; background: var(--cim-acik); color: var(--cim); width: 32px; height: 32px; font-size: 18px; cursor: pointer; }
   .adim span { min-width: 64px; text-align: center; font-size: 14px; padding: 0 4px; }
-  .mac-top { margin-left: auto; font: 700 22px/1 "Barlow Condensed", sans-serif; }
+  .mac-top { margin-left: auto; font: 700 22px/1 "Barlow Condensed", sans-serif; text-align: right; }
+  .mac-top small { display: block; font: 500 13px/1.3 Inter, system-ui, sans-serif; color: var(--gri); margin-bottom: 2px; }
   .x-sil { border: 0; background: none; color: var(--hata); font-size: 22px; cursor: pointer; line-height: 1; }
   .k-sat { display: grid; grid-template-columns: 1fr 110px 32px; gap: 6px; align-items: center; margin-bottom: 6px; }
   .k-sat input { width: 100%; border: 1px solid #b5c3cf; border-radius: 8px; padding: 8px; font-size: 16px; background: var(--kart); min-width: 0; }
@@ -1484,7 +1485,8 @@
       const krampon = (m.krampon || 0) * kr.krampon, eldiven = (m.eldiven || 0) * kr.eldiven;
       o.mac += sayi(m.ucret); o.vip += sayi(m.vip); o.kantin += kantin; o.onOdeme += sayi(m.onOdeme);
       o.kramponAdet += m.krampon || 0; o.eldivenAdet += m.eldiven || 0; o.krampon += krampon; o.eldiven += eldiven;
-      o.maclar.push({ kantin, toplam: sayi(m.ucret) + sayi(m.vip) + kantin + krampon + eldiven });
+      const toplam = sayi(m.ucret) + sayi(m.vip) + kantin + krampon + eldiven;
+      o.maclar.push({ kantin, toplam, kapora: sayi(m.onOdeme), kalan: toplam - sayi(m.onOdeme) });
     }
     for (const v of Object.values(kk.ikram || {})) for (const [id, a] of Object.entries(v)) o.ikramDeger += a * birim(id).satis;
     const top = (l) => l.reduce((t, x) => t + sayi(x.tutar), 0);
@@ -1547,7 +1549,7 @@
           </div>
           <div class="k-ic" style="grid-template-columns:1fr 1fr">
             <div><label>Maç ücreti</label><input data-yol="maclar.${i}.ucret" value="${m.ucret || ""}" inputmode="numeric" placeholder="0"></div>
-            <div><label title="Önceden alınan kapora / IBAN ile ödenen">Ön ödeme (kapora)</label><input data-yol="maclar.${i}.onOdeme" value="${m.onOdeme || ""}" inputmode="numeric" placeholder="0"></div>
+            <div><label title="Önceden alınan kapora / IBAN ile ödenen">Alınan kapora</label><input data-yol="maclar.${i}.onOdeme" value="${m.onOdeme || ""}" inputmode="numeric" placeholder="0"></div>
           </div>
           <div class="vip-sec">${[["spiker", "VIP spiker"], ["hakem", "VIP hakem"]].map(([x, ad]) => `<label><input type="checkbox" data-vip="${i}" value="${x}"${(m.ekstra || []).includes(x) ? " checked" : ""}> ${ad} <small>+${para(kasa.fiyat[x])}</small></label>`).join("")}
             ${m.vip && !(m.ekstra || []).length ? `<small class="soluk">VIP ${para(m.vip)}</small>` : ""}</div>
@@ -1559,7 +1561,7 @@
           </div>
         </div>`).join("") || '<p class="soluk">Bu gün maç yok.</p>'}
         <div class="k-alt" style="margin-top:10px"><button class="dugme ikincil kucuk" type="button" id="k-mac-ekle">+ Elle maç satırı</button></div>
-        <p class="soluk" style="font-size:13px;margin-top:8px">Maçlar o günün rezervasyon ve abone listesinden kendiliğinden gelir; rezervasyon eklenince / iptal edilince burası da güncellenir. Krampon ${para(kr.krampon)}, eldiven ${para(kr.eldiven)}. Ön ödeme (önceden alınan kapora, IBAN) bugünkü kasaya girmez.</p>
+        <p class="soluk" style="font-size:13px;margin-top:8px">Maçlar o günün rezervasyon ve abone listesinden kendiliğinden gelir; rezervasyon eklenince / iptal edilince burası da güncellenir. Krampon ${para(kr.krampon)}, eldiven ${para(kr.eldiven)}. Alınan kapora maçın toplamından düşülür; müşteriden kalan tahsil edilir.</p>
       </div>
 
       ${satirListesi("girisler", "Kasa girişi", "Ör. Fevzi 23.10 19:00 kapora")}
@@ -1583,7 +1585,8 @@
   function kasaOzetCiz() {
     const o = kasaOzetHesapla();
     o.maclar.forEach((m, i) => {
-      const t = document.querySelector(`[data-mt="${i}"]`); if (t) t.textContent = para(m.toplam);
+      const t = document.querySelector(`[data-mt="${i}"]`);
+      if (t) t.innerHTML = m.kapora ? `<small>Toplam ${para(m.toplam)} − kapora ${para(m.kapora)}</small>Kalan ${para(m.kalan)}` : para(m.toplam);
       const k = document.querySelector(`[data-mk="${i}"]`); if (k) k.textContent = m.kantin ? `· ${para(m.kantin)}` : "";
     });
     const yaz = (ad, v) => { const e = document.querySelector(`[data-top="${ad}"]`); if (e) e.textContent = v; };
@@ -1596,7 +1599,7 @@
       sat("Günlük ciro", para(o.ciro), "buyuk") +
       sat("Kasa devir", para(o.devir)) + sat("Kasa girişi", para(o.giris)) + sat("Kasa toplamı", para(o.kasaToplam)) +
       sat("Kasa çıkışı", "− " + para(o.cikis), "eksi") + (o.veresiye ? sat("Veresiye", "− " + para(o.veresiye), "eksi") : "") +
-      (o.onOdeme ? sat("Ön ödeme (kapora / IBAN)", "− " + para(o.onOdeme), "eksi") : "") +
+      (o.onOdeme ? sat("Önceden alınan kaporalar", "− " + para(o.onOdeme), "eksi") : "") +
       sat("Kasada olması gereken", para(o.olmasiGereken), "buyuk") +
       `<tr><td><label for="k-sayilan">Sayılan kasa</label></td><td><input id="k-sayilan" data-yol="sayilan" inputmode="numeric" value="${kk.sayilan ?? ""}" placeholder="Sayın"></td></tr>` +
       (o.fark !== null ? sat(o.fark === 0 ? "Fark" : o.fark > 0 ? "Fazla" : "Eksik", para(Math.abs(o.fark)), o.fark < 0 ? "eksi" : "") : "") +

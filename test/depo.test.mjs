@@ -976,3 +976,13 @@ test("Admin bir kişiyi aylık puantajdan tamamen kaldırır", async () => {
   assert.ok((await d.puantajKisiSil("2026-10", "deneme@x.com", admin)).basarili);
   assert.ok(!(await d.puantajAy("2026-10")).kisiler.some((k) => k.eposta === "deneme@x.com"));
 });
+
+test("Kullanıcı ilk kez onaylanınca ilkOnay döner (kurallar e-postası için)", async () => {
+  const d = demoDepo({ PANEL_KURULUM_KODU: "k" });
+  const admin = await d.oturum((await d.panelKur({ kurulumKodu: "k", eposta: "admin@aysu.com", ad: "Admin", sifre: "aysu-2026!" })).token);
+  await d.kayitOl({ eposta: "yeni@aysu.com", ad: "Yeni Çalışan", sifre: "yeni-calisan-1", rol: "personel" });
+  const r = await d.kullaniciGuncelle({ eposta: "yeni@aysu.com", rol: "personel", durum: "aktif" }, admin);
+  assert.ok(r.basarili && r.ilkOnay, JSON.stringify(r));
+  assert.ok(!(await d.kullaniciGuncelle({ eposta: "yeni@aysu.com", ad: "Yeni Çalışan 2" }, admin)).ilkOnay);
+  assert.equal(await d.birKez("ayar:x"), true); assert.equal(await d.birKez("ayar:x"), false);
+});

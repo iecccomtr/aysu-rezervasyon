@@ -26,20 +26,23 @@ export const epostaKurulu = (env) => Boolean((env.GMAIL_ADRES && env.GMAIL_UYGUL
  * Herhangi bir alıcıya e-posta. E-posta kurulu değilse sessizce atlar (false döner).
  * dugme: { yazi, link } verilirse e-postada büyük bir düğme olarak gösterilir.
  */
-export async function epostaYolla(env, { kime, konu, satirlar = [], alt = "", dugme = null, ekler = [] }) {
+export async function epostaYolla(env, { kime, konu, satirlar = [], alt = "", dugme = null, ekler = [], giris = "", bolumler = [] }) {
   if (!epostaKurulu(env) || !kime?.length) return false;
   const dugmeler = (Array.isArray(dugme) ? dugme : dugme ? [dugme] : []);
   const html = `<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.5;color:#13261b;max-width:560px">
     <h2 style="margin:0 0 12px;color:#0067a4">${kacis(konu)}</h2>
+    ${giris ? `<p style="margin:0 0 14px">${kacis(giris)}</p>` : ""}
     <table style="border-collapse:collapse">${satirlar.map(([k, v]) =>
       `<tr><td style="padding:4px 14px 4px 0;color:#55645a;vertical-align:top">${kacis(k)}</td><td style="padding:4px 0"><b>${
         /^https:\/\//.test(String(v)) ? `<a href="${kacis(v)}">${kacis(v)}</a>` : kacis(v)}</b></td></tr>`).join("")}
     </table>
+    ${bolumler.map((b) => `<h3 style="margin:20px 0 6px;color:#062a45;font-size:16px;border-bottom:2px solid #ef7f1a;padding-bottom:4px">${kacis(b.baslik)}</h3>
+      <ul style="margin:0;padding-left:20px">${b.maddeler.map((m) => `<li style="margin:3px 0">${kacis(m)}</li>`).join("")}</ul>`).join("")}
     ${dugmeler.length ? `<p style="margin:22px 0">${dugmeler.map((d) => `<a href="${kacis(d.link)}" style="background:${d.renk || "#0067a4"};color:#fff;text-decoration:none;font-weight:bold;font-size:18px;padding:14px 26px;border-radius:999px;display:inline-block;margin:0 10px 10px 0">${kacis(d.yazi)}</a>`).join("")}</p>
       ${dugmeler.length === 1 ? `<p style="color:#55645a;font-size:13px">Düğme çalışmazsa: ${kacis(dugmeler[0].link)}</p>` : ""}` : ""}
     ${alt ? `<p style="margin-top:16px;color:#55645a;font-size:13px">${kacis(alt)}</p>` : ""}
   </div>`;
-  const metin = `${konu}\n\n${satirlar.map(([k, v]) => `${k}: ${v}`).join("\n")}${dugmeler.map((d) => `\n\n${d.yazi}: ${d.link}`).join("")}${alt ? "\n\n" + alt : ""}`;
+  const metin = `${konu}\n\n${giris ? giris + "\n\n" : ""}${satirlar.map(([k, v]) => `${k}: ${v}`).join("\n")}${bolumler.map((b) => `\n\n${b.baslik.toLocaleUpperCase("tr")}\n${b.maddeler.map((m) => "- " + m).join("\n")}`).join("")}${dugmeler.map((d) => `\n\n${d.yazi}: ${d.link}`).join("")}${alt ? "\n\n" + alt : ""}`;
   try {
     if (env.GMAIL_ADRES && env.GMAIL_UYGULAMA_SIFRESI) {
       await smtpGonder({

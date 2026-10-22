@@ -915,7 +915,7 @@ export class RezervasyonDeposu extends DurableObject {
       if (!ROLLER[u.istenenRol]) return { hata: "Kayıtta görev seçilmemiş; panelden onaylayın." };
       await this.st.put(`u:${u.eposta}`, { ...u, rol: u.istenenRol, durum: "aktif" });
       await this.kayitTut(yapan, "Kullanıcı onayladı (e-posta bağlantısı)", `${u.ad} · ${u.eposta} · ${ROLLER[u.istenenRol].ad}`);
-      return { basarili: true, karar: "onayla", ad: u.ad, rolAd: ROLLER[u.istenenRol].ad };
+      return { basarili: true, karar: "onayla", ad: u.ad, rolAd: ROLLER[u.istenenRol].ad, eposta: u.eposta };
     });
   }
 
@@ -965,7 +965,16 @@ export class RezervasyonDeposu extends DurableObject {
       await this.st.put(`u:${e}`, yeni);
       if (yeni.durum !== "aktif" || yeni.rol !== u.rol) await this.oturumlariKapat(e);
       if (u.durum === "bekliyor" && yeni.durum !== "bekliyor") await this.onayBaglantilariniSil(e);
-      return { basarili: true, kullanici: kullaniciDisi(yeni) };
+      return { basarili: true, kullanici: kullaniciDisi(yeni), ...(u.durum === "bekliyor" && yeni.durum === "aktif" ? { ilkOnay: true } : {}) };
+    });
+  }
+
+  /** Tek seferlik bayrak: yoksa koyar ve true döner */
+  async birKez(anahtar) {
+    return this.kilitli(async () => {
+      if (await this.st.get(anahtar)) return false;
+      await this.st.put(anahtar, Date.now());
+      return true;
     });
   }
 

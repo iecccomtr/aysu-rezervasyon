@@ -4,6 +4,7 @@
 import { simdi, isletmeGunu, gunEkle, haftaBasi } from "./time.js";
 import { KURALLAR, FIYATLAR, IBAN, ISLETME, EKSTRALAR } from "./config.js";
 import { bildir, epostaYolla, epostaKurulu } from "./bildirim.js";
+import { TESIS_KURALLARI } from "./tesis-kurallari.js";
 import { dekontOku, dekontDegerlendir, ozet } from "./dekont-kontrol.js";
 import { ROLLER, ibanGecerli } from "./store.js";
 import { kasaPdf } from "./kasa-pdf.js";
@@ -207,6 +208,7 @@ async function panel(request, env, ctx, yol) {
     }
     const g = (await govdeOku(request)) || {};
     const r = await d.onayKarari(g.token, g.karar === "reddet" ? "reddet" : "onayla");
+    if (r.basarili && r.karar === "onayla" && r.eposta) ctx.waitUntil(kurallarGonder(env, [r.eposta], r.ad, r.rolAd, url.origin));
     return json(r, r.hata ? 400 : 200);
   }
   if (yol === "cikis" && post) {
@@ -447,7 +449,17 @@ async function panel(request, env, ctx, yol) {
     case "GET islemler":
       if (ben.rol !== "admin") return json({ hata: "Bu bölüm sadece Admin içindir." }, 403);
       return json(await d.islemler(url.searchParams.get("adet")));
-    case "POST kullanici": return sonuc(await d.kullaniciGuncelle(g, ben));
+    case "POST kullanici": {
+      const r = await d.kullaniciGuncelle(g, ben);
+      // Yeni çalışan onaylandı: tesis kuralları ve görevler kendisine e-postayla
+      if (r.ilkOnay) ctx.waitUntil(kurallarGonder(env, [r.kullanici.eposta], r.kullanici.ad, r.kullanici.rolAd, url.origin));
+      return sonuc(r);
+    }
+    case "POST kurallar/gonder": {
+      if (ben.rol !== "admin") return json({ hata: "Sadece Admin." }, 403);
+      const ok = await kurallarGonder(env, [ben.eposta], ben.ad, ben.rolAd || "Admin", url.origin, true);
+      return ok ? json({ basarili: true }) : json({ hata: "E-posta gönderilemedi." }, 500);
+    }
     case "POST kullanici-sil": return sonuc(await d.kullaniciSil(g.eposta, ben));
     case "POST sifirlama-linki": {
       // E-posta kurulu değilse yönetici bağlantıyı alıp WhatsApp'tan iletebilir
@@ -608,6 +620,18 @@ function islemDetayi(yol, g, r) {
     case "puantaj/duzelt": return "";
     default: return "";
   }
+}
+
+/** Tesis kuralları ve görevler e-postası (yeni onaylanan çalışana; örnek = Admin'e deneme) */
+function kurallarGonder(env, kime, ad, rolAd, koken = "https://aysuhalisaha.com", ornek = false) {
+  return epostaYolla(env, {
+    kime, konu: `${ornek ? "[Örnek] " : ""}Aysu Halı Saha'ya hoş geldiniz — tesis kuralları ve görevler`,
+    giris: `Merhaba ${ad || ""}, hesabınız ${rolAd ? rolAd + " olarak " : ""}onaylandı. Aşağıdaki kurallar halı saha yönetimine aittir; lütfen dikkatle okuyun ve uygulayın.`,
+    satirlar: [["Panel", `${koken}/panel/`], ["İşe gelince", "Panelde GELDİM, çıkarken ÇIKTIM"], ["Görevler", "Panelde Görevler sayfası → işi bitirince Yaptım"]],
+    bolumler: TESIS_KURALLARI,
+    dugme: { yazi: "Panele gir", link: `${koken}/panel/` },
+    alt: "HALISAHA YÖNETİMİNE AİTTİR · Aysu Halı Saha",
+  }).catch((e) => { console.error("Kurallar e-postası", e); return false; });
 }
 
 export default {
@@ -829,6 +853,12 @@ export default {
     }
     // 5 dakikada bir: dekontu gelmeyen online opsiyonları düşür, işletmeye haber ver
     ctx.waitUntil(depo(env).opsiyonlariDusur());
+    // Tek seferlik: tesis kuralları e-postasının örneği Admin'e
+    ctx.waitUntil((async () => {
+      const d = depo(env);
+      const kime = await d.rolEpostalari(["admin"]);
+      if (kime.length && epostaKurulu(env) && (await d.birKez("ayar:kurallarOrnek"))) await kurallarGonder(env, kime, "Admin", "Admin", "https://aysuhalisaha.com", true);
+    })().catch(() => {}));
     // Gizli IBAN kontrolü: sistemdeki IBAN + sitenin sayfalarında yazan IBAN'lar onaylı IBAN mı?
     if (new Date().getUTCMinutes() < 5) ctx.waitUntil((async () => {
       const d = depo(env);

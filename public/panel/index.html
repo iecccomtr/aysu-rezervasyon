@@ -494,8 +494,9 @@
     <!-- Kullanıcılar (Müdür / Müdür Yardımcısı) -->
     <section id="v-kullanicilar" data-gorunum hidden>
       <div class="baslik-satir"><h2>Kullanıcılar</h2><span class="soluk sag" id="kullanici-sayi"></span></div>
-      <p class="soluk" style="margin-bottom:12px">Personel <b>/panel</b> adresinden e-postasıyla kayıt olur. Burada onaylayıp hesabı açarsınız.</p>
+      <p class="soluk" style="margin-bottom:12px">Personel <b>/panel</b> adresinden e-postasıyla kayıt olur. Burada onaylayıp hesabı açarsınız; onaylanan çalışana tesis kuralları ve görevler e-postayla gider.</p>
       <div class="kutu" id="kullanici-liste"></div>
+      <button type="button" class="dugme ikincil kucuk" id="kurallar-ornek" hidden style="margin-top:10px">📋 Tesis kuralları e-postasını bana gönder (yeni çalışana giden)</button>
       <div id="puantaj-alan" hidden>
         <div class="baslik-satir" style="margin-top:22px"><h2>Puantaj</h2>
           <input type="month" id="puantaj-ay" class="sag" style="border:1px solid #b5c3cf;border-radius:10px;padding:7px 10px;font-size:15px;background:var(--kart)"></div>
@@ -1637,6 +1638,7 @@
   let islemler = [];
   async function islemYukle() {
     $("islem-alan").hidden = ben.rol !== "admin";
+    $("kurallar-ornek").hidden = ben.rol !== "admin";
     if (ben.rol !== "admin") return;
     const v = await api("islemler").catch(() => null);
     if (!Array.isArray(v)) return;
@@ -1653,6 +1655,12 @@
       </div>`).join("") || '<p class="soluk" style="padding:14px">Kayıt yok.</p>';
   }
   $("islem-ara").addEventListener("input", islemCiz);
+  $("kurallar-ornek").addEventListener("click", async (e) => {
+    e.target.disabled = true;
+    const r = await api("kurallar/gonder", {});
+    e.target.disabled = false;
+    bildir(r.hata || "Örnek e-posta gönderildi");
+  });
 
 
   // ================= Görevler (iş takibi) =================

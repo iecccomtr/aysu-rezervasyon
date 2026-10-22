@@ -334,10 +334,10 @@
             <label for="not">Not <small>(isteğe bağlı)</small></label>
             <textarea id="not" name="not" maxlength="200" placeholder="Takım adı, özel istek…"></textarea>
           </div>
-          <div class="alan">
-            <label for="kod">Ücretsiz maç kodu <small>(varsa)</small></label>
-            <input id="kod" name="kod" maxlength="30" autocomplete="off" autocapitalize="characters" placeholder="Size verilen kod">
-          </div>
+          <details class="alan kod-alan" style="margin-top:-4px">
+            <summary style="cursor:pointer;color:var(--gri);font-size:14px">Kodum var</summary>
+            <input id="kod" name="kod" type="password" maxlength="30" autocomplete="off" autocapitalize="characters" aria-label="Kod" placeholder="Size verilen kod" style="margin-top:6px">
+          </details>
           <div class="tuzak" aria-hidden="true">
             <label for="web">Web sitesi</label>
             <input id="web" name="web" tabindex="-1" autocomplete="off">

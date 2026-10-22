@@ -1128,8 +1128,8 @@
         <a class="dugme ikincil kucuk" target="_blank" rel="noopener" href="${wa(r.telefon)}?text=${encodeURIComponent(`Merhaba ${r.ad}, Aysu Halı Saha ${tarihYazi(gun)} ${r.saat} rezervasyonunuz hakkında yazıyoruz.`)}">WhatsApp</a>
         <button class="dugme ikincil kucuk" type="button" id="d-musteri">Müşteri kartı</button>
       </div>` : ""}
-      ${r.ucretsiz ? `<p class="bilgi" style="background:#e7f6ec;border-color:#9fd3a8;color:#11602a">✓ Ücretsiz maç: ${kacis(r.ucretsiz.neden)} (${kacis(r.ucretsiz.kod)})</p>`
-        : `<div class="k-sat" style="grid-template-columns:1fr auto;margin-bottom:12px"><input id="d-kod-uygula" placeholder="Ücretsiz maç kodu" autocomplete="off" style="border:1px solid #b5c3cf;border-radius:8px;padding:8px;font-size:16px">
+      ${r.ucretsiz ? `<p class="bilgi" style="background:#e7f6ec;border-color:#9fd3a8;color:#11602a">✓ Ücretsiz maç: ${kacis(r.ucretsiz.neden)}${ben.rol === "admin" ? ` (${kacis(r.ucretsiz.kod)})` : ""}</p>`
+        : ben.rol !== "admin" ? "" : `<div class="k-sat" style="grid-template-columns:1fr auto;margin-bottom:12px"><input id="d-kod-uygula" placeholder="Ücretsiz maç kodu" autocomplete="off" style="border:1px solid #b5c3cf;border-radius:8px;padding:8px;font-size:16px">
           <button class="dugme ikincil kucuk" type="button" id="d-kod-btn">Kodu uygula</button></div>`}
       <form id="d-form" novalidate>
         <label style="font-weight:600;display:block;margin-bottom:5px">Durum</label>

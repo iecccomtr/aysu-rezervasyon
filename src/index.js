@@ -298,7 +298,9 @@ async function panel(request, env, ctx, yol) {
     case "POST rez": return degisti(await d.panelRezEkle({
       gunTarihi: g.gun, saat: g.saat, ad: g.ad, telefon: g.telefon, not: g.not, durum: g.durum, kapora: g.kapora, ekstra: g.ekstra, kod: g.kod,
     }));
-    case "POST rez-kod": return degisti(await d.rezKodUygula(g, ben));
+    case "POST rez-kod": // ücretsiz maç kodları Admin'e özel
+      if (ben.rol !== "admin") return json({ hata: "Sadece Admin." }, 403);
+      return degisti(await d.rezKodUygula(g, ben));
     case "POST rez-guncelle": {
       const r = await d.panelRezGuncelle(g);
       if (r.basarili && (r.degisen || []).some((x) => x.startsWith("Durum: Onaylı → İptal"))) {
@@ -695,9 +697,9 @@ export default {
         // Ücretsiz kodla yapılan rezervasyon hemen kesinleşir: yöneticilere bilgi
         if (r.ucretsiz) ctx.waitUntil((async () => { const d2 = depo(env); await bildir(env, {
           ekKime: await d2.rolEpostalari(["admin", "mudur", "mudur_yrd"]),
-          konu: `Yeni rezervasyon (ÜCRETSİZ KOD ${r.ucretsiz.kod}): ${r.gun} ${r.saat}`,
+          konu: `Yeni rezervasyon (ÜCRETSİZ MAÇ): ${r.gun} ${r.saat}`,
           satirlar: [["Maç", `${r.gun}, ${r.tarih} saat ${r.saat}`], ["Ad soyad", r.ad], ["Telefon", r.telefon], ["Kayıt no", r.kayitNo],
-            ["Kod", `${r.ucretsiz.kod} — ${r.ucretsiz.neden}`], ["Ücret", r.ucret ? `${r.ucret} TL (VIP)` : "Ücretsiz"]],
+            ["Ücretsiz", r.ucretsiz.neden], ["Ücret", r.ucret ? `${r.ucret} TL (VIP)` : "Ücretsiz"]],
         }); })().catch((e) => console.error("Kod e-postası", e)));
         // E-posta gönderilmez: kapora (dekont) doğrulanınca "Yeni rezervasyon" e-postası gider
         return json(rezCevap(r, await guvenliIban(env, depo(env), ctx, "rezervasyon")));

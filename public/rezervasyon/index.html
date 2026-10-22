@@ -375,7 +375,7 @@
       </div>
 
       <div class="eylemler">
-        <a class="dugme wp" id="t-wp" target="_blank" rel="noopener">Dekontu WhatsApp'tan gönder</a>
+        <a class="dugme wp" id="t-wp" target="_blank" rel="noopener" hidden>Dekontu WhatsApp'tan gönder</a>
         <button class="dugme ikincil" id="yeni" type="button">Başka bir saat ayırt</button>
       </div>
       <p class="alt-bilgi">Sayfadan çıkarsanız ayırdığınız saate (⏳) dokunup telefonunuzu yazarak devam edebilirsiniz. İptal için arayın: <a href="tel:+905555102626">0 555 510 26 26</a></p>
@@ -874,7 +874,7 @@
     // Yeni rezervasyon ekranı: başlangıç hâli
     $("t-baslik").textContent = "Yeriniz opsiyonlandı";
     $("t-aciklama").innerHTML = "Yeriniz kapora gönderimi için <b>15 dakika</b> süreyle adınıza opsiyonlandı; bu sürede saat başkasına verilmez. Kaporayı gönderip dekontu yüklediğinizde rezervasyonunuz kesinleşir. Süre içinde dekont gelmezse yer boşa çıkar.";
-    $("t-yukleme").hidden = false; $("t-wp").hidden = false;
+    $("t-yukleme").hidden = false;
     sayacBaslat(v.opsiyonKalan != null ? Date.now() + v.opsiyonKalan : v.opsiyonBitis);
     durumIzle();
     if (sonRez) sonRez.yazi = `${g.gun} ${tarihYazi(g.tarih)}, ${v.saat}`;

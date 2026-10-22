@@ -345,7 +345,7 @@
       <select id="g-rol"><option value="">— Seçin —</option><option value="mudur">Müdür</option><option value="mudur_yrd">Müdür Yardımcısı</option><option value="temizlik">Temizlik Şefi</option><option value="personel">Personel</option></select>
     </div>
     <div class="alan" data-mod="kayit"><label for="g-tel">Telefon <span class="soluk">(isteğe bağlı)</span></label><input id="g-tel" type="tel" inputmode="tel" autocomplete="tel"></div>
-    <div class="alan" data-mod="giris kur kayit sifirla"><label for="g-sifre" id="g-sifre-etiket">Şifre</label><input id="g-sifre" type="password" autocomplete="current-password"></div>
+    <div class="alan" data-mod="giris kur kayit sifirla"><label for="g-sifre" id="g-sifre-etiket">Şifre</label><input id="g-sifre" type="password" autocomplete="off" readonly></div>
     <div class="alan" data-mod="kur kayit sifirla"><label for="g-sifre2">Şifre (tekrar)</label><input id="g-sifre2" type="password" autocomplete="new-password"></div>
     <input type="text" id="g-web" name="web" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
     <div id="g-dogrulama" data-mod="kayit unuttum" style="margin-bottom:8px"></div>
@@ -652,6 +652,8 @@
     // Mod değişince (ör. Giriş → Kayıt ol) tarayıcının doldurduğu e-posta / şifre temizlenir
     if (yeniMod && yeniMod !== mod) ["g-sifre", "g-sifre2", "g-ad", "g-tel", "g-kod"].concat(yeniMod === "unuttum" ? [] : ["g-eposta"]).forEach((id) => { if ($(id)) $(id).value = ""; });
     if (yeniMod) mod = yeniMod;
+    // Şifre kutuları her açılışta boş (tarayıcı kendiliğinden doldurmasın: odaklanana kadar salt okunur)
+    ["g-sifre", "g-sifre2"].forEach((id) => { const el = $(id); el.value = ""; el.readOnly = true; el.onfocus = () => { el.readOnly = false; }; });
     const m = MODLAR[mod];
     $("uygulama").hidden = true; $("giris").hidden = false;
     $("giris-baslik").textContent = m.baslik;
@@ -661,7 +663,7 @@
     document.querySelectorAll("#giris-form [data-mod]").forEach((el) => { el.hidden = !el.dataset.mod.split(" ").includes(mod); });
     const yeni = mod !== "giris";
     $("g-sifre-etiket").textContent = yeni ? "Şifre (en az 8 karakter)" : "Şifre";
-    $("g-sifre").autocomplete = yeni ? "new-password" : "current-password";
+    $("g-sifre").autocomplete = yeni ? "new-password" : "off";
     $("g-eposta").autocomplete = mod === "kayit" ? "off" : "username";
     const link = (m2, yazi) => `<a href="#" data-git="${m2}">${yazi}</a>`;
     $("giris-not").innerHTML = mod === "onay" ? '<a href="/panel/">Panele git</a>' : mod === "giris" ? link("unuttum", "Şifremi unuttum") + link("kayit", "Kayıt ol")

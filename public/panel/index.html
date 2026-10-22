@@ -445,7 +445,7 @@
       <div id="puantaj-alan" hidden>
         <div class="baslik-satir" style="margin-top:22px"><h2>Puantaj</h2>
           <input type="month" id="puantaj-ay" class="sag" style="border:1px solid #b5c3cf;border-radius:10px;padding:7px 10px;font-size:15px;background:var(--kart)"></div>
-        <p class="soluk" style="margin-bottom:10px;font-size:14px">Çalışanlar panele girince GELDİM, çıkarken ÇIKTIM'a basar. Ücret = (çalışılan saat + yarım saat yol) × saatlik ücret (kullanıcıya dokunup Admin belirler).</p>
+        <p class="soluk" style="margin-bottom:10px;font-size:14px">Çalışanlar panele girince GELDİM, çıkarken ÇIKTIM'a basar. Ücret = (çalışılan saat + yarım saat yol) × saatlik ücret − personel kantini. Admin, kişiye dokunup avans / günlük ödeme girer; kalan hakediş görünür.</p>
         <div class="kutu" id="puantaj-liste"></div>
       </div>
       <div id="fiyat-alan" hidden>
@@ -1465,26 +1465,59 @@
     if (!$("puantaj-ay").value) $("puantaj-ay").value = new Date(Date.now() + 3 * 3600000).toISOString().slice(0, 7);
     puantaj = await api(`puantaj?ay=${$("puantaj-ay").value}`).catch(() => null);
     if (!puantaj || puantaj.hata) return;
-    const top = puantaj.kisiler.reduce((t, k) => t + k.ucret, 0);
+    const top = puantaj.kisiler.reduce((t, k) => t + k.kalan, 0);
     $("puantaj-liste").innerHTML = puantaj.kisiler.map((k, i) => `
       <button type="button" class="kullanici" data-p="${i}">
         <span><b>${kacis(k.ad)}</b><small>${kacis(k.rol)} · ${k.gunler.length} gün${k.gunler.some((g) => g.acik) ? " · açık giriş var" : ""}${k.saatlikUcret ? ` · ${saatSayi(k.saatlikUcret)} ₺/saat` : " · saatlik ücret yok"}</small></span>
-        <span style="text-align:right"><b>${saatSayi(k.saat)} saat</b><small>${para(k.ucret)}</small></span>
+        <span style="text-align:right"><b>${saatSayi(k.saat)} saat</b><small>${para(k.ucret)}${k.avans ? ` · avans ${para(k.avans)} · <b>kalan ${para(k.kalan)}</b>` : ""}</small></span>
       </button>`).join("") + (puantaj.kisiler.length ? `<div class="kullanici" style="cursor:default"><b>Toplam</b><b>${para(top)}</b></div>` : '<p class="soluk" style="padding:14px">Bu ay puantaj kaydı yok.</p>')
-      + (["admin", "mudur"].includes(ben.rol) ? `<div style="padding:10px 14px"><button class="dugme ikincil kucuk" type="button" id="p-ekle">+ Elle kayıt ekle</button></div>` : "");
+      + (["admin", "mudur"].includes(ben.rol) ? `<div style="padding:10px 14px;display:flex;gap:8px;flex-wrap:wrap"><button class="dugme ikincil kucuk" type="button" id="p-ekle">+ Elle kayıt ekle</button>${ben.rol === "admin" ? '<button class="dugme ikincil kucuk" type="button" id="p-avans">+ Avans / ödeme</button>' : ""}</div>` : "");
     $("puantaj-liste").querySelectorAll("[data-p]").forEach((el) => el.addEventListener("click", () => puantajDetay(puantaj.kisiler[el.dataset.p])));
     $("p-ekle")?.addEventListener("click", () => puantajDuzeltAc(null, null));
+    $("p-avans")?.addEventListener("click", async () => {
+      const l = (await api("kullanicilar").catch(() => [])).filter((u) => u.durum === "aktif" && u.rol !== "admin");
+      const ic = ac("Avans / ödeme", `<div class="alan"><label for="pa-kisi">Çalışan</label><select id="pa-kisi">${l.map((u) => `<option value="${kacis(u.eposta)}">${kacis(u.ad)}</option>`).join("")}</select></div>
+        <div class="iki-alan"><div class="alan"><label for="pa-gun">Gün</label><input type="date" id="pa-gun" value="${new Date(Date.now() + 3 * 3600000).toISOString().slice(0, 10)}"></div>
+        <div class="alan"><label for="pa-tutar">Tutar (₺)</label><input id="pa-tutar" inputmode="numeric"></div></div>
+        <div class="alan"><label for="pa-not">Not</label><input id="pa-not" placeholder="Ör. günlük ödeme, avans"></div>
+        <button class="dugme tam" type="button" id="pa-kaydet">Kaydet</button>`);
+      ic.querySelector("#pa-kaydet").addEventListener("click", async () => {
+        const r = await api("avans", { eposta: $("pa-kisi").value, gun: $("pa-gun").value, tutar: $("pa-tutar").value, not: $("pa-not").value });
+        if (r.hata) return dlgUyari(r.hata);
+        dlg.close(); bildir("Avans kaydedildi"); puantajYukle();
+      });
+    });
   }
   $("puantaj-ay").addEventListener("change", puantajYukle);
 
   function puantajDetay(k) {
     const duzeltir = ["admin", "mudur"].includes(ben.rol);
     const ic = ac(`${k.ad} · puantaj`, `
-      <p class="soluk" style="margin-bottom:10px">${saatSayi(k.saat)} saat × ${saatSayi(k.saatlikUcret)} ₺ = ${para(k.brut)}${k.kesinti ? ` − kantin ${para(k.kesinti)}` : ""} = <b>${para(k.ucret)}</b>${k.bekleyenKesinti ? `<br><small>Çalışmadığı günde aldığı ${para(k.bekleyenKesinti)} kantin, çalıştığı ilk günden düşülecek.</small>` : ""}<br><small>Saatler yarım saate yuvarlanır, her güne yarım saat yol eklenir.</small></p>
+      <p class="soluk" style="margin-bottom:10px">${saatSayi(k.saat)} saat × ${saatSayi(k.saatlikUcret)} ₺ = ${para(k.brut)}${k.kesinti ? ` − kantin ${para(k.kesinti)}` : ""} = <b>${para(k.ucret)}</b>${k.avans ? `<br>Verilen avans / ödeme: −${para(k.avans)} → <b>Kalan: ${para(k.kalan)}</b>` : ""}${k.bekleyenKesinti ? `<br><small>Çalışmadığı günde aldığı ${para(k.bekleyenKesinti)} kantin, çalıştığı ilk günden düşülecek.</small>` : ""}<br><small>Saatler yarım saate yuvarlanır, her güne yarım saat yol eklenir.</small></p>
       <table class="stok-t"><thead><tr><th>Gün</th><th>Giriş</th><th>Çıkış</th><th>Saat</th><th>Kantin</th></tr></thead><tbody>
       ${k.gunler.map((g, i) => `<tr data-g="${i}"${g.acik ? ' class="az"' : ""}><td>${tarihYazi(g.gun)} ${KISA[gunNo(g.gun)]}${g.duzelten ? ` <small class="soluk">(düzelten: ${kacis(g.duzelten)})</small>` : ""}</td><td>${g.giris || "—"}</td><td>${g.cikis || (g.acik ? "açık" : "—")}</td><td>${saatSayi(g.saat)}</td><td>${g.kesinti ? "−" + para(g.kesinti) : "—"}</td></tr>`).join("")}
       </tbody></table>
-      ${duzeltir ? '<p class="soluk" style="font-size:13px;margin-top:8px">Düzeltmek için güne dokunun.</p>' : ""}`);
+      ${duzeltir ? '<p class="soluk" style="font-size:13px;margin-top:8px">Düzeltmek için güne dokunun.</p>' : ""}
+      ${(k.avansListe || []).length || ben.rol === "admin" ? `<h3 style="font-size:20px;margin:16px 0 8px">Avans / ödemeler</h3>
+        ${(k.avansListe || []).map((a, j) => `<div class="k-sat" style="grid-template-columns:1fr auto ${ben.rol === "admin" ? "32px" : ""}"><span>${tarihYazi(a.gun)}${a.not ? ` <small class="soluk">· ${kacis(a.not)}</small>` : ""}</span><b>${para(a.tutar)}</b>${ben.rol === "admin" ? `<button class="x-sil" type="button" data-av-sil="${j}" aria-label="Sil">×</button>` : ""}</div>`).join("") || '<p class="soluk">Bu ay avans yok.</p>'}
+        ${ben.rol === "admin" ? `<div class="iki-alan" style="margin-top:8px">
+          <div class="alan"><label for="av-gun">Gün</label><input type="date" id="av-gun" value="${new Date(Date.now() + 3 * 3600000).toISOString().slice(0, 10)}"></div>
+          <div class="alan"><label for="av-tutar">Tutar (₺)</label><input id="av-tutar" inputmode="numeric" placeholder="${k.kalan > 0 ? k.kalan : ""}"></div>
+        </div>
+        <div class="alan"><label for="av-not">Not</label><input id="av-not" placeholder="Ör. günlük ödeme, avans"></div>
+        <button class="dugme tam" type="button" id="av-ekle">Avans / ödeme ekle</button>` : ""}` : ""}`);
+    ic.querySelector("#av-ekle")?.addEventListener("click", async () => {
+      const r = await api("avans", { eposta: k.eposta, gun: $("av-gun").value, tutar: $("av-tutar").value || $("av-tutar").placeholder, not: $("av-not").value });
+      if (r.hata) return dlgUyari(r.hata);
+      dlg.close(); bildir("Avans kaydedildi"); puantajYukle();
+    });
+    ic.querySelectorAll("[data-av-sil]").forEach((b) => b.addEventListener("click", async () => {
+      const a = k.avansListe[b.dataset.avSil];
+      if (!confirm(`${tarihYazi(a.gun)} ${para(a.tutar)} avans silinsin mi?`)) return;
+      const r = await api("avans-sil", { anahtar: a.anahtar });
+      if (r.hata) return dlgUyari(r.hata);
+      dlg.close(); bildir("Silindi"); puantajYukle();
+    }));
     if (!duzeltir) return;
     ic.querySelectorAll("[data-g]").forEach((tr) => tr.addEventListener("click", () => puantajDuzeltAc(k, k.gunler[tr.dataset.g])));
   }
@@ -1657,7 +1690,7 @@
           || '<p class="soluk">Bugün kapora alınmadı.</p>'}
         <p class="soluk" style="font-size:13px;margin-top:6px">Bugün alınan, ileri tarihli maçların kaporaları (dekont ya da panel) rezervasyonlardan kendiliğinden gelir ve <b>bugünün kasasına eklenir</b>. Maç günü o maçın toplamından düşülür, iki kez sayılmaz. Maç günü gelen kapora maçın toplamında kalır.</p></div>
       ${satirListesi("girisler", "Diğer kasa girişi", "Açıklama")}
-      ${satirListesi("cikislar", "Kasa çıkışı", "Ör. Maaş, yemek, alışveriş", kasa.calisanlar.length ? '<button class="dugme ikincil kucuk" type="button" id="k-maas">Puantajdan maaşları ekle</button>' : "")}
+      ${satirListesi("cikislar", "Kasa çıkışı", "Ör. yemek, alışveriş")}
       ${kk.veresiye?.length ? satirListesi("veresiye", "Veresiye (eski kayıt)", "Kim, ne için") : ""}
       ${(kasa.acikVeresiyeler || []).length ? `<div class="kutu kasa-kart" style="border-color:#ecd97a;background:#fffbe6"><h3>Açık veresiyeler<span class="sag">${para(kasa.acikVeresiyeler.reduce((t, v) => t + v.tutar, 0))}</span></h3>
         ${kasa.acikVeresiyeler.map((v, i) => `<div class="k-sat" style="grid-template-columns:1fr auto auto"><span><b>${kacis(v.kim)}</b> <small class="soluk">${tarihYazi(v.gun)} ${v.saat} · ${kacis(v.urunler)}${v.aboneId ? " · abonenin sonraki maçında yöneticiye hatırlatılır" : ""}</small></span>
@@ -1814,11 +1847,6 @@
       kk.maclar.push(...yeni.map((t) => ({ ...t, krampon: 0, eldiven: 0, kantin: {} })));
       kk.maclar.sort((a, b) => ((gece(a.saat || "08") ? 24 : 0) + Number((a.saat || "0").slice(0, 2))) - ((gece(b.saat || "08") ? 24 : 0) + Number((b.saat || "0").slice(0, 2))));
       degisti(); kasaCiz(); bildir(`${yeni.length} maç eklendi`);
-    } else if (b.id === "k-maas") {
-      const yeni = kasa.calisanlar.filter((c) => c.ucret > 0 && !kk.cikislar.some((x) => x.aciklama.startsWith(`Maaş · ${c.ad} ·`)));
-      if (!yeni.length) return bildir(kasa.calisanlar.some((c) => c.acik) ? "Çıkışı onaylanmamış çalışan var" : "Eklenecek maaş yok (saatlik ücret girilmemiş olabilir)");
-      kk.cikislar.push(...yeni.map((c) => ({ aciklama: `Maaş · ${c.ad} · ${saatSayi(c.saat)} saat${c.kesinti ? ` − kantin ${para(c.kesinti)}` : ""}`, tutar: c.ucret })));
-      degisti(); kasaCiz();
     } else if (b.id === "k-kaydet") kasaKaydet();
   });
 

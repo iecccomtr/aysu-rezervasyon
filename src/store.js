@@ -979,8 +979,9 @@ export class RezervasyonDeposu extends DurableObject {
   /** Aylık puantaj: kişi kişi günler, saatler ve ödenecek tutar. eposta verilirse sadece o kişi. */
   async puantajAy(ay, eposta) {
     if (!/^\d{4}-\d{2}$/.test(ay || "")) return { hata: "Geçersiz ay." };
-    const [m, kullanicilar, kd] = await Promise.all([this.st.list({ start: `p:${ay}-01`, end: `p:${ay}-31~` }), this.kullaniciListesi(),
-      this.kesintiDagit(`${ay}-31`)]);
+    const [m, kullanicilar, kd, avM] = await Promise.all([this.st.list({ start: `p:${ay}-01`, end: `p:${ay}-31~` }), this.kullaniciListesi(),
+      this.kesintiDagit(`${ay}-31`), this.st.list({ start: `av:${ay}-01`, end: `av:${ay}-31~` })]);
+    const avanslar = [...avM.entries()].map(([k, v]) => ({ ...v, anahtar: k }));
     const kisiler = new Map();
     for (const [anahtar, k] of m) {
       const [, gun, ...ep] = anahtar.split(":");
@@ -995,12 +996,50 @@ export class RezervasyonDeposu extends DurableObject {
       kisi.saat = Math.round((kisi.saat + saat) * 100) / 100;
       kisi.kesinti += ks;
     }
-    // Ödenecek = saat × saatlik ücret − kantin tüketimi
+    for (const a of avanslar) {
+      if (eposta && a.eposta !== eposta) continue;
+      if (!kisiler.has(a.eposta)) {
+        const u = kullanicilar.find((x) => x.eposta === a.eposta);
+        kisiler.set(a.eposta, { eposta: a.eposta, ad: u?.ad || a.ad, rol: ROLLER[u?.rol]?.ad || "", saatlikUcret: u?.saatlikUcret || 0, gunler: [], saat: 0, ucret: 0, brut: 0, kesinti: 0 });
+      }
+      const kisi = kisiler.get(a.eposta);
+      kisi.avans = (kisi.avans || 0) + a.tutar;
+      (kisi.avansListe ||= []).push({ gun: a.gun, tutar: a.tutar, not: a.not || "", anahtar: a.anahtar, ekleyen: a.ekleyen || "" });
+    }
+    // Ödenecek = saat × saatlik ücret − kantin tüketimi; kalan = ödenecek − verilen avanslar
     for (const kisi of kisiler.values()) {
       kisi.brut = Math.round(kisi.saat * kisi.saatlikUcret); kisi.ucret = kisi.brut - kisi.kesinti;
       kisi.bekleyenKesinti = kd.bekleyen.get(kisi.eposta) || 0; // henüz çalıştığı gün olmadı
+      kisi.avans = kisi.avans || 0; kisi.kalan = kisi.ucret - kisi.avans;
     }
     return { ay, kisiler: [...kisiler.values()].sort((a, b) => a.ad.localeCompare(b.ad, "tr")) };
+  }
+
+  /** Çalışana verilen avans / ödeme (Admin): av:<gün>:<eposta>:<id>  { eposta, ad, gun, tutar, not } */
+  async avansEkle({ eposta, gun, tutar: t, not }, yapan) {
+    return this.kilitli(async () => {
+      if (yapan?.rol !== "admin") return { hata: "Avansı sadece Admin girer." };
+      const u = await this.st.get(`u:${epostaNormalize(eposta)}`);
+      const g = tarihNormalize(gun) || bugunIsletme();
+      const tt = tutar(t);
+      if (!u) return { hata: "Çalışan bulunamadı." };
+      if (!tt) return { hata: "Tutar girin." };
+      const a = `av:${g}:${u.eposta}:${rastgele(5)}`;
+      await this.st.put(a, { eposta: u.eposta, ad: u.ad, gun: g, tutar: tt, not: kirp(not, 80), ekleyen: yapan.ad, zaman: simdiYazi() });
+      await this.kayitTut(yapan, "Avans / ödeme girdi", `${u.ad} · ${g} · ${tt} TL${not ? " · " + kirp(not, 80) : ""}`);
+      return { basarili: true };
+    });
+  }
+
+  async avansSil(anahtar, yapan) {
+    return this.kilitli(async () => {
+      if (yapan?.rol !== "admin") return { hata: "Avansı sadece Admin siler." };
+      const v = typeof anahtar === "string" && anahtar.startsWith("av:") ? await this.st.get(anahtar) : null;
+      if (!v) return { hata: "Kayıt bulunamadı." };
+      await this.st.delete(anahtar);
+      await this.kayitTut(yapan, "Avans / ödeme sildi", `${v.ad} · ${v.gun} · ${v.tutar} TL`);
+      return { basarili: true };
+    });
   }
 
   /** Yönetici düzeltmesi (unutulan çıkış vb.): saatler "HH:MM", gece yarısını geçen çıkış ertesi güne yazılır. */

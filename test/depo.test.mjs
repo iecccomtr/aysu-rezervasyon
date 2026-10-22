@@ -746,3 +746,20 @@ test("Kasa: Admin bugün gelen kaporayı kasadan silebilir, Müdür silemez", as
   const k2 = await d.kasaGetir("2026-10-19", admin);
   assert.equal(k2.kayit.gelenKaporalar.length, 0); assert.equal(k2.kayit.ozet.gelenKapora, 0);
 });
+
+test("Avans: Admin girer, puantajda kalan hakediş görünür; kasayı etkilemez", async () => {
+  const d = demoDepo({ PANEL_KURULUM_KODU: "k" });
+  const admin = await d.oturum((await d.panelKur({ kurulumKodu: "k", eposta: "admin@aysu.com", ad: "Admin", sifre: "aysu-2026!" })).token);
+  await d.kayitOl({ eposta: "p@aysu.com", ad: "Personel Bir", sifre: "personel-1", rol: "personel" });
+  await d.kullaniciGuncelle({ eposta: "p@aysu.com", rol: "personel", durum: "aktif", saatlikUcret: "100" }, admin);
+  const p = await d.oturum((await d.panelGiris({ eposta: "p@aysu.com", sifre: "personel-1" })).token);
+  saatiAyarla("2026-10-19T18:00"); await d.puantajGiris(p);
+  saatiAyarla("2026-10-19T23:30"); await d.puantajCikis(p); // 6 saat → 600
+  assert.match((await d.avansEkle({ eposta: "p@aysu.com", gun: "2026-10-19", tutar: 200 }, p)).hata, /Admin/);
+  assert.ok((await d.avansEkle({ eposta: "p@aysu.com", gun: "2026-10-19", tutar: "250", not: "günlük" }, admin)).basarili);
+  let kisi = (await d.puantajAy("2026-10")).kisiler[0];
+  assert.equal(kisi.avans, 250); assert.equal(kisi.kalan, 350);
+  assert.ok((await d.avansSil(kisi.avansListe[0].anahtar, admin)).basarili);
+  kisi = (await d.puantajAy("2026-10")).kisiler[0];
+  assert.equal(kisi.kalan, 600);
+});

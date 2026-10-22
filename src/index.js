@@ -315,6 +315,8 @@ async function panel(request, env, ctx, yol) {
       return json(await d.puantajAy(ay, ["admin", "mudur"].includes(ben.rol) ? null : ben.eposta));
     }
     case "POST puantaj/duzelt": return sonuc(await d.puantajDuzelt(g, ben));
+    case "POST avans": return json(await d.avansEkle(g, ben));
+    case "POST avans-sil": return json(await d.avansSil(g.anahtar, ben));
     case "GET kasa": { const r = await d.kasaGetir(url.searchParams.get("gun"), ben); return json(alisGizle(r, ben), r.hata ? 403 : 200); }
     case "POST kasa": {
       const r = await d.kasaKaydet(g, ben);

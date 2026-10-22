@@ -1687,11 +1687,11 @@
 
   // ---- Stok ----
   function stokCiz() {
-    const duzenler = ["admin", "mudur"].includes(ben.rol);
+    const duzenler = ["admin", "mudur"].includes(ben.rol), admin = ben.rol === "admin";
     const l = kasa.urunler;
     $("kasa-stok-alan").innerHTML = `<details class="kutu kasa-kart"><summary style="cursor:pointer"><b style="font-size:20px">Kantin stok</b> <span class="soluk">· ${l.filter((u) => u.aktif !== false && u.stok <= 5).length} ürün azaldı</span></summary>
-      <table class="stok-t" style="margin-top:8px"><thead><tr><th>Ürün</th><th>Alış</th><th>Satış</th><th>Stok</th></tr></thead><tbody>
-      ${l.map((u, i) => `<tr data-s="${i}" class="${u.aktif !== false && u.stok <= 5 ? "az" : ""}"${u.aktif === false ? ' style="opacity:.5"' : ""}><td>${kacis(u.ad)}</td><td>${para(u.alis)}</td><td>${para(u.satis)}</td><td>${u.stok}</td></tr>`).join("")}
+      <table class="stok-t" style="margin-top:8px"><thead><tr><th>Ürün</th>${admin ? "<th>Alış</th>" : ""}<th>Satış</th><th>Stok</th></tr></thead><tbody>
+      ${l.map((u, i) => `<tr data-s="${i}" class="${u.aktif !== false && u.stok <= 5 ? "az" : ""}"${u.aktif === false ? ' style="opacity:.5"' : ""}><td>${kacis(u.ad)}</td>${admin ? `<td>${para(u.alis)}</td>` : ""}<td>${para(u.satis)}</td><td>${u.stok}</td></tr>`).join("")}
       </tbody></table>
       ${duzenler ? '<div class="k-alt"><button class="dugme ikincil kucuk" type="button" id="s-ekle">+ Yeni ürün</button><span class="soluk" style="font-size:13px">Mal girişi, sayım ve fiyat için ürüne dokunun.</span></div>' : ""}
     </details>`;
@@ -1704,7 +1704,7 @@
     const ic = ac(u ? u.ad : "Yeni ürün", `
       <div class="alan"><label for="u-ad">Ürün adı</label><input id="u-ad" value="${kacis(u?.ad || "")}"></div>
       <div class="iki-alan">
-        <div class="alan"><label for="u-alis">Alış (₺)</label><input id="u-alis" inputmode="numeric" value="${u?.alis ?? ""}"></div>
+        ${ben.rol === "admin" ? `<div class="alan"><label for="u-alis">Alış (₺)</label><input id="u-alis" inputmode="numeric" value="${u?.alis ?? ""}"></div>` : ""}
         <div class="alan"><label for="u-satis">Satış (₺)</label><input id="u-satis" inputmode="numeric" value="${u?.satis ?? ""}"></div>
       </div>
       <div class="iki-alan">
@@ -1716,7 +1716,7 @@
       <div style="display:grid;gap:8px"><button class="dugme" type="button" id="u-kaydet">Kaydet</button>
       ${u && ben.rol === "admin" ? '<button class="dugme tehlike" type="button" id="u-sil">Ürünü sil</button>' : ""}</div>`);
     const gonder = async (ek) => {
-      const g = { id: u?.id, ad: $("u-ad").value, alis: $("u-alis").value, satis: $("u-satis").value, ...ek };
+      const g = { id: u?.id, ad: $("u-ad").value, alis: $("u-alis")?.value, satis: $("u-satis").value, ...ek };
       if (!ek.sil) {
         const gelen = Number($("u-gelen").value) || 0;
         if (String($("u-stok").value) !== String(u?.stok ?? 0)) g.stok = $("u-stok").value;

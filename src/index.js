@@ -308,13 +308,17 @@ async function panel(request, env, ctx, yol) {
       return json(await d.puantajAy(ay, ["admin", "mudur"].includes(ben.rol) ? null : ben.eposta));
     }
     case "POST puantaj/duzelt": return sonuc(await d.puantajDuzelt(g, ben));
-    case "GET kasa": { const r = await d.kasaGetir(url.searchParams.get("gun"), ben); return json(r, r.hata ? 403 : 200); }
-    case "POST kasa": { const r = await d.kasaKaydet(g, ben); return json(r, r.hata ? 400 : 200); }
+    case "GET kasa": { const r = await d.kasaGetir(url.searchParams.get("gun"), ben); return json(alisGizle(r, ben), r.hata ? 403 : 200); }
+    case "POST kasa": { const r = await d.kasaKaydet(g, ben); return json(alisGizle(r, ben), r.hata ? 400 : 200); }
     case "GET kasa/ay":
       if (ben.rol !== "admin") return json({ hata: "Aylık kasa özeti sadece Admin içindir." }, 403);
       return json(await d.kasaAy(url.searchParams.get("ay") || simdi().tarih.slice(0, 7)));
-    case "GET urunler": return json(await d.urunler());
-    case "POST urun": { const r = await d.urunKaydet(g, ben); return json(r, r.hata ? 400 : 200); }
+    case "GET urunler": return json(alisGizle({ urunler: await d.urunler() }, ben).urunler);
+    case "POST urun": {
+      // Alış fiyatını sadece Admin değiştirir (diğerleri göremez de)
+      const r = await d.urunKaydet(ben.rol === "admin" ? g : { ...g, alis: undefined }, ben);
+      return json(alisGizle(r, ben), r.hata ? 400 : 200);
+    }
     case "POST fiyat": {
       const r = await d.fiyatKaydet(g, ben);
       if (r.basarili) onbellegiTemizle(request, ctx);
@@ -399,6 +403,20 @@ async function onayEpostalari(env, d, kullanici, koken) {
     dugme: { yazi: `${kullanici.ad} kullanıcısını onayla`, link: `${koken}/panel/#onay=${b.token}` },
     alt: "Bağlantı 7 gün geçerli ve tek kullanımlık. Açılan sayfada Onayla ya da Reddet'i seçin. Kişiyi tanımıyorsanız reddedin.",
   })));
+}
+
+/** Kantin alış fiyatı ve kâr sadece Admin'e gider. */
+function alisGizle(r, ben) {
+  if (!r || ben.rol === "admin") return r;
+  const v = JSON.parse(JSON.stringify(r));
+  const temizle = (u) => { if (u && typeof u === "object") delete u.alis; };
+  (v.urunler || []).forEach(temizle);
+  temizle(v.urun);
+  if (v.kayit) {
+    Object.values(v.kayit.birimler || {}).forEach(temizle);
+    if (v.kayit.ozet) delete v.kayit.ozet.kantinKar;
+  }
+  return v;
 }
 
 const ISLEM_ADLARI = {

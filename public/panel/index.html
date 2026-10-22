@@ -127,6 +127,10 @@
   .mac-ust .saat-i { background: #ef7f1a; color: #fff; border-color: #ef7f1a; }
   .mac.t-abone .saat-i { background: var(--mavi, #2b5fb3); border-color: var(--mavi, #2b5fb3); }
   .mac.t-bos .saat-i { background: #9aa5ae; border-color: #9aa5ae; }
+  .vip-sec { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 8px; align-items: center; }
+  .vip-sec label { display: flex; gap: 6px; align-items: center; font-weight: 600; font-size: 15px; cursor: pointer; }
+  .vip-sec input { width: 20px; height: 20px; accent-color: #ef7f1a; }
+  .vip-sec small { color: var(--gri); font-weight: 500; }
   .mac .k-alt { border-top: 1px dashed #cfdbe5; padding-top: 8px; }
   .mac-ust { display: grid; grid-template-columns: 66px 104px 1fr 28px; gap: 6px; align-items: center; margin-bottom: 6px; }
   .mac-ust input, .mac-ust select, .k-ic input { width: 100%; border: 1px solid #b5c3cf; border-radius: 8px; padding: 7px 8px; font-size: 16px; background: var(--kart); min-width: 0; }
@@ -1541,11 +1545,12 @@
             <input data-yol="maclar.${i}.ad" value="${kacis(m.ad)}" placeholder="İsim / abone no" aria-label="İsim">
             <button class="x-sil" type="button" data-sil="maclar.${i}" aria-label="Maçı sil">×</button>
           </div>
-          <div class="k-ic">
+          <div class="k-ic" style="grid-template-columns:1fr 1fr">
             <div><label>Maç ücreti</label><input data-yol="maclar.${i}.ucret" value="${m.ucret || ""}" inputmode="numeric" placeholder="0"></div>
-            <div><label>VIP</label><input data-yol="maclar.${i}.vip" value="${m.vip || ""}" inputmode="numeric" placeholder="0"></div>
-            <div><label title="Önceden alınan kapora / IBAN ile ödenen">Ön ödeme</label><input data-yol="maclar.${i}.onOdeme" value="${m.onOdeme || ""}" inputmode="numeric" placeholder="0"></div>
+            <div><label title="Önceden alınan kapora / IBAN ile ödenen">Ön ödeme (kapora)</label><input data-yol="maclar.${i}.onOdeme" value="${m.onOdeme || ""}" inputmode="numeric" placeholder="0"></div>
           </div>
+          <div class="vip-sec">${[["spiker", "VIP spiker"], ["hakem", "VIP hakem"]].map(([x, ad]) => `<label><input type="checkbox" data-vip="${i}" value="${x}"${(m.ekstra || []).includes(x) ? " checked" : ""}> ${ad} <small>+${para(kasa.fiyat[x])}</small></label>`).join("")}
+            ${m.vip && !(m.ekstra || []).length ? `<small class="soluk">VIP ${para(m.vip)}</small>` : ""}</div>
           <div class="k-alt">
             <span class="adim" aria-label="Krampon"><button type="button" data-adim="maclar.${i}.krampon" data-d="-1">−</button><span>👟 ${m.krampon || 0}</span><button type="button" data-adim="maclar.${i}.krampon" data-d="1">+</button></span>
             <span class="adim" aria-label="Eldiven"><button type="button" data-adim="maclar.${i}.eldiven" data-d="-1">−</button><span>🧤 ${m.eldiven || 0}</span><button type="button" data-adim="maclar.${i}.eldiven" data-d="1">+</button></span>
@@ -1618,6 +1623,12 @@
     } else kasaOzetCiz();
   });
   $("v-kasa").addEventListener("change", (e) => {
+    if (e.target.dataset.vip !== undefined) {
+      const m = kk.maclar[e.target.dataset.vip];
+      const l = new Set(m.ekstra || []); e.target.checked ? l.add(e.target.value) : l.delete(e.target.value);
+      m.ekstra = [...l]; m.vip = m.ekstra.reduce((t, x) => t + (kasa.fiyat[x] || 0), 0);
+      degisti(); kasaOzetCiz(); return;
+    }
     if (!e.target.dataset.yol || e.target.tagName !== "SELECT") return;
     yolYaz(e.target.dataset.yol, e.target.value); degisti();
     const kart = e.target.closest(".mac"); if (kart) kart.className = `mac t-${e.target.value}`;

@@ -1058,7 +1058,7 @@ export class RezervasyonDeposu extends DurableObject {
         const r = s.rez;
         const vip = (r.ekstra || []).reduce((t, x) => t + (f[x] ?? EKSTRALAR[x]?.ucret ?? 0), 0);
         const onOdeme = Number(r.kaporaToplam) || tutar(r.kapora);
-        satirlar.push({ saat, tur: "normal", ad: r.ad, ucret: Math.max(0, (Number(r.ucret) || f.mac) - vip), vip, onOdeme, kayitNo: r.kayitNo, kaynak: "takvim" });
+        satirlar.push({ saat, tur: "normal", ad: r.ad, ucret: Math.max(0, (Number(r.ucret) || f.mac) - vip), vip, ekstra: (r.ekstra || []).filter((x) => EKSTRALAR[x]), onOdeme, kayitNo: r.kayitNo, kaynak: "takvim" });
       }
     }
     return satirlar;
@@ -1151,6 +1151,7 @@ export class RezervasyonDeposu extends DurableObject {
           eldiven: Math.min(50, Math.max(0, Math.round(Number(m?.eldiven)) || 0)),
           kantin: kantinTemiz(m?.kantin), ...(m?.kayitNo ? { kayitNo: kirp(m.kayitNo, 20) } : {}),
           ...(m?.kaynak === "takvim" ? { kaynak: "takvim" } : {}),
+          ekstra: [...new Set(Array.isArray(m?.ekstra) ? m.ekstra : [])].filter((x) => EKSTRALAR[x]),
         })).sort((a, b) => SAAT_SIRA(a.saat || "00:00") - SAAT_SIRA(b.saat || "00:00")),
         girisler: satirlar(g.girisler), cikislar: satirlar(g.cikislar),
         veresiye: (Array.isArray(g.veresiye) ? g.veresiye : []).slice(0, 40)

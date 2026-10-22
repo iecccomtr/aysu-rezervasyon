@@ -244,6 +244,11 @@ async function panel(request, env, ctx, yol) {
     h.gerisiVar = ben.rol === "admin";
     return json(yonetici ? h : haftaSaltOkur(h));
   }
+  // Puantaj: her çalışan kendi giriş / çıkışını onaylar
+  if (yol === "puantaj/bugun" && request.method === "GET") return json(await d.puantajBugun(ben));
+  if (yol === "puantaj/giris" && post) { const r = await d.puantajGiris(ben); return json(r, r.hata ? 400 : 200); }
+  if (yol === "puantaj/cikis" && post) { const r = await d.puantajCikis(ben); return json(r, r.hata ? 400 : 200); }
+
   if (!yonetici) return json({ hata: "Bu işlem için yetkiniz yok." }, 403);
 
   const g = post ? (await govdeOku(request)) || {} : null;
@@ -297,6 +302,19 @@ async function panel(request, env, ctx, yol) {
     case "POST musteri-sil": { const r = await d.musteriSil(g.telefon, ben); return json(r, r.hata ? 400 : 200); }
     case "GET kullanicilar": return json(await d.kullanicilar());
     case "GET fiyat": return json(await d.fiyatAyar());
+    case "GET puantaj": {
+      // Aylık puantaj raporu: Admin ve Müdür herkesi, Müdür Yardımcısı sadece kendini görür
+      const ay = url.searchParams.get("ay") || simdi().tarih.slice(0, 7);
+      return json(await d.puantajAy(ay, ["admin", "mudur"].includes(ben.rol) ? null : ben.eposta));
+    }
+    case "POST puantaj/duzelt": return sonuc(await d.puantajDuzelt(g, ben));
+    case "GET kasa": { const r = await d.kasaGetir(url.searchParams.get("gun"), ben); return json(r, r.hata ? 403 : 200); }
+    case "POST kasa": { const r = await d.kasaKaydet(g, ben); return json(r, r.hata ? 400 : 200); }
+    case "GET kasa/ay":
+      if (ben.rol !== "admin") return json({ hata: "Aylık kasa özeti sadece Admin içindir." }, 403);
+      return json(await d.kasaAy(url.searchParams.get("ay") || simdi().tarih.slice(0, 7)));
+    case "GET urunler": return json(await d.urunler());
+    case "POST urun": { const r = await d.urunKaydet(g, ben); return json(r, r.hata ? 400 : 200); }
     case "POST fiyat": {
       const r = await d.fiyatKaydet(g, ben);
       if (r.basarili) onbellegiTemizle(request, ctx);
@@ -399,6 +417,7 @@ function islemDetayi(yol, g, r) {
     case "musteri-not": return `${g.telefon || ""} · etiket: ${g.etiket || "—"} · not: ${String(g.not || "—").slice(0, 80)}`;
     case "kullanici": return `${g.eposta} · ${[g.rol, g.durum].filter(Boolean).join(" · ")}`;
     case "kullanici-sil": return `${g.eposta}`;
+    case "puantaj/duzelt": return "";
     default: return "";
   }
 }

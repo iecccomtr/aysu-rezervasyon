@@ -77,6 +77,10 @@ const slotlarOf = (a) => (Array.isArray(a.slotlar) ? a.slotlar : (a.gun != null 
 const aboneNo = (a) => (Number.isInteger(a.no) && a.no > 0 ? a.no : Number(String(a.not || "").match(/abone\s*(\d+)/i)?.[1]) || null);
 const SAAT_SIRA = (saat) => (Number(saat.slice(0, 2)) < 6 ? 24 : 0) + Number(saat.slice(0, 2));
 const slotSirala = (l) => [...l].sort((x, y) => x.gun - y.gun || SAAT_SIRA(x.saat) - SAAT_SIRA(y.saat));
+/** ms → Türkiye saatiyle "HH:MM" */
+const zamanYazi = (ms) => new Date(ms + 3 * 3600_000).toISOString().slice(11, 16);
+/** Puantaj kaydındaki çalışılan saat (2 ondalık); çıkış yoksa 0 */
+const saatFark = (k) => (k?.giris && k?.cikis ? Math.round(((k.cikis - k.giris) / 3600_000) * 100) / 100 : 0);
 const simdiYazi = () => new Date(Date.now() + 3 * 3600_000).toISOString().slice(0, 16).replace("T", " ");
 const kirp = (s, n) => String(s ?? "").trim().slice(0, n);
 
@@ -100,6 +104,89 @@ function esitMi(a, b) {
   for (let i = 0; i < a.length; i++) fark |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return fark === 0;
 }
+
+const KANTIN_TOHUM = [
+  ["BİSKREM", 20, 50, 0],
+  ["POP KEK ÇİKOLATALI", 12, 30, 16],
+  ["POP KEK MUZLU", 12, 30, 10],
+  ["ÜLKER ÇİZİ", 14, 35, 19],
+  ["ÇUBUK KRAKER BAHARATLI", 12, 30, 18],
+  ["ÇUBUK KRAKER ACILI", 12, 30, 26],
+  ["ÇUBUK KRAKER PEYNİR", 12, 30, 21],
+  ["ÇUBUK KRAKER SADE", 6, 15, 24],
+  ["TOPKEK MEYVELİ", 12, 30, 24],
+  ["TOPKEK KAKAO", 12, 30, 23],
+  ["BROWNİ INT", 22, 55, 15],
+  ["PIZZA KRKR", 8, 20, 16],
+  ["CANGA", 20, 50, 31],
+  ["METRO", 14, 35, 34],
+  ["Ç. GÖFRET", 14, 35, 16],
+  ["LAVİVA", 22, 55, 10],
+  ["ÇOKONAT", 22, 55, 13],
+  ["DİDO", 22, 55, 8],
+  ["KARAM", 24, 60, 0],
+  ["ALBENİ", 16, 40, 15],
+  ["SADE GAZOZ", 16, 40, 21],
+  ["PORTAKALLI", 16, 40, 25],
+  ["SU 0,50", 10, 25, 305],
+  ["SODA LİMONLU", 20, 50, 34],
+  ["SODA ELMALI", 20, 50, 33],
+  ["SODA KARPUZ ÇİLEK", 20, 50, 29],
+  ["SADE SODA", 12, 30, 26],
+  ["FUSE TEA LİMONLU", 38, 95, 8],
+  ["FUSE TEA ŞEFTALİ", 38, 95, 8],
+  ["ÇAY - BARDAK - ORALET", 10, 25, 904],
+  ["NESCAFE KLASİK", 12, 30, 41],
+  ["NESCAFE 3Ü 1 ARADA", 12, 30, 0],
+  ["NESCAFE 2Sİ 1 ARADA", 12, 30, 48],
+  ["NESCAFE SÜTLÜ KÖPÜKLÜ", 12, 30, 65],
+  ["KUTU MEYVE SUYU ŞEFTALİ", 14, 35, 26],
+  ["KUTU MEYVE SUYU KARIŞIK", 14, 35, 26],
+  ["ENERJİ", 40, 100, 6],
+  ["FİLTRE / TÜRK KAHVESİ", 28, 70, 904],
+  ["JETON", 4, 10, 96],
+];
+
+// ---- Kasa defteri yardımcıları ----
+/** "1.250 TL", "1250", 1250 → 1250 (negatif olmaz) */
+const tutar = (v) => {
+  const n = Math.round(Number(String(v ?? "").replace(/\./g, "").replace(",", ".").replace(/[^\d.]/g, "")));
+  return Number.isFinite(n) ? Math.min(10_000_000, Math.max(0, n)) : 0;
+};
+/** Personel / ücretsiz tüketim satırları (kasaya para girmez, stoktan düşer) */
+const IKRAM_KIMLER = ["VIP / ücretsiz ikram", "Müdür", "Müdür Yardımcısı", "Şef", "Personel"];
+/** Bir kasa günündeki toplam ürün çıkışı {urunId: adet} (satış + ikram) */
+export const kasaTuketim = (k) => {
+  const t = {};
+  const ekle = (o) => { for (const [id, a] of Object.entries(o || {})) t[id] = (t[id] || 0) + (Number(a) || 0); };
+  for (const m of k.maclar || []) ekle(m.kantin);
+  for (const o of Object.values(k.ikram || {})) ekle(o);
+  return t;
+};
+/** Kasa günü hesapları (sunucu ve panel aynı formülü kullanır) */
+export const kasaOzet = (k) => {
+  const b = k.birimler || {}, kira = k.kira || { krampon: 0, eldiven: 0 };
+  const top = (l) => (l || []).reduce((t, x) => t + (Number(x.tutar) || 0), 0);
+  const o = { mac: 0, vip: 0, kantin: 0, kantinKar: 0, kramponAdet: 0, eldivenAdet: 0, krampon: 0, eldiven: 0, onOdeme: 0, ikramDeger: 0 };
+  o.maclar = (k.maclar || []).map((m) => {
+    let kantin = 0;
+    for (const [id, a] of Object.entries(m.kantin || {})) { kantin += a * (b[id]?.satis || 0); o.kantinKar += a * ((b[id]?.satis || 0) - (b[id]?.alis || 0)); }
+    const krampon = (m.krampon || 0) * kira.krampon, eldiven = (m.eldiven || 0) * kira.eldiven;
+    o.mac += m.ucret || 0; o.vip += m.vip || 0; o.kantin += kantin; o.onOdeme += m.onOdeme || 0;
+    o.kramponAdet += m.krampon || 0; o.eldivenAdet += m.eldiven || 0; o.krampon += krampon; o.eldiven += eldiven;
+    return { saat: m.saat, kantin, toplam: (m.ucret || 0) + (m.vip || 0) + kantin + krampon + eldiven };
+  });
+  for (const v of Object.values(k.ikram || {})) for (const [id, a] of Object.entries(v)) o.ikramDeger += a * (b[id]?.satis || 0);
+  o.ciro = o.mac + o.vip + o.kantin + o.krampon + o.eldiven;
+  o.giris = top(k.girisler); o.cikis = top(k.cikislar); o.veresiye = top(k.veresiye);
+  o.devir = Number(k.devir) || 0;
+  o.kasaToplam = o.devir + o.ciro + o.giris;
+  // Ön ödeme (önceden alınan kapora / IBAN) ve veresiye kasaya bugün girmez
+  o.olmasiGereken = o.kasaToplam - o.cikis - o.veresiye - o.onOdeme;
+  o.fark = k.sayilan === null || k.sayilan === undefined ? null : k.sayilan - o.olmasiGereken;
+  o.teslim = k.birakilan === null || k.birakilan === undefined ? null : (k.sayilan ?? o.olmasiGereken) - k.birakilan;
+  return o;
+};
 
 export class RezervasyonDeposu extends DurableObject {
   constructor(ctx, env) {
@@ -688,7 +775,7 @@ export class RezervasyonDeposu extends DurableObject {
   }
 
   /** Rol / durum / bilgi değişikliği. Yapan: oturumdaki yönetici. */
-  async kullaniciGuncelle({ eposta, rol, durum, ad, telefon: tel }, yapan) {
+  async kullaniciGuncelle({ eposta, rol, durum, ad, telefon: tel, saatlikUcret }, yapan) {
     return this.kilitli(async () => {
       const e = epostaNormalize(eposta);
       const u = e && (await this.st.get(`u:${e}`));
@@ -704,6 +791,12 @@ export class RezervasyonDeposu extends DurableObject {
       }
       if (ad !== undefined && kirp(ad, 60).length >= 2) yeni.ad = kirp(ad, 60);
       if (tel !== undefined) yeni.telefon = telefonNormalize(tel) || "";
+      if (saatlikUcret !== undefined && saatlikUcret !== null && saatlikUcret !== "") {
+        if (yapan?.rol !== "admin") return { hata: "Saatlik ücreti sadece Admin belirler." };
+        const n = Number(String(saatlikUcret).replace(",", "."));
+        if (!Number.isFinite(n) || n < 0 || n > 100000) return { hata: "Geçersiz saatlik ücret." };
+        yeni.saatlikUcret = Math.round(n * 100) / 100;
+      }
       if (yeni.durum === "aktif" && !ROLLER[yeni.rol]) return { hata: "Hesabı açmak için önce bir rol seçin." };
 
       const hata = this.yetkiKontrol(u, yeni, yapan);
@@ -747,6 +840,114 @@ export class RezervasyonDeposu extends DurableObject {
     });
   }
 
+  // ================= Puantaj (çalışan giriş / çıkış, saatlik ödeme) =================
+  //   p:<işletme günü>:<eposta>  { giris, cikis (ms), duzelten, not }
+
+  /** Bir işletme günü için beklenen işe başlama: ilk maçtan 1 saat önce. */
+  async beklenenBaslama(gun) {
+    const d = await this.durumYukle(gun, gun);
+    const ilk = this.saatListesi(d, gun, gun).find((saat) => { const t = this.slot(d, gun, saat).tur; return t === "rez" || t === "abone"; });
+    if (!ilk) return { gun, ilkMac: null, baslama: null };
+    const h = (Number(ilk.slice(0, 2)) + 23) % 24;
+    return { gun, ilkMac: ilk, baslama: `${String(h).padStart(2, "0")}:00` };
+  }
+
+  /** Çalışanın bugünkü kartı: beklenen saat, kendi giriş/çıkışı, bu ayki toplam. */
+  async puantajBugun(ben) {
+    const n = simdi();
+    const gun = isletmeGunu(n.tarih, n.saat);
+    const [b, kayit, ay, u] = await Promise.all([
+      this.beklenenBaslama(gun), this.st.get(`p:${gun}:${ben.eposta}`), this.puantajAy(gun.slice(0, 7), ben.eposta),
+      this.st.get(`u:${ben.eposta}`),
+    ]);
+    const k = ay.kisiler[0];
+    return { ...b, kayit: kayit || null, buAy: { saat: k?.saat || 0, ucret: k?.ucret || 0 }, saatlikUcret: u?.saatlikUcret || 0 };
+  }
+
+  async puantajGiris(ben) {
+    return this.kilitli(async () => {
+      const n = simdi();
+      const gun = isletmeGunu(n.tarih, n.saat);
+      const anahtar = `p:${gun}:${ben.eposta}`;
+      const k = await this.st.get(anahtar);
+      if (k?.giris && !k.cikis) return { hata: "Girişiniz zaten onaylı. İşten çıkarken 'Çıkışı onayla'ya basın." };
+      if (k?.cikis) return { hata: "Bugünkü giriş ve çıkışınız kayıtlı. Düzeltme için yöneticinize başvurun." };
+      const kayit = { giris: Date.now(), cikis: null, ad: ben.ad };
+      await this.st.put(anahtar, kayit);
+      await this.kayitTut(ben, "İşe giriş onayladı", `${gun} · ${zamanYazi(kayit.giris)}`);
+      return { basarili: true, gun, kayit };
+    });
+  }
+
+  async puantajCikis(ben) {
+    return this.kilitli(async () => {
+      const n = simdi();
+      // Gece yarısını geçen vardiya: önce bugünün, yoksa dünün açık girişine bakılır
+      const gunler = [isletmeGunu(n.tarih, n.saat), gunEkle(isletmeGunu(n.tarih, n.saat), -1)];
+      for (const gun of gunler) {
+        const anahtar = `p:${gun}:${ben.eposta}`;
+        const k = await this.st.get(anahtar);
+        if (k?.giris && !k.cikis) {
+          if (Date.now() - k.giris > 20 * 3600_000) return { hata: "Açık girişiniz çok eski. Yöneticinizden düzeltmesini isteyin." };
+          const kayit = { ...k, cikis: Date.now() };
+          await this.st.put(anahtar, kayit);
+          await this.kayitTut(ben, "İşten çıkış onayladı", `${gun} · ${zamanYazi(kayit.cikis)} · ${saatFark(kayit)} saat`);
+          return { basarili: true, gun, kayit };
+        }
+      }
+      return { hata: "Açık bir girişiniz yok. Önce 'Girişi onayla'ya basın." };
+    });
+  }
+
+  /** Aylık puantaj: kişi kişi günler, saatler ve ödenecek tutar. eposta verilirse sadece o kişi. */
+  async puantajAy(ay, eposta) {
+    if (!/^\d{4}-\d{2}$/.test(ay || "")) return { hata: "Geçersiz ay." };
+    const [m, kullanicilar] = await Promise.all([this.st.list({ start: `p:${ay}-01`, end: `p:${ay}-31~` }), this.kullaniciListesi()]);
+    const kisiler = new Map();
+    for (const [anahtar, k] of m) {
+      const [, gun, ...ep] = anahtar.split(":");
+      const e = ep.join(":");
+      if (eposta && e !== eposta) continue;
+      const u = kullanicilar.find((x) => x.eposta === e);
+      if (!kisiler.has(e)) kisiler.set(e, { eposta: e, ad: u?.ad || k.ad || e, rol: ROLLER[u?.rol]?.ad || "", saatlikUcret: u?.saatlikUcret || 0, gunler: [], saat: 0, ucret: 0 });
+      const kisi = kisiler.get(e);
+      const saat = saatFark(k);
+      kisi.gunler.push({ gun, giris: k.giris ? zamanYazi(k.giris) : null, cikis: k.cikis ? zamanYazi(k.cikis) : null, saat, acik: Boolean(k.giris && !k.cikis), duzelten: k.duzelten || null });
+      kisi.saat = Math.round((kisi.saat + saat) * 100) / 100;
+    }
+    for (const kisi of kisiler.values()) kisi.ucret = Math.round(kisi.saat * kisi.saatlikUcret);
+    return { ay, kisiler: [...kisiler.values()].sort((a, b) => a.ad.localeCompare(b.ad, "tr")) };
+  }
+
+  /** Yönetici düzeltmesi (unutulan çıkış vb.): saatler "HH:MM", gece yarısını geçen çıkış ertesi güne yazılır. */
+  async puantajDuzelt({ eposta, gun, giris, cikis, sil }, yapan) {
+    return this.kilitli(async () => {
+      if (!yapan || !["admin", "mudur"].includes(yapan.rol)) return { hata: "Puantajı sadece Admin ve Müdür düzeltebilir." };
+      const g = tarihNormalize(gun);
+      const u = await this.st.get(`u:${epostaNormalize(eposta)}`);
+      if (!g || !u) return { hata: "Kişi veya gün bulunamadı." };
+      const anahtar = `p:${g}:${u.eposta}`;
+      const eski = await this.st.get(anahtar);
+      if (sil) {
+        await this.st.delete(anahtar);
+        await this.kayitTut(yapan, "Puantaj kaydını sildi", `${u.ad} · ${g}`);
+        return { basarili: true };
+      }
+      const ms = (s, sonraki) => {
+        const x = saatNormalize(s); if (!x) return null;
+        const t = macZamani(g, x);
+        return sonraki && Number(x.slice(0, 2)) < 6 ? t + 86400_000 : t;
+      };
+      const gi = ms(giris, false), ci = cikis ? ms(cikis, true) : null;
+      if (!gi) return { hata: "Giriş saati gerekli (SS:DD)." };
+      if (ci && ci <= gi) return { hata: "Çıkış girişten sonra olmalı." };
+      const yeni = { ...(eski || {}), ad: u.ad, giris: gi, cikis: ci, duzelten: yapan.ad };
+      await this.st.put(anahtar, yeni);
+      await this.kayitTut(yapan, "Puantaj düzeltti", `${u.ad} · ${g} · giriş ${eski?.giris ? zamanYazi(eski.giris) : "—"} → ${zamanYazi(gi)} · çıkış ${eski?.cikis ? zamanYazi(eski.cikis) : "—"} → ${ci ? zamanYazi(ci) : "—"}`);
+      return { basarili: true, kayit: yeni };
+    });
+  }
+
   // ================= Fiyatlar (Admin panelden değiştirir) =================
   //   ayar:fiyat  { mac, kapora, spiker, hakem }
 
@@ -756,6 +957,7 @@ export class RezervasyonDeposu extends DurableObject {
       this._fiyat = {
         mac: k.mac ?? FIYATLAR.gunduz, kapora: k.kapora ?? FIYATLAR.kapora,
         spiker: k.spiker ?? EKSTRALAR.spiker.ucret, hakem: k.hakem ?? EKSTRALAR.hakem.ucret,
+        abone: k.abone ?? 3200, krampon: k.krampon ?? 100, eldiven: k.eldiven ?? 100,
       };
     }
     return this._fiyat;
@@ -766,7 +968,7 @@ export class RezervasyonDeposu extends DurableObject {
       if (yapan?.rol !== "admin") return { hata: "Fiyatları sadece Admin değiştirebilir." };
       const eski = await this.fiyatAyar();
       const yeni = { ...eski };
-      for (const [a, enAz, enCok] of [["mac", 100, 100000], ["kapora", 0, 100000], ["spiker", 0, 100000], ["hakem", 0, 100000]]) {
+      for (const [a, enAz, enCok] of [["mac", 100, 100000], ["kapora", 0, 100000], ["spiker", 0, 100000], ["hakem", 0, 100000], ["abone", 0, 100000], ["krampon", 0, 10000], ["eldiven", 0, 10000]]) {
         if (girdi[a] === undefined || girdi[a] === "") continue;
         const n = Math.round(Number(String(girdi[a]).replace(/[^\d]/g, "")));
         if (!Number.isFinite(n) || n < enAz || n > enCok) return { hata: "Geçersiz tutar." };
@@ -775,11 +977,186 @@ export class RezervasyonDeposu extends DurableObject {
       if (yeni.kapora > yeni.mac) return { hata: "Kapora maç ücretinden büyük olamaz." };
       await this.st.put("ayar:fiyat", yeni);
       this._fiyat = yeni;
-      const ad = { mac: "Maç", kapora: "Kapora", spiker: "VIP spiker", hakem: "VIP hakem" };
+      const ad = { mac: "Maç", kapora: "Kapora", spiker: "VIP spiker", hakem: "VIP hakem", abone: "Abone maç", krampon: "Krampon kirası", eldiven: "Eldiven kirası" };
       const fark = Object.keys(ad).filter((a) => eski[a] !== yeni[a]).map((a) => `${ad[a]}: ${eski[a]} → ${yeni[a]} TL`);
       if (fark.length) await this.kayitTut(yapan, "Fiyatları değiştirdi", fark.join(" · "));
       return { basarili: true, fiyat: yeni };
     });
+  }
+
+  // ================= Kasa defteri (günlük kasa raporu) =================
+  //   urun:<id>        kantin ürünü { id, ad, alis, satis, stok, sira, aktif }
+  //   kasa:<iş. günü>  { gun, devir, maclar[], girisler[], cikislar[], veresiye[], ikram{}, birakilan, sayilan, not, birimler{}, kira{}, ozet{} }
+
+  async urunler() {
+    const m = await this.st.list({ prefix: "urun:" });
+    if (!m.size && !(await this.st.get("ayar:urunTohum"))) {
+      // İlk açılışta eski Excel kasa raporundaki ürünler (alış, satış, son stok)
+      const yeni = {};
+      KANTIN_TOHUM.forEach(([ad, alis, satis, stok], i) => {
+        const id = `u${String(i + 1).padStart(3, "0")}`;
+        yeni[`urun:${id}`] = { id, ad, alis, satis, stok, sira: i + 1, aktif: true };
+      });
+      yeni["ayar:urunTohum"] = true;
+      const anahtarlar = Object.keys(yeni);
+      for (let i = 0; i < anahtarlar.length; i += 100) {
+        await this.st.put(Object.fromEntries(anahtarlar.slice(i, i + 100).map((k) => [k, yeni[k]])));
+      }
+      return Object.entries(yeni).filter(([k]) => k.startsWith("urun:")).map(([, v]) => v);
+    }
+    return [...m.values()].sort((a, b) => (a.sira || 0) - (b.sira || 0));
+  }
+
+  /** Ürün ekle / düzenle / stok sayımı (Admin, Müdür). stokEkle: gelen mal adedi. */
+  async urunKaydet({ id, ad, alis, satis, stok, stokEkle, aktif, sil }, yapan) {
+    return this.kilitli(async () => {
+      if (!["admin", "mudur"].includes(yapan?.rol)) return { hata: "Ürünleri sadece Admin ve Müdür düzenler." };
+      await this.urunler();
+      const eski = id ? await this.st.get(`urun:${id}`) : null;
+      if (id && !eski) return { hata: "Ürün bulunamadı." };
+      if (sil) {
+        await this.st.delete(`urun:${id}`);
+        await this.kayitTut(yapan, "Kantin ürünü sildi", eski.ad);
+        return { basarili: true };
+      }
+      const yeni = eski ? { ...eski } : { id: `u${Date.now().toString(36)}${rastgele(2)}`, stok: 0, aktif: true, sira: 9999 };
+      if (ad !== undefined) { yeni.ad = kirp(ad, 40).toLocaleUpperCase("tr"); if (!yeni.ad) return { hata: "Ürün adı gerekli." }; }
+      if (!yeni.ad) return { hata: "Ürün adı gerekli." };
+      if (alis !== undefined && alis !== "") yeni.alis = tutar(alis);
+      if (satis !== undefined && satis !== "") yeni.satis = tutar(satis);
+      if (stok !== undefined && stok !== "") yeni.stok = Math.round(Number(stok)) || 0;
+      if (stokEkle) yeni.stok = (yeni.stok || 0) + (Math.round(Number(stokEkle)) || 0);
+      if (aktif !== undefined) yeni.aktif = Boolean(aktif);
+      await this.st.put(`urun:${yeni.id}`, yeni);
+      const fark = eski
+        ? ["ad", "alis", "satis", "stok", "aktif"].filter((a) => eski[a] !== yeni[a]).map((a) => `${{ ad: "ad", alis: "alış", satis: "satış", stok: "stok", aktif: "satışta" }[a]}: ${eski[a]} → ${yeni[a]}`)
+        : [`alış ${yeni.alis || 0} · satış ${yeni.satis || 0} · stok ${yeni.stok}`];
+      if (fark.length) await this.kayitTut(yapan, eski ? "Kantin ürünü düzenledi" : "Kantin ürünü ekledi", `${yeni.ad} · ${fark.join(" · ")}`);
+      return { basarili: true, urun: yeni };
+    });
+  }
+
+  /** Admin her günü; Müdür / Müdür Yrd. sadece bugünü ve dünü görür, düzenler. */
+  kasaYetkili(yapan, gun) {
+    if (!yapan || !ROLLER[yapan.rol]?.yonetici) return false;
+    if (yapan.rol === "admin") return true;
+    const n = simdi();
+    const bugun = isletmeGunu(n.tarih, n.saat);
+    return gun === bugun || gun === gunEkle(bugun, -1);
+  }
+
+  /** O günün takvimindeki maçlar → kasa satırı önerisi */
+  async kasaTakvim(gun) {
+    const [d, f] = await Promise.all([this.durumYukle(gun, gun), this.fiyatAyar()]);
+    const satirlar = [];
+    for (const saat of this.saatListesi(d, gun, gun)) {
+      const s = this.slot(d, gun, saat);
+      if (s.tur === "abone") {
+        const no = aboneNo(s.abone);
+        satirlar.push({ saat, tur: "abone", ad: no ? `Abone ${no}` : s.abone.ad, ucret: tutar(s.abone.ucret) || f.abone, vip: 0, onOdeme: 0 });
+      } else if (s.tur === "rez" && s.rez.durum === DURUM.onayli) {
+        const r = s.rez;
+        const vip = (r.ekstra || []).reduce((t, x) => t + (f[x] ?? EKSTRALAR[x]?.ucret ?? 0), 0);
+        const onOdeme = Number(r.kaporaToplam) || tutar(r.kapora);
+        satirlar.push({ saat, tur: "normal", ad: r.ad, ucret: Math.max(0, (Number(r.ucret) || f.mac) - vip), vip, onOdeme, kayitNo: r.kayitNo });
+      }
+    }
+    return satirlar;
+  }
+
+  async kasaGetir(gunGirdi, yapan) {
+    const n = simdi();
+    const gun = tarihNormalize(gunGirdi) || isletmeGunu(n.tarih, n.saat);
+    if (!this.kasaYetkili(yapan, gun)) return { hata: "Geçmiş günlerin kasasını sadece Admin görebilir." };
+    const [kayit, takvim, urunler, fiyat, onceki, puantaj] = await Promise.all([
+      this.st.get(`kasa:${gun}`), this.kasaTakvim(gun), this.urunler(), this.fiyatAyar(),
+      this.st.list({ start: "kasa:", end: `kasa:${gun}`, reverse: true, limit: 1 }),
+      this.st.list({ prefix: `p:${gun}:` }),
+    ]);
+    const oncekiKasa = [...onceki.values()][0];
+    const kullanicilar = await this.kullaniciListesi();
+    const calisanlar = [...puantaj].map(([k, v]) => {
+      const u = kullanicilar.find((x) => x.eposta === k.split(":").slice(2).join(":"));
+      const saat = saatFark(v);
+      return { ad: u?.ad || v.ad, rol: ROLLER[u?.rol]?.ad || "", saat, ucret: Math.round(saat * (u?.saatlikUcret || 0)), acik: Boolean(v.giris && !v.cikis) };
+    });
+    return {
+      gun, gunAd: gunAdi(gun), bugun: isletmeGunu(n.tarih, n.saat), kayitli: Boolean(kayit),
+      kayit: kayit || { gun, devir: oncekiKasa?.birakilan ?? 0, maclar: takvim.map((x) => ({ ...x, krampon: 0, eldiven: 0, kantin: {} })), girisler: [], cikislar: [], veresiye: [], ikram: {}, birakilan: null, sayilan: null, not: "" },
+      oncekiDevir: oncekiKasa ? { gun: oncekiKasa.gun, tutar: oncekiKasa.birakilan ?? 0 } : null,
+      takvim, urunler, fiyat, calisanlar, ikramKimler: IKRAM_KIMLER,
+    };
+  }
+
+  async kasaKaydet(g, yapan) {
+    return this.kilitli(async () => {
+      const gun = tarihNormalize(g.gun);
+      if (!gun) return { hata: "Gün gerekli." };
+      if (!this.kasaYetkili(yapan, gun)) return { hata: "Geçmiş günlerin kasasını sadece Admin düzenleyebilir." };
+      const [eski, urunler, f] = await Promise.all([this.st.get(`kasa:${gun}`), this.urunler(), this.fiyatAyar()]);
+      const urunMap = new Map(urunler.map((u) => [u.id, u]));
+      const kantinTemiz = (o) => {
+        const r = {};
+        for (const [id, a] of Object.entries(o && typeof o === "object" ? o : {})) {
+          const adet = Math.min(999, Math.max(0, Math.round(Number(a)) || 0));
+          if (adet && (urunMap.has(id) || eski?.birimler?.[id] !== undefined)) r[id] = adet;
+        }
+        return r;
+      };
+      const satirlar = (l) => (Array.isArray(l) ? l : []).slice(0, 40)
+        .map((x) => ({ aciklama: kirp(x?.aciklama, 120), tutar: tutar(x?.tutar) })).filter((x) => x.aciklama || x.tutar);
+      const kayit = {
+        gun, devir: tutar(g.devir),
+        maclar: (Array.isArray(g.maclar) ? g.maclar : []).slice(0, 30).map((m) => ({
+          saat: saatNormalize(m?.saat) || "", tur: ["abone", "normal", "bos"].includes(m?.tur) ? m.tur : "normal",
+          ad: kirp(m?.ad, 40), ucret: tutar(m?.ucret), vip: tutar(m?.vip), onOdeme: tutar(m?.onOdeme),
+          krampon: Math.min(50, Math.max(0, Math.round(Number(m?.krampon)) || 0)),
+          eldiven: Math.min(50, Math.max(0, Math.round(Number(m?.eldiven)) || 0)),
+          kantin: kantinTemiz(m?.kantin), ...(m?.kayitNo ? { kayitNo: kirp(m.kayitNo, 20) } : {}),
+        })).sort((a, b) => SAAT_SIRA(a.saat || "00:00") - SAAT_SIRA(b.saat || "00:00")),
+        girisler: satirlar(g.girisler), cikislar: satirlar(g.cikislar),
+        veresiye: (Array.isArray(g.veresiye) ? g.veresiye : []).slice(0, 40)
+          .map((x) => ({ aciklama: kirp(x?.aciklama, 120), tutar: tutar(x?.tutar) })).filter((x) => x.aciklama || x.tutar),
+        ikram: Object.fromEntries(IKRAM_KIMLER.map((k) => [k, kantinTemiz(g.ikram?.[k])]).filter(([, v]) => Object.keys(v).length)),
+        birakilan: g.birakilan === null || g.birakilan === "" || g.birakilan === undefined ? null : tutar(g.birakilan),
+        sayilan: g.sayilan === null || g.sayilan === "" || g.sayilan === undefined ? null : tutar(g.sayilan),
+        not: kirp(g.not, 500),
+        // O günün birim fiyatları sabitlenir: sonradan fiyat değişse de eski günün cirosu değişmez
+        birimler: { ...(eski?.birimler || {}) },
+        kira: eski?.kira || { krampon: f.krampon, eldiven: f.eldiven },
+        guncelleyen: yapan.ad, guncelleme: simdiYazi(), olusturan: eski?.olusturan || yapan.ad,
+      };
+      for (const id of Object.keys(kasaTuketim(kayit))) {
+        if (kayit.birimler[id] === undefined) kayit.birimler[id] = { satis: urunMap.get(id)?.satis || 0, alis: urunMap.get(id)?.alis || 0, ad: urunMap.get(id)?.ad || id };
+      }
+      kayit.ozet = kasaOzet(kayit);
+      // Stok: önceki kayda göre fark kadar düşülür (aynı günü tekrar kaydetmek stoğu iki kez düşmez)
+      const once = kasaTuketim(eski || {}), simdiT = kasaTuketim(kayit);
+      const degisen = [];
+      for (const id of new Set([...Object.keys(once), ...Object.keys(simdiT)])) {
+        const fark = (simdiT[id] || 0) - (once[id] || 0);
+        const u = urunMap.get(id);
+        if (fark && u) { u.stok = (u.stok || 0) - fark; degisen.push([`urun:${id}`, u]); }
+      }
+      if (degisen.length) await this.st.put(Object.fromEntries(degisen));
+      await this.st.put(`kasa:${gun}`, kayit);
+      const o = kayit.ozet, para = (x) => `${Math.round(x).toLocaleString("tr-TR")} TL`;
+      await this.kayitTut(yapan, eski ? "Kasa raporunu güncelledi" : "Kasa raporunu kaydetti",
+        `${gun} · ciro ${para(o.ciro)} · giriş ${para(o.giris)} · çıkış ${para(o.cikis)} · kasada olması gereken ${para(o.olmasiGereken)}${kayit.sayilan !== null ? ` · sayılan ${para(kayit.sayilan)} (fark ${para(o.fark)})` : ""}`);
+      return { basarili: true, kayit };
+    });
+  }
+
+  /** Aylık kasa özeti (Admin) */
+  async kasaAy(ay) {
+    if (!/^\d{4}-\d{2}$/.test(ay || "")) return { hata: "Geçersiz ay." };
+    const m = await this.st.list({ start: `kasa:${ay}-01`, end: `kasa:${ay}-31~` });
+    const gunler = [...m.values()].map((k) => ({ gun: k.gun, gunAd: gunAdi(k.gun), ...k.ozet, guncelleyen: k.guncelleyen }));
+    const toplam = {};
+    for (const a of ["mac", "vip", "kantin", "kantinKar", "krampon", "eldiven", "ciro", "giris", "cikis", "veresiye", "onOdeme", "ikramDeger"]) {
+      toplam[a] = gunler.reduce((t, x) => t + (x[a] || 0), 0);
+    }
+    return { ay, gunler, toplam };
   }
 
   // ================= İşlem kaydı (Admin kontrolü) =================

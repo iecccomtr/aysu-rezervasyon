@@ -156,3 +156,44 @@ Tüm kayıtlar Cloudflare'in **Durable Object** veritabanında tutulur. Cloudfla
 - `npm test`: 20 test (abone ve "bu hafta gelmiyor", gece maçları, çift rezervasyon, iptal, panel girişi, kapora, CRM, API uçları).
 - `node --import ./test/register.mjs test/yerel-sunucu.mjs`: örnek verili yerel sunucuyu `http://localhost:8787` adresinde açar (panel kurulum kodu: `yerel-kurulum`).
 - Güvenlik: panel şifresi PBKDF2 ile saklanır, oturum çerezi HttpOnly + Secure + SameSite=Strict, başka sitelerden gelen POST istekleri reddedilir, IP başına dakikada 20 istek sınırı ve bot tuzağı alanı vardır.
+
+## Puantaj (çalışan giriş / çıkış)
+
+- Admin dışındaki herkes panelde Takvim'in üstünde **"Girişi onayla" / "Çıkışı onayla"** kartını görür. Kartta o günün beklenen giriş saati de yazar (ilk maçtan 1 saat önce).
+- Gece yarısını geçen çıkış aynı iş gününe yazılır.
+- **Saatlik ücret:** Admin, Kullanıcılar sekmesinde kişiye dokunup girer.
+- **Puantaj raporu:** Kullanıcılar sekmesinde ay ay, kişi başına saat ve ücret listelenir.
+  - Admin ve Müdür unutulan girişleri düzeltebilir, elle kayıt ekleyebilir. Her düzeltme işlem kaydına yazılır.
+  - Müdür Yardımcısı raporda yalnızca kendi kaydını görür.
+
+## Kasa defteri
+
+Panelde **Kasa** sekmesi var; Admin, Müdür ve Müdür Yardımcısı kullanır. Eski "GÜNLÜK KASA RAPORU" Excel'inin yerini alır.
+
+**Maçlar**
+- Gün açılınca o günün maçları takvimden otomatik gelir:
+  - abonede abone no ve abone ücreti,
+  - normal rezervasyonda isim ve ücret,
+  - VIP hizmetler ve önceden alınan kapora (ön ödeme).
+- Her maça krampon/eldiven adedi ve **Kantin** (ürün seçici) girilir. Maç toplamı kendiliğinden hesaplanır.
+
+**Kasa hareketleri**
+- Kasa girişi, kasa çıkışı ve veresiye satırları elle eklenir.
+- **"Puantajdan maaşları ekle"** düğmesi o günün maaşlarını çıkışa yazar.
+- Personel / ücretsiz ikram: kasaya para girmez, stoktan düşer.
+
+**Gün sonu**
+- Hesaplananlar: günlük ciro ve kasada olması gereken tutar.
+- Elle girilen **sayılan kasa**, sistemi eksik ya da fazla tutarı göstermeye yönlendirir.
+- Ertesi güne devir (kasada bırakılan) ve teslim edilen tutar da buraya girilir.
+- Ertesi günün "kasa devir" alanı bir önceki günün bırakılan tutarıyla dolar.
+
+**Stok**
+- Kantin satışları ve ikramlar stoktan düşer. Aynı günü yeniden kaydetmek stoğu iki kez düşmez.
+- Ürün, fiyat, gelen mal ve sayım: Admin ve Müdür.
+- İlk ürün listesi ve stoklar Excel'den alındı.
+- Fiyat değişikliği eski günlerin kasasını değiştirmez.
+
+**Erişim ve özet**
+- Müdür ve Müdür Yardımcısı yalnızca bugünü ve dünü görür; Admin tüm günleri görür ve **aylık kasa özetini** alır.
+- Abone maç ücreti, krampon kirası ve eldiven kirası: Kullanıcılar → Fiyatlar (Admin).

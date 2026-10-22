@@ -73,7 +73,7 @@
   /* ---------- Alt sekmeler ---------- */
   .sekmeler { position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; background: var(--kart); border-top: 1px solid var(--cizgi); padding-bottom: env(safe-area-inset-bottom); }
   .sekmeler .ic { max-width: 900px; margin: 0 auto; display: grid; grid-template-columns: repeat(var(--sekme-sayi, 4), 1fr); }
-  .sekmeler button { background: none; border: 0; padding: 10px 4px 12px; cursor: pointer; font-weight: 600; color: var(--gri); display: grid; justify-items: center; gap: 2px; font-size: 14px; }
+  .sekmeler button { background: none; border: 0; padding: 10px 2px 12px; cursor: pointer; font-weight: 600; color: var(--gri); display: grid; justify-items: center; gap: 2px; font-size: 13px; min-width: 0; }
   .sekmeler svg { width: 24px; height: 24px; }
   .sekmeler button[aria-current="page"] { color: var(--cim); }
   .sekmeler button[aria-current="page"] svg { stroke-width: 2.4; }
@@ -108,6 +108,54 @@
   .alan input:focus, .alan select:focus, .alan textarea:focus { outline: none; border-color: var(--cim); box-shadow: 0 0 0 2px var(--cim); }
   .iki-alan { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
+
+  /* ---------- Puantaj kartı ---------- */
+  .puantaj { display: flex; gap: 12px; align-items: center; padding: 12px 14px; margin-bottom: 14px; flex-wrap: wrap; }
+  .puantaj .bilgi-k { flex: 1; min-width: 180px; line-height: 1.35; }
+  .puantaj .bilgi-k b { font: 700 22px/1.1 "Barlow Condensed", sans-serif; }
+  .puantaj .dugme { min-width: 150px; }
+  .puantaj.acik { border-color: #9fd3a8; background: #f1fbf3; }
+
+  /* ---------- Kasa ---------- */
+  .kasa-kart { padding: 12px 14px; margin-bottom: 12px; }
+  .kasa-kart h3 { font-size: 20px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+  .kasa-kart h3 .sag { margin-left: auto; font-size: 16px; }
+  .mac { border-top: 1px solid var(--cizgi); padding: 10px 0; }
+  .mac:first-of-type { border-top: 0; padding-top: 0; }
+  .mac-ust { display: grid; grid-template-columns: 66px 104px 1fr 28px; gap: 6px; align-items: center; margin-bottom: 6px; }
+  .mac-ust input, .mac-ust select, .k-ic input { width: 100%; border: 1px solid #b5c3cf; border-radius: 8px; padding: 7px 8px; font-size: 16px; background: var(--kart); min-width: 0; }
+  .mac-ust .saat-i { font: 700 20px/1 "Barlow Condensed", sans-serif; text-align: center; padding: 6px 2px; }
+  .k-ic { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .k-ic label, .k-sat label { font-size: 12px; color: var(--gri); font-weight: 600; display: block; margin-bottom: 2px; }
+  .k-alt { display: flex; gap: 8px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
+  .adim { display: inline-flex; align-items: center; border: 1px solid #b5c3cf; border-radius: 999px; overflow: hidden; }
+  .adim button { border: 0; background: var(--cim-acik); color: var(--cim); width: 32px; height: 32px; font-size: 18px; cursor: pointer; }
+  .adim span { min-width: 64px; text-align: center; font-size: 14px; padding: 0 4px; }
+  .mac-top { margin-left: auto; font: 700 22px/1 "Barlow Condensed", sans-serif; }
+  .x-sil { border: 0; background: none; color: var(--hata); font-size: 22px; cursor: pointer; line-height: 1; }
+  .k-sat { display: grid; grid-template-columns: 1fr 110px 32px; gap: 6px; align-items: center; margin-bottom: 6px; }
+  .k-sat input { width: 100%; border: 1px solid #b5c3cf; border-radius: 8px; padding: 8px; font-size: 16px; background: var(--kart); min-width: 0; }
+  .ozet-t { width: 100%; border-collapse: collapse; font-size: 16px; }
+  .ozet-t td { padding: 5px 0; border-bottom: 1px dashed var(--cizgi); }
+  .ozet-t td:last-child { text-align: right; font-weight: 600; white-space: nowrap; }
+  .ozet-t tr.buyuk td { font: 700 22px/1.2 "Barlow Condensed", sans-serif; border-bottom: 2px solid var(--cim); color: var(--cim); }
+  .ozet-t tr.eksi td:last-child { color: var(--hata); }
+  .ozet-t input { width: 130px; border: 1px solid #b5c3cf; border-radius: 8px; padding: 6px 8px; font-size: 16px; text-align: right; }
+  .kasa-kaydet { position: sticky; bottom: calc(70px + env(safe-area-inset-bottom)); z-index: 4; display: flex; gap: 8px; align-items: center; background: var(--kart); border: 1px solid var(--cizgi); border-radius: 999px; padding: 6px 6px 6px 16px; box-shadow: 0 4px 18px rgba(0,0,0,.12); margin: 14px 0; }
+  .kasa-kaydet .degisti { color: var(--sari-koyu); font-weight: 600; }
+  .urun-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; max-height: 60vh; overflow: auto; }
+  .urun { border: 1px solid var(--cizgi); border-radius: 10px; padding: 6px 8px; font-size: 13px; line-height: 1.2; }
+  .urun.var { border-color: var(--cim); background: var(--cim-acik); }
+  .urun b { display: block; font-size: 13px; min-height: 2.4em; }
+  .urun .adim { margin-top: 4px; width: 100%; justify-content: space-between; }
+  .urun .adim span { min-width: 0; font-weight: 700; font-size: 16px; }
+  .stok-t { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .stok-t th, .stok-t td { padding: 6px 4px; border-bottom: 1px solid var(--cizgi); text-align: right; }
+  .stok-t th:first-child, .stok-t td:first-child { text-align: left; }
+  .stok-t tr.az td { color: var(--hata); font-weight: 600; }
+  .stok-t tbody tr { cursor: pointer; }
+  .mac-ust select { padding: 7px 4px; }
+  @media (max-width: 420px) { .mac-ust { grid-template-columns: 60px 98px 1fr 26px; } .k-sat { grid-template-columns: 1fr 92px 26px; } }
   /* ---------- Kapora bekleyenler ---------- */
   .bekleyenler { margin-bottom: 18px; border-color: #ecd97a; background: #fffbe6; }
   .bekleyenler h3 { font-size: 20px; padding: 12px 14px 4px; color: var(--sari-koyu); }
@@ -304,6 +352,7 @@
   <main>
     <!-- Takvim -->
     <section id="v-takvim" data-gorunum>
+      <div id="puantaj-kart" hidden></div>
       <div id="bekleyenler"></div>
       <div class="hafta-nav">
         <button class="ok" type="button" id="onceki" aria-label="Önceki hafta">‹</button>
@@ -337,6 +386,19 @@
       <div class="ozel-saat-alt"><button class="dugme ikincil kucuk" type="button" id="ozel-saat" data-yonetici>+ Özel saat ekle</button></div>
     </section>
 
+
+    <!-- Kasa defteri (Admin, Müdür, Müdür Yrd.) -->
+    <section id="v-kasa" data-gorunum hidden>
+      <div class="hafta-nav">
+        <button class="ok" type="button" id="kasa-onceki" aria-label="Önceki gün">‹</button>
+        <div class="ay" id="kasa-baslik">Kasa</div>
+        <button class="ok" type="button" id="kasa-sonraki" aria-label="Sonraki gün">›</button>
+      </div>
+      <p class="soluk" id="kasa-durum" style="text-align:center;margin:-4px 0 12px;font-size:14px"></p>
+      <div id="kasa-ic"></div>
+      <div id="kasa-stok-alan"></div>
+      <div id="kasa-ay-alan" hidden></div>
+    </section>
     <!-- Aboneler -->
     <section id="v-aboneler" data-gorunum hidden>
       <div class="baslik-satir">
@@ -361,6 +423,12 @@
       <div class="baslik-satir"><h2>Kullanıcılar</h2><span class="soluk sag" id="kullanici-sayi"></span></div>
       <p class="soluk" style="margin-bottom:12px">Personel <b>/panel</b> adresinden e-postasıyla kayıt olur. Burada onaylayıp hesabı açarsınız.</p>
       <div class="kutu" id="kullanici-liste"></div>
+      <div id="puantaj-alan" hidden>
+        <div class="baslik-satir" style="margin-top:22px"><h2>Puantaj</h2>
+          <input type="month" id="puantaj-ay" class="sag" style="border:1px solid #b5c3cf;border-radius:10px;padding:7px 10px;font-size:15px;background:var(--kart)"></div>
+        <p class="soluk" style="margin-bottom:10px;font-size:14px">Çalışanlar her gün panelden işe giriş ve çıkışlarını onaylar. Ücret = çalışılan saat × saatlik ücret (kullanıcıya dokunup Admin belirler).</p>
+        <div class="kutu" id="puantaj-liste"></div>
+      </div>
       <div id="fiyat-alan" hidden>
         <div class="baslik-satir" style="margin-top:22px"><h2>Fiyatlar</h2><span class="soluk sag">Sadece Admin</span></div>
         <form class="kutu" id="fiyat-form" style="padding:14px" novalidate>
@@ -371,6 +439,14 @@
           <div class="iki-alan">
             <div class="alan"><label for="f-spiker">VIP spiker (TL)</label><input id="f-spiker" inputmode="numeric"></div>
             <div class="alan"><label for="f-hakem">VIP hakem (TL)</label><input id="f-hakem" inputmode="numeric"></div>
+          </div>
+          <div class="iki-alan">
+            <div class="alan"><label for="f-abone">Abone maç (TL)</label><input id="f-abone" inputmode="numeric"></div>
+            <div class="alan"><label for="f-krampon">Krampon kirası (TL)</label><input id="f-krampon" inputmode="numeric"></div>
+          </div>
+          <div class="iki-alan">
+            <div class="alan"><label for="f-eldiven">Eldiven kirası (TL)</label><input id="f-eldiven" inputmode="numeric"></div>
+            <div></div>
           </div>
           <p class="soluk" style="font-size:14px;margin:-4px 0 12px">Yeni fiyatlar kaydettiğiniz andan sonraki rezervasyonlarda geçerli olur; önceki rezervasyonların ücreti değişmez.</p>
           <button class="dugme" type="submit">Fiyatları kaydet</button>
@@ -391,6 +467,9 @@
     <div class="ic">
       <button type="button" data-sekme="takvim" aria-current="page">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>Takvim
+      </button>
+      <button type="button" data-sekme="kasa" data-yonetici>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/><circle cx="12" cy="14.5" r="2"/><path d="M7 3h10"/></svg>Kasa
       </button>
       <button type="button" data-sekme="aboneler" data-yonetici>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3"/><path d="M18 3v4h-4M6 21v-4h4"/></svg>Aboneler
@@ -638,10 +717,11 @@
     document.querySelectorAll("[data-sekme]").forEach((b) => b.toggleAttribute("aria-current", b.dataset.sekme === ad));
     document.querySelectorAll("[data-sekme]").forEach((b) => b.dataset.sekme === ad && b.setAttribute("aria-current", "page"));
     document.querySelectorAll("[data-gorunum]").forEach((s) => { s.hidden = s.id !== "v-" + ad; });
-    if (ad === "takvim") haftaYukle();
+    if (ad === "takvim") { haftaYukle(); puantajKartYukle(); }
     if (ad === "aboneler") aboneYukle();
     if (ad === "musteriler") musteriYukle();
     if (ad === "kullanicilar") kullaniciYukle();
+    if (ad === "kasa") kasaYukle();
     window.scrollTo({ top: 0 });
   }
 
@@ -658,7 +738,7 @@
     const y = yonetici();
     document.body.classList.toggle("salt-okur", !y);
     document.querySelectorAll("[data-yonetici]").forEach((el) => { el.hidden = !y; });
-    document.documentElement.style.setProperty("--sekme-sayi", y ? 4 : 1);
+    document.documentElement.style.setProperty("--sekme-sayi", y ? 5 : 1);
     document.querySelector(".sekmeler").hidden = !y;
     $("ben").innerHTML = `${kacis(ben.ad)}<br><small>${kacis(ben.rolAd)}</small>`;
     if (!y) sekme = "takvim";
@@ -1210,6 +1290,7 @@
     $("kullanici-liste").querySelectorAll("[data-i]").forEach((el) => el.addEventListener("click", () => kullaniciDetay(kullanicilar[el.dataset.i])));
     islemYukle();
     fiyatYukle();
+    puantajYukle();
   }
 
   function kullaniciDetay(u) {
@@ -1222,6 +1303,7 @@
       <div class="alan"><label for="d-rol">Rol</label>
         <select id="d-rol"><option value="">— Rol seçin —</option>${roller.map(([k, ad]) => `<option value="${k}"${(u.rol || u.istenenRol) === k ? " selected" : ""}>${ad}</option>`).join("")}</select>
       </div>
+      ${ben.rol === "admin" ? `<div class="alan"><label for="d-ucret">Saatlik ücret (₺) — puantaj için</label><input id="d-ucret" inputmode="decimal" value="${u.saatlikUcret ?? ""}" placeholder="Ör. 160"></div>` : ""}
       <div class="eylemler" style="display:grid;gap:8px">
         ${u.durum === "aktif"
           ? '<button class="dugme" type="button" id="d-kaydet">Kaydet</button><button class="dugme ikincil" type="button" id="d-kapat">Hesabı kapat</button>'
@@ -1233,7 +1315,7 @@
     `);
     if (kilitli) return;
     const kaydet = async (ek) => {
-      const r = await api("kullanici", { eposta: u.eposta, rol: $("d-rol").value || undefined, ...ek });
+      const r = await api("kullanici", { eposta: u.eposta, rol: $("d-rol").value || undefined, ...($("d-ucret") ? { saatlikUcret: $("d-ucret").value } : {}), ...ek });
       if (r.hata) return dlgUyari(r.hata);
       dlg.close(); bildir("Kaydedildi"); kullaniciYukle();
     };
@@ -1262,11 +1344,12 @@
     const f = await api("fiyat").catch(() => null);
     if (!f || f.hata) return;
     $("f-mac").value = f.mac; $("f-kapora").value = f.kapora; $("f-spiker").value = f.spiker; $("f-hakem").value = f.hakem;
+    $("f-abone").value = f.abone; $("f-krampon").value = f.krampon; $("f-eldiven").value = f.eldiven;
   }
   $("fiyat-form").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const g = { mac: $("f-mac").value, kapora: $("f-kapora").value, spiker: $("f-spiker").value, hakem: $("f-hakem").value };
-    if (!confirm(`Yeni fiyatlar: Maç ${g.mac} TL, kapora ${g.kapora} TL, VIP spiker ${g.spiker} TL, VIP hakem ${g.hakem} TL. Kaydedilsin mi?`)) return;
+    const g = { mac: $("f-mac").value, kapora: $("f-kapora").value, spiker: $("f-spiker").value, hakem: $("f-hakem").value, abone: $("f-abone").value, krampon: $("f-krampon").value, eldiven: $("f-eldiven").value };
+    if (!confirm(`Yeni fiyatlar: Maç ${g.mac} TL, kapora ${g.kapora} TL, VIP spiker ${g.spiker} TL, VIP hakem ${g.hakem} TL, abone ${g.abone} TL, krampon ${g.krampon} TL, eldiven ${g.eldiven} TL. Kaydedilsin mi?`)) return;
     const r = await api("fiyat", g);
     if (r.hata) return bildir(r.hata);
     bildir("Fiyatlar kaydedildi"); islemYukle();
@@ -1292,6 +1375,380 @@
   }
   $("islem-ara").addEventListener("input", islemCiz);
 
+
+  // ================= Puantaj (işe giriş / çıkış) =================
+  const para = (n) => `${Math.round(Number(n) || 0).toLocaleString("tr-TR")} ₺`;
+  const saatSayi = (n) => (Number(n) || 0).toLocaleString("tr-TR", { maximumFractionDigits: 2 });
+  async function puantajKartYukle() {
+    const el = $("puantaj-kart");
+    if (!ben || ben.rol === "admin") { el.hidden = true; return; }
+    const p = await api("puantaj/bugun").catch(() => null);
+    if (!p || p.hata) { el.hidden = true; return; }
+    const k = p.kayit || {};
+    const saatYaz = (ms) => new Date(ms).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Istanbul" });
+    const beklenen = p.baslama ? `Bugün beklenen giriş: <b>${p.baslama}</b> <small class="soluk">(ilk maç ${p.ilkMac})</small>` : `<span class="soluk">Bugün takvimde maç yok.</span>`;
+    let durum, dugme = "";
+    if (!k.giris) { durum = "Giriş yapılmadı"; dugme = `<button class="dugme" type="button" id="p-giris">Girişi onayla</button>`; }
+    else if (!k.cikis) { durum = `Giriş: <b>${saatYaz(k.giris)}</b>`; dugme = `<button class="dugme" type="button" id="p-cikis" style="background:#b42318">Çıkışı onayla</button>`; }
+    else { durum = `Giriş ${saatYaz(k.giris)} · Çıkış ${saatYaz(k.cikis)} · <b>${saatSayi((k.cikis - k.giris) / 3600000)} saat</b>`; }
+    el.className = `kutu puantaj${k.giris && !k.cikis ? " acik" : ""}`;
+    el.innerHTML = `<div class="bilgi-k">${beklenen}<br>${durum}<br><small class="soluk">Bu ay: ${saatSayi(p.buAy.saat)} saat${p.saatlikUcret ? ` · ${para(p.buAy.ucret)}` : ""}</small></div>${dugme}`;
+    el.hidden = false;
+    const tikla = (id, yol, soru) => el.querySelector(id)?.addEventListener("click", async () => {
+      if (!confirm(soru)) return;
+      const r = await api(yol, {});
+      if (r.hata) return bildir(r.hata);
+      bildir(yol.endsWith("giris") ? "Girişiniz kaydedildi" : "Çıkışınız kaydedildi");
+      puantajKartYukle();
+    });
+    tikla("#p-giris", "puantaj/giris", "İşe girişinizi şimdi onaylıyor musunuz?");
+    tikla("#p-cikis", "puantaj/cikis", "İşten çıkışınızı şimdi onaylıyor musunuz?");
+  }
+
+  let puantaj = null;
+  async function puantajYukle() {
+    $("puantaj-alan").hidden = !yonetici();
+    if (!yonetici()) return;
+    if (!$("puantaj-ay").value) $("puantaj-ay").value = new Date(Date.now() + 3 * 3600000).toISOString().slice(0, 7);
+    puantaj = await api(`puantaj?ay=${$("puantaj-ay").value}`).catch(() => null);
+    if (!puantaj || puantaj.hata) return;
+    const top = puantaj.kisiler.reduce((t, k) => t + k.ucret, 0);
+    $("puantaj-liste").innerHTML = puantaj.kisiler.map((k, i) => `
+      <button type="button" class="kullanici" data-p="${i}">
+        <span><b>${kacis(k.ad)}</b><small>${kacis(k.rol)} · ${k.gunler.length} gün${k.gunler.some((g) => g.acik) ? " · açık giriş var" : ""}${k.saatlikUcret ? ` · ${saatSayi(k.saatlikUcret)} ₺/saat` : " · saatlik ücret yok"}</small></span>
+        <span style="text-align:right"><b>${saatSayi(k.saat)} saat</b><small>${para(k.ucret)}</small></span>
+      </button>`).join("") + (puantaj.kisiler.length ? `<div class="kullanici" style="cursor:default"><b>Toplam</b><b>${para(top)}</b></div>` : '<p class="soluk" style="padding:14px">Bu ay puantaj kaydı yok.</p>')
+      + (["admin", "mudur"].includes(ben.rol) ? `<div style="padding:10px 14px"><button class="dugme ikincil kucuk" type="button" id="p-ekle">+ Elle kayıt ekle</button></div>` : "");
+    $("puantaj-liste").querySelectorAll("[data-p]").forEach((el) => el.addEventListener("click", () => puantajDetay(puantaj.kisiler[el.dataset.p])));
+    $("p-ekle")?.addEventListener("click", () => puantajDuzeltAc(null, null));
+  }
+  $("puantaj-ay").addEventListener("change", puantajYukle);
+
+  function puantajDetay(k) {
+    const duzeltir = ["admin", "mudur"].includes(ben.rol);
+    const ic = ac(`${k.ad} · puantaj`, `
+      <p class="soluk" style="margin-bottom:10px">${saatSayi(k.saat)} saat × ${saatSayi(k.saatlikUcret)} ₺ = <b>${para(k.ucret)}</b></p>
+      <table class="stok-t"><thead><tr><th>Gün</th><th>Giriş</th><th>Çıkış</th><th>Saat</th></tr></thead><tbody>
+      ${k.gunler.map((g, i) => `<tr data-g="${i}"${g.acik ? ' class="az"' : ""}><td>${tarihYazi(g.gun)} ${KISA[gunNo(g.gun)]}${g.duzelten ? ` <small class="soluk">(düzelten: ${kacis(g.duzelten)})</small>` : ""}</td><td>${g.giris || "—"}</td><td>${g.cikis || (g.acik ? "açık" : "—")}</td><td>${saatSayi(g.saat)}</td></tr>`).join("")}
+      </tbody></table>
+      ${duzeltir ? '<p class="soluk" style="font-size:13px;margin-top:8px">Düzeltmek için güne dokunun.</p>' : ""}`);
+    if (!duzeltir) return;
+    ic.querySelectorAll("[data-g]").forEach((tr) => tr.addEventListener("click", () => puantajDuzeltAc(k, k.gunler[tr.dataset.g])));
+  }
+
+  async function puantajDuzeltAc(k, g) {
+    const kisiler = k ? [k] : (await api("kullanicilar").catch(() => [])).filter((u) => u.durum === "aktif");
+    const ic = ac(g ? "Puantaj düzelt" : "Puantaj kaydı ekle", `
+      <div class="alan"><label for="pd-kisi">Kişi</label><select id="pd-kisi"${k ? " disabled" : ""}>${kisiler.map((u) => `<option value="${kacis(u.eposta)}">${kacis(u.ad)}</option>`).join("")}</select></div>
+      <div class="alan"><label for="pd-gun">Gün</label><input type="date" id="pd-gun" value="${g ? g.gun : new Date(Date.now() + 3 * 3600000).toISOString().slice(0, 10)}"${g ? " disabled" : ""}></div>
+      <div class="iki-alan">
+        <div class="alan"><label for="pd-giris">Giriş</label><input type="time" id="pd-giris" value="${g?.giris || ""}"></div>
+        <div class="alan"><label for="pd-cikis">Çıkış</label><input type="time" id="pd-cikis" value="${g?.cikis || ""}"></div>
+      </div>
+      <p class="soluk" style="font-size:13px;margin:-4px 0 12px">06:00'dan önceki çıkış ertesi gün sayılır (gece yarısını geçen vardiya).</p>
+      <div style="display:grid;gap:8px"><button class="dugme" type="button" id="pd-kaydet">Kaydet</button>
+      ${g ? '<button class="dugme tehlike" type="button" id="pd-sil">Bu günün kaydını sil</button>' : ""}</div>`);
+    const gonder = async (ek) => {
+      const r = await api("puantaj/duzelt", { eposta: $("pd-kisi").value, gun: $("pd-gun").value, giris: $("pd-giris").value, cikis: $("pd-cikis").value, ...ek });
+      if (r.hata) return dlgUyari(r.hata);
+      dlg.close(); bildir("Puantaj kaydedildi"); puantajYukle();
+    };
+    ic.querySelector("#pd-kaydet").addEventListener("click", () => gonder({}));
+    ic.querySelector("#pd-sil")?.addEventListener("click", () => confirm("Bu günün puantaj kaydı silinsin mi?") && gonder({ sil: true }));
+  }
+
+  // ================= Kasa defteri =================
+  let kasa = null, kk = null, kasaGun = null, kasaDegisti = false;
+  const kopya = (o) => JSON.parse(JSON.stringify(o));
+  const sayi = (v) => { const n = Math.round(Number(String(v ?? "").replace(/\./g, "").replace(",", ".").replace(/[^\d.]/g, ""))); return Number.isFinite(n) ? Math.max(0, n) : 0; };
+  const urunBul = (id) => kasa.urunler.find((u) => u.id === id);
+  const birim = (id) => kk.birimler?.[id] || { satis: urunBul(id)?.satis || 0, alis: urunBul(id)?.alis || 0, ad: urunBul(id)?.ad || "?" };
+  const kira = () => kk.kira || { krampon: kasa.fiyat.krampon, eldiven: kasa.fiyat.eldiven };
+
+  function kasaOzetHesapla() {
+    const o = { mac: 0, vip: 0, kantin: 0, kantinKar: 0, kramponAdet: 0, eldivenAdet: 0, krampon: 0, eldiven: 0, onOdeme: 0, ikramDeger: 0, maclar: [] };
+    const kr = kira();
+    for (const m of kk.maclar) {
+      let kantin = 0;
+      for (const [id, a] of Object.entries(m.kantin || {})) { const b = birim(id); kantin += a * b.satis; o.kantinKar += a * (b.satis - b.alis); }
+      const krampon = (m.krampon || 0) * kr.krampon, eldiven = (m.eldiven || 0) * kr.eldiven;
+      o.mac += sayi(m.ucret); o.vip += sayi(m.vip); o.kantin += kantin; o.onOdeme += sayi(m.onOdeme);
+      o.kramponAdet += m.krampon || 0; o.eldivenAdet += m.eldiven || 0; o.krampon += krampon; o.eldiven += eldiven;
+      o.maclar.push({ kantin, toplam: sayi(m.ucret) + sayi(m.vip) + kantin + krampon + eldiven });
+    }
+    for (const v of Object.values(kk.ikram || {})) for (const [id, a] of Object.entries(v)) o.ikramDeger += a * birim(id).satis;
+    const top = (l) => l.reduce((t, x) => t + sayi(x.tutar), 0);
+    o.ciro = o.mac + o.vip + o.kantin + o.krampon + o.eldiven;
+    o.giris = top(kk.girisler); o.cikis = top(kk.cikislar); o.veresiye = top(kk.veresiye); o.devir = sayi(kk.devir);
+    o.kasaToplam = o.devir + o.ciro + o.giris;
+    o.olmasiGereken = o.kasaToplam - o.cikis - o.veresiye - o.onOdeme;
+    const bosMu = (v) => v === null || v === undefined || v === "";
+    o.fark = bosMu(kk.sayilan) ? null : sayi(kk.sayilan) - o.olmasiGereken;
+    o.teslim = bosMu(kk.birakilan) ? null : (bosMu(kk.sayilan) ? o.olmasiGereken : sayi(kk.sayilan)) - sayi(kk.birakilan);
+    return o;
+  }
+
+  async function kasaYukle(gun) {
+    if (kasaDegisti && !gun && kasa) return; // sekmeye geri dönüldü: yazılanlar kalsın
+    if (kasaDegisti && !confirm("Kaydedilmemiş değişiklikler var. Yine de çıkılsın mı?")) return;
+    const v = await api("kasa" + (gun || kasaGun ? `?gun=${gun || kasaGun}` : "")).catch(() => null);
+    if (!v) return;
+    if (v.hata) { bildir(v.hata); return; }
+    kasa = v; kasaGun = v.gun; kk = kopya(v.kayit); kasaDegisti = false;
+    kasaCiz();
+    stokCiz();
+    kasaAyYukle();
+  }
+  $("kasa-onceki").addEventListener("click", () => kasaYukle(gunEkle(kasaGun, -1)));
+  $("kasa-sonraki").addEventListener("click", () => kasaYukle(gunEkle(kasaGun, 1)));
+  window.addEventListener("beforeunload", (e) => { if (kasaDegisti) { e.preventDefault(); e.returnValue = ""; } });
+
+  function degisti() { kasaDegisti = true; const d = $("kasa-degisti"); if (d) { d.textContent = "Kaydedilmedi"; d.className = "degisti"; } }
+
+  function satirListesi(ad, baslik, aciklamaYer, ekDugme = "") {
+    return `<div class="kutu kasa-kart"><h3>${baslik}<span class="sag" data-top="${ad}"></span></h3>
+      ${kk[ad].map((x, i) => `<div class="k-sat">
+        <input data-yol="${ad}.${i}.aciklama" value="${kacis(x.aciklama)}" placeholder="${aciklamaYer}" aria-label="Açıklama">
+        <input data-yol="${ad}.${i}.tutar" value="${x.tutar || ""}" inputmode="numeric" placeholder="Tutar" aria-label="Tutar">
+        <button class="x-sil" type="button" data-sil="${ad}.${i}" aria-label="Satırı sil">×</button></div>`).join("")}
+      <div class="k-alt"><button class="dugme ikincil kucuk" type="button" data-ekle="${ad}">+ Satır ekle</button>${ekDugme}</div></div>`;
+  }
+
+  function kasaCiz() {
+    const bugunMu = kasa.gun === kasa.bugun;
+    $("kasa-baslik").textContent = `${tarihYazi(kasa.gun, true)} ${kasa.gunAd}`;
+    $("kasa-sonraki").disabled = kasa.gun >= kasa.bugun;
+    $("kasa-onceki").disabled = ben.rol !== "admin" && kasa.gun <= gunEkle(kasa.bugun, -1);
+    $("kasa-durum").textContent = kasa.kayitli ? `Son kayıt: ${kasa.kayit.guncelleyen} · ${kasa.kayit.guncelleme}` : (bugunMu ? "Bugünün kasası henüz kaydedilmedi" : "Bu gün için kasa kaydı yok");
+    const kr = kira();
+    const ikramSayi = (kim) => Object.values(kk.ikram?.[kim] || {}).reduce((t, a) => t + a, 0);
+    $("kasa-ic").innerHTML = `
+      <div class="kutu kasa-kart"><div class="k-sat" style="grid-template-columns:1fr 130px;margin:0">
+        <b>Kasa devir${kasa.oncekiDevir && !kasa.kayitli ? ` <small class="soluk">(${tarihYazi(kasa.oncekiDevir.gun)} bırakılan)</small>` : ""}</b>
+        <input data-yol="devir" value="${kk.devir || ""}" inputmode="numeric" placeholder="0" aria-label="Kasa devir"></div></div>
+
+      <div class="kutu kasa-kart"><h3>Maçlar<span class="sag soluk" data-top="maclar"></span></h3>
+        ${kk.maclar.map((m, i) => `<div class="mac">
+          <div class="mac-ust">
+            <input class="saat-i" data-yol="maclar.${i}.saat" value="${kacis(m.saat)}" aria-label="Saat" placeholder="SS:DD">
+            <select data-yol="maclar.${i}.tur" aria-label="Tür">${[["normal", "Normal"], ["abone", "Abone"], ["bos", "Boş"]].map(([v, a]) => `<option value="${v}"${m.tur === v ? " selected" : ""}>${a}</option>`).join("")}</select>
+            <input data-yol="maclar.${i}.ad" value="${kacis(m.ad)}" placeholder="İsim / abone no" aria-label="İsim">
+            <button class="x-sil" type="button" data-sil="maclar.${i}" aria-label="Maçı sil">×</button>
+          </div>
+          <div class="k-ic">
+            <div><label>Maç ücreti</label><input data-yol="maclar.${i}.ucret" value="${m.ucret || ""}" inputmode="numeric" placeholder="0"></div>
+            <div><label>VIP</label><input data-yol="maclar.${i}.vip" value="${m.vip || ""}" inputmode="numeric" placeholder="0"></div>
+            <div><label title="Önceden alınan kapora / IBAN ile ödenen">Ön ödeme</label><input data-yol="maclar.${i}.onOdeme" value="${m.onOdeme || ""}" inputmode="numeric" placeholder="0"></div>
+          </div>
+          <div class="k-alt">
+            <span class="adim" aria-label="Krampon"><button type="button" data-adim="maclar.${i}.krampon" data-d="-1">−</button><span>👟 ${m.krampon || 0}</span><button type="button" data-adim="maclar.${i}.krampon" data-d="1">+</button></span>
+            <span class="adim" aria-label="Eldiven"><button type="button" data-adim="maclar.${i}.eldiven" data-d="-1">−</button><span>🧤 ${m.eldiven || 0}</span><button type="button" data-adim="maclar.${i}.eldiven" data-d="1">+</button></span>
+            <button class="dugme ikincil kucuk" type="button" data-kantin="${i}">Kantin <span data-mk="${i}"></span></button>
+            <span class="mac-top" data-mt="${i}"></span>
+          </div>
+        </div>`).join("") || '<p class="soluk">Bu gün maç yok.</p>'}
+        <div class="k-alt" style="margin-top:10px"><button class="dugme ikincil kucuk" type="button" id="k-mac-ekle">+ Maç satırı</button>
+          <button class="dugme ikincil kucuk" type="button" id="k-takvim">Takvimden getir</button></div>
+        <p class="soluk" style="font-size:13px;margin-top:8px">Krampon ${para(kr.krampon)}, eldiven ${para(kr.eldiven)}. Ön ödeme (önceden alınan kapora, IBAN) bugünkü kasaya girmez.</p>
+      </div>
+
+      ${satirListesi("girisler", "Kasa girişi", "Ör. Fevzi 23.10 19:00 kapora")}
+      ${satirListesi("cikislar", "Kasa çıkışı", "Ör. Maaş, yemek, alışveriş", kasa.calisanlar.length ? '<button class="dugme ikincil kucuk" type="button" id="k-maas">Puantajdan maaşları ekle</button>' : "")}
+      ${satirListesi("veresiye", "Veresiye", "Kim, ne için")}
+
+      <div class="kutu kasa-kart"><h3>Personel / ücretsiz ikram<span class="sag soluk" data-top="ikram"></span></h3>
+        <p class="soluk" style="font-size:13px;margin-bottom:8px">Kasaya para girmez, stoktan düşer.</p>
+        <div class="k-alt" style="margin:0">${kasa.ikramKimler.map((kim) => `<button class="dugme ikincil kucuk" type="button" data-ikram="${kacis(kim)}">${kacis(kim)}${ikramSayi(kim) ? ` · ${ikramSayi(kim)}` : ""}</button>`).join("")}</div>
+      </div>
+
+      <div class="kutu kasa-kart"><h3>Gün sonu</h3><table class="ozet-t" id="k-ozet"></table>
+        <div class="alan" style="margin-top:12px"><label for="k-not">Not</label><textarea id="k-not" data-yol="not" placeholder="Kasa ile ilgili not">${kacis(kk.not)}</textarea></div>
+      </div>
+
+      <div class="kasa-kaydet"><span id="kasa-degisti" class="soluk">${kasa.kayitli ? "Kaydedildi" : "Henüz kaydedilmedi"}</span>
+        <button class="dugme" type="button" id="k-kaydet" style="margin-left:auto">Kasayı kaydet</button></div>`;
+    kasaOzetCiz();
+  }
+
+  function kasaOzetCiz() {
+    const o = kasaOzetHesapla();
+    o.maclar.forEach((m, i) => {
+      const t = document.querySelector(`[data-mt="${i}"]`); if (t) t.textContent = para(m.toplam);
+      const k = document.querySelector(`[data-mk="${i}"]`); if (k) k.textContent = m.kantin ? `· ${para(m.kantin)}` : "";
+    });
+    const yaz = (ad, v) => { const e = document.querySelector(`[data-top="${ad}"]`); if (e) e.textContent = v; };
+    yaz("maclar", para(o.ciro)); yaz("girisler", para(o.giris)); yaz("cikislar", para(o.cikis)); yaz("veresiye", para(o.veresiye));
+    yaz("ikram", o.ikramDeger ? `değeri ${para(o.ikramDeger)}` : "");
+    const sat = (a, v, s = "") => `<tr class="${s}"><td>${a}</td><td>${v}</td></tr>`;
+    $("k-ozet").innerHTML =
+      sat("Maç ücretleri", para(o.mac)) + (o.vip ? sat("VIP hizmet", para(o.vip)) : "") +
+      sat("Kantin", para(o.kantin)) + sat(`Krampon (${o.kramponAdet} adet)`, para(o.krampon)) + sat(`Eldiven (${o.eldivenAdet} adet)`, para(o.eldiven)) +
+      sat("Günlük ciro", para(o.ciro), "buyuk") +
+      sat("Kasa devir", para(o.devir)) + sat("Kasa girişi", para(o.giris)) + sat("Kasa toplamı", para(o.kasaToplam)) +
+      sat("Kasa çıkışı", "− " + para(o.cikis), "eksi") + (o.veresiye ? sat("Veresiye", "− " + para(o.veresiye), "eksi") : "") +
+      (o.onOdeme ? sat("Ön ödeme (kapora / IBAN)", "− " + para(o.onOdeme), "eksi") : "") +
+      sat("Kasada olması gereken", para(o.olmasiGereken), "buyuk") +
+      `<tr><td><label for="k-sayilan">Sayılan kasa</label></td><td><input id="k-sayilan" data-yol="sayilan" inputmode="numeric" value="${kk.sayilan ?? ""}" placeholder="Sayın"></td></tr>` +
+      (o.fark !== null ? sat(o.fark === 0 ? "Fark" : o.fark > 0 ? "Fazla" : "Eksik", para(Math.abs(o.fark)), o.fark < 0 ? "eksi" : "") : "") +
+      `<tr><td><label for="k-birakilan">Ertesi güne devir (kasada bırakılan)</label></td><td><input id="k-birakilan" data-yol="birakilan" inputmode="numeric" value="${kk.birakilan ?? ""}" placeholder="0"></td></tr>` +
+      (o.teslim !== null ? sat("Teslim edilen", para(o.teslim)) : "") +
+      (ben.rol === "admin" ? sat('<span class="soluk">Kantin kârı (alış-satış farkı)</span>', `<span class="soluk">${para(o.kantinKar)}</span>`) : "");
+  }
+
+  // Kasa formundaki tüm alanlar (olay yetkisi tek yerde)
+  const yolAyir = (yol) => yol.split(".").map((p) => (/^\d+$/.test(p) ? Number(p) : p));
+  function yolYaz(yol, deger) {
+    const p = yolAyir(yol); let o = kk;
+    for (let i = 0; i < p.length - 1; i++) o = o[p[i]];
+    o[p.at(-1)] = deger;
+  }
+  $("v-kasa").addEventListener("input", (e) => {
+    const y = e.target.dataset.yol; if (!y || !kk) return;
+    yolYaz(y, e.target.value);
+    degisti();
+    if (y === "sayilan" || y === "birakilan") {
+      // yazılan alanın odağını kaybetmeden sadece hesap satırlarını güncelle
+      const id = e.target.id, pos = e.target.selectionStart;
+      kasaOzetCiz(); const el = $(id); el.focus(); try { el.setSelectionRange(pos, pos); } catch {}
+    } else kasaOzetCiz();
+  });
+  $("v-kasa").addEventListener("change", (e) => { if (e.target.dataset.yol && e.target.tagName === "SELECT") { yolYaz(e.target.dataset.yol, e.target.value); degisti(); } });
+  $("v-kasa").addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b || !kk) return;
+    if (b.dataset.adim) {
+      const p = yolAyir(b.dataset.adim), m = kk.maclar[p[1]];
+      m[p[2]] = Math.max(0, (m[p[2]] || 0) + Number(b.dataset.d));
+      b.parentElement.querySelector("span").textContent = `${p[2] === "krampon" ? "👟" : "🧤"} ${m[p[2]]}`;
+      degisti(); kasaOzetCiz();
+    } else if (b.dataset.sil) {
+      const [ad, i] = yolAyir(b.dataset.sil);
+      if (ad === "maclar" && !confirm(`${kk.maclar[i].saat || ""} satırı silinsin mi?`)) return;
+      kk[ad].splice(i, 1); degisti(); kasaCiz();
+    } else if (b.dataset.ekle) {
+      kk[b.dataset.ekle].push({ aciklama: "", tutar: "" }); degisti(); kasaCiz();
+      const l = document.querySelectorAll(`[data-yol^="${b.dataset.ekle}."][data-yol$=".aciklama"]`); l[l.length - 1]?.focus();
+    } else if (b.dataset.kantin !== undefined) {
+      const m = kk.maclar[b.dataset.kantin];
+      urunSec(`${m.saat} · ${m.ad || "maç"} · kantin`, m.kantin || {}, (yeni) => { m.kantin = yeni; degisti(); kasaOzetCiz(); });
+    } else if (b.dataset.ikram) {
+      const kim = b.dataset.ikram;
+      urunSec(`${kim} · ikram / tüketim`, kk.ikram?.[kim] || {}, (yeni) => { kk.ikram = { ...(kk.ikram || {}), [kim]: yeni }; degisti(); kasaCiz(); });
+    } else if (b.id === "k-mac-ekle") {
+      kk.maclar.push({ saat: "", tur: "normal", ad: "", ucret: kasa.fiyat.mac, vip: 0, onOdeme: 0, krampon: 0, eldiven: 0, kantin: {} }); degisti(); kasaCiz();
+    } else if (b.id === "k-takvim") {
+      const var_ = new Set(kk.maclar.map((m) => m.saat));
+      const yeni = kasa.takvim.filter((t) => !var_.has(t.saat));
+      if (!yeni.length) return bildir("Takvimdeki tüm maçlar zaten listede");
+      kk.maclar.push(...yeni.map((t) => ({ ...t, krampon: 0, eldiven: 0, kantin: {} })));
+      kk.maclar.sort((a, b) => ((gece(a.saat || "08") ? 24 : 0) + Number((a.saat || "0").slice(0, 2))) - ((gece(b.saat || "08") ? 24 : 0) + Number((b.saat || "0").slice(0, 2))));
+      degisti(); kasaCiz(); bildir(`${yeni.length} maç eklendi`);
+    } else if (b.id === "k-maas") {
+      const yeni = kasa.calisanlar.filter((c) => c.ucret > 0 && !kk.cikislar.some((x) => x.aciklama.startsWith(`Maaş · ${c.ad} ·`)));
+      if (!yeni.length) return bildir(kasa.calisanlar.some((c) => c.acik) ? "Çıkışı onaylanmamış çalışan var" : "Eklenecek maaş yok (saatlik ücret girilmemiş olabilir)");
+      kk.cikislar.push(...yeni.map((c) => ({ aciklama: `Maaş · ${c.ad} · ${saatSayi(c.saat)} saat`, tutar: c.ucret })));
+      degisti(); kasaCiz();
+    } else if (b.id === "k-kaydet") kasaKaydet();
+  });
+
+  async function kasaKaydet() {
+    const b = $("k-kaydet"); b.disabled = true;
+    const r = await api("kasa", { ...kk, gun: kasaGun }).catch(() => ({ hata: "Kaydedilemedi" }));
+    b.disabled = false;
+    if (r.hata) return bildir(r.hata);
+    kasaDegisti = false; bildir("Kasa kaydedildi");
+    kasaYukle(kasaGun);
+  }
+
+  /** Ürün seçici: adet artır/azalt; kapanınca geri çağırır */
+  function urunSec(baslik, mevcut, bitti) {
+    const sec = { ...mevcut };
+    const aktif = kasa.urunler.filter((u) => u.aktif !== false || sec[u.id]);
+    const ic = ac(baslik, `
+      <input type="search" id="us-ara" placeholder="Ürün ara" style="width:100%;border:1px solid #b5c3cf;border-radius:10px;padding:9px 12px;font-size:16px;margin-bottom:8px">
+      <div class="urun-grid">${aktif.map((u) => `<div class="urun${sec[u.id] ? " var" : ""}" data-u="${u.id}" data-ad="${kacis(u.ad.toLocaleLowerCase("tr"))}">
+        <b>${kacis(u.ad)}</b><small class="soluk">${para(birim(u.id).satis)} · stok ${u.stok}</small>
+        <span class="adim"><button type="button" data-d="-1">−</button><span>${sec[u.id] || 0}</span><button type="button" data-d="1">+</button></span></div>`).join("")}</div>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:12px"><b id="us-top"></b><button class="dugme" type="button" id="us-tamam" style="margin-left:auto">Tamam</button></div>`);
+    const topCiz = () => { $("us-top").textContent = `Toplam ${para(Object.entries(sec).reduce((t, [id, a]) => t + a * birim(id).satis, 0))}`; };
+    topCiz();
+    ic.querySelectorAll("[data-u]").forEach((el) => el.addEventListener("click", (e) => {
+      const d = e.target.closest("button")?.dataset.d; if (!d) return;
+      const id = el.dataset.u;
+      sec[id] = Math.max(0, (sec[id] || 0) + Number(d)); if (!sec[id]) delete sec[id];
+      el.querySelector(".adim span").textContent = sec[id] || 0;
+      el.classList.toggle("var", Boolean(sec[id])); topCiz();
+    }));
+    $("us-ara").addEventListener("input", (e) => {
+      const q = e.target.value.trim().toLocaleLowerCase("tr");
+      ic.querySelectorAll("[data-u]").forEach((el) => { el.hidden = q && !el.dataset.ad.includes(q); });
+    });
+    $("us-tamam").addEventListener("click", () => { dlg.close(); bitti(sec); });
+  }
+
+  // ---- Stok ----
+  function stokCiz() {
+    const duzenler = ["admin", "mudur"].includes(ben.rol);
+    const l = kasa.urunler;
+    $("kasa-stok-alan").innerHTML = `<details class="kutu kasa-kart"><summary style="cursor:pointer"><b style="font-size:20px">Kantin stok</b> <span class="soluk">· ${l.filter((u) => u.aktif !== false && u.stok <= 5).length} ürün azaldı</span></summary>
+      <table class="stok-t" style="margin-top:8px"><thead><tr><th>Ürün</th><th>Alış</th><th>Satış</th><th>Stok</th></tr></thead><tbody>
+      ${l.map((u, i) => `<tr data-s="${i}" class="${u.aktif !== false && u.stok <= 5 ? "az" : ""}"${u.aktif === false ? ' style="opacity:.5"' : ""}><td>${kacis(u.ad)}</td><td>${para(u.alis)}</td><td>${para(u.satis)}</td><td>${u.stok}</td></tr>`).join("")}
+      </tbody></table>
+      ${duzenler ? '<div class="k-alt"><button class="dugme ikincil kucuk" type="button" id="s-ekle">+ Yeni ürün</button><span class="soluk" style="font-size:13px">Mal girişi, sayım ve fiyat için ürüne dokunun.</span></div>' : ""}
+    </details>`;
+    if (!duzenler) return;
+    $("kasa-stok-alan").querySelectorAll("[data-s]").forEach((tr) => tr.addEventListener("click", () => urunDuzenle(l[tr.dataset.s])));
+    $("s-ekle").addEventListener("click", () => urunDuzenle(null));
+  }
+
+  function urunDuzenle(u) {
+    const ic = ac(u ? u.ad : "Yeni ürün", `
+      <div class="alan"><label for="u-ad">Ürün adı</label><input id="u-ad" value="${kacis(u?.ad || "")}"></div>
+      <div class="iki-alan">
+        <div class="alan"><label for="u-alis">Alış (₺)</label><input id="u-alis" inputmode="numeric" value="${u?.alis ?? ""}"></div>
+        <div class="alan"><label for="u-satis">Satış (₺)</label><input id="u-satis" inputmode="numeric" value="${u?.satis ?? ""}"></div>
+      </div>
+      <div class="iki-alan">
+        <div class="alan"><label for="u-gelen">Gelen mal (adet)</label><input id="u-gelen" inputmode="numeric" placeholder="Stoğa eklenir"></div>
+        <div class="alan"><label for="u-stok">Sayım (stok)</label><input id="u-stok" inputmode="numeric" value="${u?.stok ?? 0}"></div>
+      </div>
+      ${u ? `<label style="display:flex;gap:6px;align-items:center;margin-bottom:12px"><input type="checkbox" id="u-aktif"${u.aktif !== false ? " checked" : ""}> Satışta</label>` : ""}
+      <p class="soluk" style="font-size:13px;margin:-4px 0 12px">Fiyat değişikliği eski günlerin kasasını değiştirmez.</p>
+      <div style="display:grid;gap:8px"><button class="dugme" type="button" id="u-kaydet">Kaydet</button>
+      ${u && ben.rol === "admin" ? '<button class="dugme tehlike" type="button" id="u-sil">Ürünü sil</button>' : ""}</div>`);
+    const gonder = async (ek) => {
+      const g = { id: u?.id, ad: $("u-ad").value, alis: $("u-alis").value, satis: $("u-satis").value, ...ek };
+      if (!ek.sil) {
+        const gelen = Number($("u-gelen").value) || 0;
+        if (String($("u-stok").value) !== String(u?.stok ?? 0)) g.stok = $("u-stok").value;
+        if (gelen) g.stokEkle = gelen;
+        if (u) g.aktif = $("u-aktif").checked;
+      }
+      const r = await api("urun", g);
+      if (r.hata) return dlgUyari(r.hata);
+      dlg.close(); bildir("Kaydedildi");
+      const v = await api("urunler"); if (Array.isArray(v)) { kasa.urunler = v; stokCiz(); }
+    };
+    ic.querySelector("#u-kaydet").addEventListener("click", () => gonder({}));
+    ic.querySelector("#u-sil")?.addEventListener("click", () => confirm("Ürün silinsin mi? (Eski günlerin kasası etkilenmez)") && gonder({ sil: true }));
+  }
+
+  // ---- Aylık özet (Admin) ----
+  async function kasaAyYukle() {
+    const alan = $("kasa-ay-alan");
+    alan.hidden = ben.rol !== "admin";
+    if (ben.rol !== "admin") return;
+    const ay = alan.dataset.ay || kasaGun.slice(0, 7);
+    const v = await api(`kasa/ay?ay=${ay}`).catch(() => null);
+    if (!v || v.hata) return;
+    const t = v.toplam;
+    alan.innerHTML = `<div class="kutu kasa-kart"><h3>Aylık kasa özeti <input type="month" id="ka-ay" value="${ay}" class="sag" style="border:1px solid #b5c3cf;border-radius:8px;padding:5px 8px;font-size:15px"></h3>
+      <div style="overflow-x:auto"><table class="stok-t"><thead><tr><th>Gün</th><th>Ciro</th><th>Kantin</th><th>Çıkış</th><th>Fark</th></tr></thead><tbody>
+      ${v.gunler.map((g) => `<tr data-kg="${g.gun}"><td>${tarihYazi(g.gun)} ${KISA[gunNo(g.gun)]}</td><td>${para(g.ciro)}</td><td>${para(g.kantin)}</td><td>${para(g.cikis)}</td><td${g.fark < 0 ? ' style="color:#b42318"' : ""}>${g.fark === null ? "—" : para(g.fark)}</td></tr>`).join("") || '<tr><td colspan="5" class="soluk">Kayıt yok</td></tr>'}
+      </tbody><tfoot><tr><th>Toplam</th><th style="text-align:right">${para(t.ciro)}</th><th style="text-align:right">${para(t.kantin)}</th><th style="text-align:right">${para(t.cikis)}</th><th></th></tr></tfoot></table></div>
+      <p class="soluk" style="font-size:13px;margin-top:8px">Maç ${para(t.mac)} · VIP ${para(t.vip)} · krampon ${para(t.krampon)} · eldiven ${para(t.eldiven)} · kantin kârı ${para(t.kantinKar)} · kasa girişi ${para(t.giris)} · veresiye ${para(t.veresiye)} · ikram değeri ${para(t.ikramDeger)}</p></div>`;
+    $("ka-ay").addEventListener("change", (e) => { alan.dataset.ay = e.target.value; kasaAyYukle(); });
+    alan.querySelectorAll("[data-kg]").forEach((tr) => tr.addEventListener("click", () => { kasaYukle(tr.dataset.kg); window.scrollTo({ top: 0 }); }));
+  }
 
   // Başka bir haftaya geçildiyse ve 2 dakika dokunulmadıysa bugünün haftasına dön
   let sonHareket = Date.now();

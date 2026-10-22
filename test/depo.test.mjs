@@ -481,3 +481,74 @@ test("Abone 'gelmiyor': aynı saat bu haftanın bütün günlerinde (Cmt + Paz 0
   assert.equal(h.gunler[6].saatler.find((x) => x.saat === "08:00").tur, "abone-gelmiyor");
   assert.equal(h.gunler[6].saatler.find((x) => x.saat === "09:00").tur, "abone");
 });
+
+test("Puantaj: beklenen giriş ilk maçtan 1 saat önce; giriş/çıkış, gece yarısı çıkış, aylık ücret, düzeltme", async () => {
+  const d = demoDepo({ PANEL_KURULUM_KODU: "k" });
+  const a = await d.panelKur({ kurulumKodu: "k", eposta: "admin@aysu.com", ad: "Admin", sifre: "aysu-2026!" });
+  const admin = await d.oturum(a.token);
+  await d.kayitOl({ eposta: "p@aysu.com", ad: "Personel Bir", sifre: "personel-1", rol: "personel" });
+  await d.kullaniciGuncelle({ eposta: "p@aysu.com", rol: "personel", durum: "aktif", saatlikUcret: "150" }, admin);
+  const p = await d.oturum((await d.panelGiris({ eposta: "p@aysu.com", sifre: "personel-1" })).token);
+  await d.panelRezEkle({ gunTarihi: "2026-10-19", saat: "19:00", ad: "Maç", telefon: "" });
+  saatiAyarla("2026-10-19T17:55");
+  const b = await d.puantajBugun(p);
+  assert.equal(b.ilkMac, "19:00"); assert.equal(b.baslama, "18:00");
+  assert.ok((await d.puantajGiris(p)).basarili);
+  assert.match((await d.puantajGiris(p)).hata, /zaten/);
+  saatiAyarla("2026-10-20T01:25"); // gece yarısından sonra çıkış → aynı işletme günü
+  const c = await d.puantajCikis(p);
+  assert.ok(c.basarili, JSON.stringify(c)); assert.equal(c.gun, "2026-10-19");
+  const ay = await d.puantajAy("2026-10");
+  assert.equal(ay.kisiler[0].saat, 7.5); assert.equal(ay.kisiler[0].ucret, 1125);
+  assert.match((await d.puantajDuzelt({ eposta: "p@aysu.com", gun: "2026-10-19", giris: "18:00", cikis: "02:00" }, p)).hata, /Admin ve Müdür/);
+  assert.ok((await d.puantajDuzelt({ eposta: "p@aysu.com", gun: "2026-10-19", giris: "18:00", cikis: "02:00" }, admin)).basarili);
+  assert.equal((await d.puantajAy("2026-10")).kisiler[0].saat, 8);
+  assert.match((await d.kullaniciGuncelle({ eposta: "p@aysu.com", saatlikUcret: 999 }, p)).hata, /yetki|Admin/);
+});
+
+test("Kasa defteri: takvimden maçlar, kantin/krampon cirosu, stok farkı, yetki, devir", async () => {
+  const d = demoDepo({ PANEL_KURULUM_KODU: "k" });
+  const a = await d.panelKur({ kurulumKodu: "k", eposta: "admin@aysu.com", ad: "Admin", sifre: "aysu-2026!" });
+  const admin = await d.oturum(a.token);
+  await d.kayitOl({ eposta: "m@aysu.com", ad: "Müdür Bir", sifre: "mudur-123", rol: "mudur" });
+  await d.kullaniciGuncelle({ eposta: "m@aysu.com", rol: "mudur", durum: "aktif" }, admin);
+  const mudur = await d.oturum((await d.panelGiris({ eposta: "m@aysu.com", sifre: "mudur-123" })).token);
+  await d.panelRezEkle({ gunTarihi: "2026-10-19", saat: "23:00", ad: "Berat", telefon: "", kapora: "1200" });
+  await d.aboneKaydet({ ad: "Ekip", telefon: "0545 123 01 23", gun: 0, saat: "21:00", no: 13 });
+
+  const k = await d.kasaGetir("2026-10-19", mudur);
+  assert.equal(k.kayitli, false);
+  assert.deepEqual(k.kayit.maclar.map((x) => [x.saat, x.tur, x.ad, x.ucret, x.onOdeme]), [["21:00", "abone", "Abone 13", 3200, 0], ["23:00", "normal", "Berat", 3700, 1200]]);
+  const su = k.urunler.find((u) => u.ad === "SU 0,50"), cay = k.urunler.find((u) => u.ad.startsWith("ÇAY"));
+  assert.equal(su.stok, 305);
+
+  const g = { ...k.kayit, devir: 500, sayilan: null, birakilan: 500 };
+  g.maclar[1] = { ...g.maclar[1], krampon: 1, eldiven: 0, kantin: { [su.id]: 11, [cay.id]: 1 } };
+  g.girisler = [{ aciklama: "Fevzi kapora", tutar: "960" }];
+  g.cikislar = [{ aciklama: "Maaş", tutar: 1120 }];
+  g.ikram = { "Müdür": { [cay.id]: 2 } };
+  const r = await d.kasaKaydet(g, mudur);
+  assert.ok(r.basarili, JSON.stringify(r));
+  const o = r.kayit.ozet;
+  assert.equal(o.maclar[1].toplam, 3700 + 100 + 11 * 25 + 25); // 4100 (Excel'deki gibi)
+  assert.equal(o.ciro, 3200 + 4100);
+  assert.equal(o.olmasiGereken, 500 + 7300 + 960 - 1120 - 1200);
+  assert.equal((await d.urunler()).find((u) => u.id === su.id).stok, 294);
+  // Aynı günü tekrar kaydetmek stoğu iki kez düşmez; adet azalınca stok geri gelir
+  g.maclar[1].kantin[su.id] = 9;
+  assert.ok((await d.kasaKaydet(g, mudur)).basarili);
+  assert.equal((await d.urunler()).find((u) => u.id === su.id).stok, 296);
+  assert.equal((await d.urunler()).find((u) => u.id === cay.id).stok, 904 - 3);
+
+  // Ertesi gün devir önceki günün bırakılanı
+  saatiAyarla("2026-10-20T12:00");
+  assert.equal((await d.kasaGetir("2026-10-20", mudur)).kayit.devir, 500);
+  // Müdür 2 gün önceyi göremez, Admin görür
+  saatiAyarla("2026-10-22T12:00");
+  assert.match((await d.kasaGetir("2026-10-19", mudur)).hata, /Admin/);
+  assert.ok((await d.kasaGetir("2026-10-19", admin)).kayitli);
+  assert.equal((await d.kasaAy("2026-10")).toplam.ciro, 3200 + 3700 + 100 + 9 * 25 + 25);
+  // Ürün: sadece Admin/Müdür; gelen mal stoğa eklenir
+  assert.ok((await d.urunKaydet({ id: su.id, stokEkle: 100 }, mudur)).basarili);
+  assert.equal((await d.urunler()).find((u) => u.id === su.id).stok, 396);
+});

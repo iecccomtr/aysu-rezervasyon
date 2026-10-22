@@ -1653,7 +1653,7 @@
       </div>
 
       <div class="kutu kasa-kart"><h3>Bugün gelen kaporalar<span class="sag">${para((kk.gelenKaporalar || []).reduce((t, x) => t + x.tutar, 0))}</span></h3>
-        ${(kk.gelenKaporalar || []).map((x) => `<div class="k-sat" style="grid-template-columns:1fr auto"><span><b>${kacis(x.ad)}</b> <small class="soluk">${kacis(x.mac)} maçı · ${kacis(x.yol)}${x.iptal ? " · iptal (iade yok)" : ""}</small></span><b>${para(x.tutar)}</b></div>`).join("")
+        ${(kk.gelenKaporalar || []).map((x, j) => `<div class="k-sat" style="grid-template-columns:1fr auto ${ben.rol === "admin" ? "32px" : ""}"><span><b>${kacis(x.ad)}</b> <small class="soluk">${kacis(x.mac)} maçı · ${kacis(x.yol)}${x.iptal ? " · iptal (iade yok)" : ""}</small></span><b>${para(x.tutar)}</b>${ben.rol === "admin" ? `<button class="x-sil" type="button" data-kapora-sil="${j}" aria-label="Kaporayı kasadan sil">×</button>` : ""}</div>`).join("")
           || '<p class="soluk">Bugün kapora alınmadı.</p>'}
         <p class="soluk" style="font-size:13px;margin-top:6px">Bugün alınan, ileri tarihli maçların kaporaları (dekont ya da panel) rezervasyonlardan kendiliğinden gelir ve <b>bugünün kasasına eklenir</b>. Maç günü o maçın toplamından düşülür, iki kez sayılmaz. Maç günü gelen kapora maçın toplamında kalır.</p></div>
       ${satirListesi("girisler", "Diğer kasa girişi", "Açıklama")}
@@ -1769,6 +1769,15 @@
         m.kantinOdenen = Object.fromEntries(Object.entries(od).filter(([, a]) => a > 0));
         degisti(); kasaCiz();
       }, { odeme: true, aciklama: "Adetleri seçin. Müşteri hemen öderse 'Ödendi'ye, maç sonunda ödeyecekse 'Maç sonunda alınacak'a basın." });
+    } else if (b.dataset.kaporaSil !== undefined) {
+      const x = kk.gelenKaporalar[b.dataset.kaporaSil];
+      if (!confirm(`${x.ad} — ${para(x.tutar)} kapora bugünkü kasadan silinsin mi? (Rezervasyon değişmez)`)) return;
+      api("kasa/kapora-sil", { gun: kasaGun, kayitNo: x.kayitNo }).then((r) => {
+        if (r.hata) return bildir(r.hata);
+        kk.gelenKaporalar = kk.gelenKaporalar.filter((y) => y !== x);
+        kasa.kayit.gelenKaporalar = (kasa.kayit.gelenKaporalar || []).filter((y) => y.kayitNo !== x.kayitNo);
+        kasaCiz(); bildir("Kapora kasadan silindi");
+      });
     } else if (b.dataset.tahsil !== undefined) {
       const m = kk.maclar[b.dataset.tahsil];
       if (!confirm(`${m.saat} ${m.ad}: ödenmemiş kantin tahsil edildi mi?`)) return;

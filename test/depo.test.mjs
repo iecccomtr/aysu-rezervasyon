@@ -734,3 +734,15 @@ test("Kasa: online dekontla bugün gelen kapora bugünün kasasına eklenir (tut
   assert.equal(mg.kayit.maclar.find((m) => m.saat === "01:00").onOdeme, 1200, "maç günü düşülür");
   assert.equal(mg.kayit.gelenKaporalar.length, 0);
 });
+
+test("Kasa: Admin bugün gelen kaporayı kasadan silebilir, Müdür silemez", async () => {
+  const d = demoDepo({ PANEL_KURULUM_KODU: "k" });
+  const admin = await d.oturum((await d.panelKur({ kurulumKodu: "k", eposta: "admin@aysu.com", ad: "Admin", sifre: "aysu-2026!" })).token);
+  const r = await d.panelRezEkle({ gunTarihi: "2026-10-25", saat: "21:00", ad: "Fevzi", telefon: "", kapora: "960" });
+  const k = await d.kasaGetir("2026-10-19", admin);
+  await d.kasaKaydet({ ...k.kayit }, admin);
+  assert.match((await d.gelenKaporaSil({ gun: "2026-10-19", kayitNo: r.kayitNo }, { rol: "mudur", ad: "M" })).hata, /Admin/);
+  assert.ok((await d.gelenKaporaSil({ gun: "2026-10-19", kayitNo: r.kayitNo }, admin)).basarili);
+  const k2 = await d.kasaGetir("2026-10-19", admin);
+  assert.equal(k2.kayit.gelenKaporalar.length, 0); assert.equal(k2.kayit.ozet.gelenKapora, 0);
+});

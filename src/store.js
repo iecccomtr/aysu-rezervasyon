@@ -1187,11 +1187,33 @@ export class RezervasyonDeposu extends DurableObject {
 
   /** O gün alınan kaporalar (ileri tarihli maçlar için; iptal olsa da kapora iade edilmediği için sayılır) */
   async gelenKaporalar(gun) {
-    const l = await this.rezervasyonlar(gunEkle(gun, -2), gunEkle(gun, KURALLAR.enFazlaGunSonra + 3));
+    const [l, haric] = await Promise.all([this.rezervasyonlar(gunEkle(gun, -2), gunEkle(gun, KURALLAR.enFazlaGunSonra + 3)), this.st.get(`kh:${gun}`)]);
     return l.filter((r) => r.kaporaGunu === gun && (r.isletmeGunu || r.tarih) !== gun) // aynı gün maçın kaporası maç toplamında
+      .filter((r) => !(haric || []).includes(r.kayitNo)) // Admin'in kasadan çıkardıkları
       .map((r) => ({ kayitNo: r.kayitNo, mac: `${(r.isletmeGunu || r.tarih).split("-").reverse().slice(0, 2).join(".")} ${r.saat}`, ad: r.ad,
         tutar: kaporaTutari(r), yol: r.kaynak === "Online" ? "IBAN (dekont)" : (r.kaynak || "Panel"), iptal: iptalMi(r.durum) }))
       .filter((x) => x.tutar > 0);
+  }
+
+  /** Admin: "bugün gelen kaporalar" listesinden bir kaydı çıkarır (yanlış / mükerrer) */
+  async gelenKaporaSil({ gun, kayitNo }, yapan) {
+    return this.kilitli(async () => {
+      if (yapan?.rol !== "admin") return { hata: "Kaporayı kasadan sadece Admin silebilir." };
+      const g = tarihNormalize(gun);
+      if (!g || !kayitNo) return { hata: "Gün ve kayıt gerekli." };
+      const l = (await this.st.get(`kh:${g}`)) || [];
+      if (!l.includes(kayitNo)) l.push(kirp(kayitNo, 20));
+      await this.st.put(`kh:${g}`, l);
+      const k = await this.st.get(`kasa:${g}`);
+      const silinen = (k?.gelenKaporalar || []).find((x) => x.kayitNo === kayitNo);
+      if (k) {
+        const yeni = { ...k, gelenKaporalar: (k.gelenKaporalar || []).filter((x) => x.kayitNo !== kayitNo) };
+        yeni.ozet = kasaOzet(yeni);
+        await this.st.put(`kasa:${g}`, yeni);
+      }
+      await this.kayitTut(yapan, "Kasadan kapora sildi", `${g} · ${kayitNo}${silinen ? ` · ${silinen.ad} · ${silinen.tutar} TL` : ""}`);
+      return { basarili: true };
+    });
   }
 
   async kasaGetir(gunGirdi, yapan) {

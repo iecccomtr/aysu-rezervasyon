@@ -338,6 +338,7 @@ async function panel(request, env, ctx, yol) {
       }).catch((e) => console.error("Sipariş e-postası", e)));
       return json({ basarili: true });
     }
+    case "POST kasa/kapora-sil": { const r = await d.gelenKaporaSil(g, ben); return json(r, r.hata ? 400 : 200); }
     case "POST veresiye-ode": return sonuc(await d.veresiyeOde(g, ben));
     case "GET urunler": return json(alisGizle({ urunler: await d.urunler() }, ben).urunler);
     case "POST urun": {

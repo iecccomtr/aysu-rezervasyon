@@ -1014,6 +1014,10 @@
       <form id="d-form" novalidate>
         <label style="font-weight:600;display:block;margin-bottom:5px">Durum</label>
         ${durumSecici(r.durum)}
+        <div class="alan" id="d-iptal-alan" ${r.durum === "İptal" ? "" : "hidden"} style="background:#fff1f1;border:1px solid #f2c4c4;border-radius:10px;padding:10px">
+          <label for="d-iptal" style="color:#b42318">İptal açıklaması (zorunlu)</label>
+          <textarea id="d-iptal" placeholder="Ör. müşteri aradı, maçı iptal etti" ${r.durum === "İptal" ? "disabled" : ""}>${kacis(r.iptalNedeni || "")}</textarea>
+        </div>
         <div class="iki-alan">
           <div class="alan"><label for="d-rad">Ad soyad</label><input id="d-rad" value="${kacis(r.ad || "")}" autocomplete="off"></div>
           <div class="alan"><label for="d-rtel">Telefon</label><input id="d-rtel" type="tel" inputmode="tel" value="${kacis(telYazi(r.telefon))}" placeholder="05XX XXX XX XX" autocomplete="off"></div>
@@ -1023,6 +1027,12 @@
         <button class="dugme tam" type="submit">Kaydet</button>
       </form>`);
     const durumAl = durumSeciciBagla(ic);
+    // İptal seçilince açıklama kutusu açılır
+    ic.querySelectorAll("[data-durum]").forEach((b) => b.addEventListener("click", () => {
+      const iptal = b.dataset.durum === "İptal";
+      $("d-iptal-alan").hidden = !iptal && r.durum !== "İptal";
+      if (iptal && r.durum !== "İptal") setTimeout(() => $("d-iptal").focus(), 50);
+    }));
     const m = $("d-musteri");
     if (m) m.addEventListener("click", () => musteriDetay(r.telefon));
     const yeniden = $("d-dekont-yeniden");
@@ -1038,9 +1048,9 @@
       const durum = durumAl();
       let iptalNedeni;
       if (durum === "İptal" && r.durum !== "İptal") {
-        iptalNedeni = prompt(`${r.ad} – ${r.saat} rezervasyonu iptal ediliyor, saat boşa çıkacak.\n\nİptal açıklaması yazın (zorunlu):`);
-        if (iptalNedeni === null) return;
-        if (iptalNedeni.trim().length < 3) return dlgUyari("İptal için açıklama yazmanız gerekiyor.");
+        iptalNedeni = $("d-iptal").value.trim();
+        if (iptalNedeni.length < 3) { $("d-iptal").focus(); return dlgUyari("İptal açıklamasını yazın (kırmızı kutu)."); }
+        if (!confirm(`${r.ad} – ${r.saat} rezervasyonu iptal edilsin mi? Saat boşa çıkar.`)) return;
       }
       const btn = e.submitter; btn.disabled = true;
       try {
@@ -1239,9 +1249,14 @@
     });
     const sil = $("d-sil");
     if (sil) sil.addEventListener("click", async () => {
-      const neden = prompt(`${a.ad} aboneliği sonlandırılıyor (${slotOzet(a.slotlar || [])}), her hafta boşa çıkacak.\n\nAçıklama yazın (zorunlu):`);
-      if (neden === null) return;
-      if (neden.trim().length < 3) return dlgUyari("Aboneliği sonlandırmak için açıklama yazmanız gerekiyor.");
+      let alan = $("d-sil-neden");
+      if (!alan) {
+        sil.insertAdjacentHTML("beforebegin", `<div class="alan" style="margin-top:10px;background:#fff1f1;border:1px solid #f2c4c4;border-radius:10px;padding:10px"><label for="d-sil-neden" style="color:#b42318">Sonlandırma açıklaması (zorunlu)</label><textarea id="d-sil-neden" placeholder="Ör. sezon bitti, takım dağıldı"></textarea></div>`);
+        $("d-sil-neden").focus(); sil.textContent = "Açıklamayla aboneliği sonlandır"; return;
+      }
+      const neden = alan.value;
+      if (neden.trim().length < 3) { alan.focus(); return dlgUyari("Aboneliği sonlandırmak için açıklama yazın."); }
+      if (!confirm(`${a.ad} aboneliği sonlandırılsın mı? (${slotOzet(a.slotlar || [])}) her hafta boşa çıkar.`)) return;
       const r = await api("abone-sil", { id: a.id, neden: neden.trim() });
       if (r.hata) return dlgUyari(r.hata);
       dlg.close(); bildir("Abonelik sonlandırıldı"); aboneYukle();

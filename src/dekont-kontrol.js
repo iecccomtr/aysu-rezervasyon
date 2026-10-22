@@ -23,7 +23,7 @@ const TALIMAT = `Bu bir Türk bankası havale/EFT/FAST dekontu. SADECE şu JSON'
 {"alici_iban": "...", "alici_ad": "...", "tutar": 0, "tarih": "YYYY-AA-GG", "aciklama": "...", "gonderen": "...", "tum_metin": "..."}
 - alici_iban: paranın GÖNDERİLDİĞİ (alıcı) IBAN, boşluksuz. Gönderen IBAN'ı değil.
 - alici_ad: alıcı adı soyadı / unvanı.
-- tutar: gönderilen tutar, TL, sayı olarak (ör. 1.200,00 TL → 1200).
+- tutar: GÖNDERİLEN işlem tutarı (İşlem Tutarı / Tutar / Gönderilen Tutar), sayı olarak (ör. 1.200,00 TL → 1200). Bakiye, masraf ya da komisyon değil.
 - tarih: işlem tarihi.
 - tum_metin: dekonttaki bütün yazıları olduğu gibi tek satırda yaz.
 Bulamadığın alan için null yaz.`;
@@ -43,8 +43,23 @@ function jsonAl(yanit) {
   try { return JSON.parse(m[0]); } catch { return null; }
 }
 
-/** Dekontu okur. Dönen: { alici_iban, alici_ad, tutar, tarih, aciklama, gonderen } ya da { hata } */
-export async function dekontOku(env, { tur, veri }) {
+/** İki okumayı birleştirir: ilk bulunan alanlar + bütün metinler (bir model IBAN'ı, öbürü adı okuyabilir) */
+function birlestir(a, b) {
+  if (!a) return b;
+  return {
+    alici_iban: a.alici_iban || b.alici_iban || null, alici_ad: a.alici_ad || b.alici_ad || null,
+    tutar: a.tutar ?? b.tutar ?? null, tarih: a.tarih || b.tarih || null, aciklama: a.aciklama || b.aciklama || null,
+    gonderen: a.gonderen || b.gonderen || null,
+    _metin: [a._metin, b._metin, b.alici_iban, b.alici_ad].filter(Boolean).join(" | "),
+    _model: [a._model, b._model].filter(Boolean).join(" + "),
+  };
+}
+
+/**
+ * Dekontu okur. Dönen: { alici_iban, alici_ad, tutar, tarih, aciklama, gonderen, _metin } ya da { hata }
+ * yeterli(okunan): okuma kontrolü geçiyorsa true — geçmiyorsa sıradaki model de denenir ve sonuçlar birleştirilir.
+ */
+export async function dekontOku(env, { tur, veri }, { yeterli = () => true } = {}) {
   if (!env.AI) return { hata: "Otomatik kontrol kapalı (Workers AI bağlı değil)." };
   try {
     if (tur === "application/pdf") {
@@ -61,6 +76,7 @@ export async function dekontOku(env, { tur, veri }) {
     }
     const resim = `data:${tur};base64,${b64(veri)}`;
     const hatalar = [];
+    let sonuc = null;
     const basla = Date.now();
     for (const d of GORSEL_DENEMELER) {
       const kalan = TOPLAM_SURE - (Date.now() - basla);
@@ -75,12 +91,20 @@ export async function dekontOku(env, { tur, veri }) {
         }
         const y = await zamanAsimi(env.AI.run(d.model, girdi), Math.min(DENEME_SURESI, kalan));
         const j = jsonAl(y);
-        if (j) return { ...j, _model: d.model, _metin: j.tum_metin || "" };
-        hatalar.push(`${d.model.split("/").pop()}: JSON yok (${String(y?.response ?? "").slice(0, 80)})`);
+        const hamMetin = typeof y?.response === "string" ? y.response : "";
+        if (j || hamMetin) {
+          // JSON gelmese de modelin yazdığı metin (IBAN / ad geçiyorsa) değerlendirmeye girer
+          const bu = { ...(j || {}), _model: d.model.split("/").pop(), _metin: [j?.tum_metin, hamMetin].filter(Boolean).join(" ") };
+          sonuc = birlestir(sonuc, { ...bu, ...metindenAlanlar(bu._metin, j || {}) });
+          if (yeterli(sonuc)) return sonuc;
+          continue;
+        }
+        hatalar.push(`${d.model.split("/").pop()}: boş yanıt`);
       } catch (e) {
         hatalar.push(`${d.model.split("/").pop()}: ${String(e?.message || e).slice(0, 120)}`);
       }
     }
+    if (sonuc) return sonuc; // kısmi okuma: değerlendirme hangi alanın tutmadığını yazar
     return { hata: "Dekont okunamadı — " + hatalar.join(" | ") };
   } catch (e) {
     return { hata: "Dekont okunamadı: " + String(e?.message || e) };
@@ -93,14 +117,38 @@ function metindenAlanlar(metin, j) {
   const ibanlar = [...t.toUpperCase().matchAll(/TR\s?\d{2}(?:\s?\d{4}){5}\s?\d{2}/g)].map((m) => m[0].replace(/\s/g, ""));
   // Hesap adı: "Alıcı" / "Alıcı Adı" etiketinden sonraki satır parçası
   const adM = t.match(/al[ıi]c[ıi](?:\s*(?:ad[ıi](?:\s*soyad[ıi])?|unvan[ıi]|hesap ad[ıi]))?\s*[:\-]?\s*([A-ZÇĞİÖŞÜa-zçğıöşü .]{3,60})/i);
-  // Tutar: "Tutar: 1.200,00 TL" ya da "1.200,00 TL"
-  const tutarM = t.match(/tutar[^\d\n]{0,30}([\d.]+,\d{2})/i) || t.match(/([\d.]+,\d{2})\s*(?:TL|TRY|₺)/i);
+  const tutarM = tutarBul(t);
   return {
     alici_iban: j.alici_iban || (ibanlar.length ? ibanlar.at(-1) : null),
     alici_ad: j.alici_ad || (adM ? adM[1].trim() : null),
-    tutar: j.tutar ?? (tutarM ? tutarM[1] : null),
+    tutar: tutarSayi(j.tutar) || tutarM || null,
     tarih: j.tarih || metindenTarih(t),
   };
+}
+
+/**
+ * Metindeki gönderilen tutar. Türk bankası dekontlarında: "İşlem Tutarı: 1.200,00 TL", "Tutar 1.200 TL",
+ * "TL 1.200,00", "₺1.200", "1200.00 TRY". Bakiye / masraf / komisyon tutarları atlanır.
+ */
+const SAYI = String.raw`(\d{1,3}(?:[.\s]\d{3})+(?:,\d{1,2})?|\d+(?:[.,]\d{1,2})?)`;
+export function tutarBul(metin) {
+  const t = String(metin || "").replace(/\u00a0/g, " ");
+  const uygun = (v) => { const n = tutarSayi(v); return n != null && n >= 50 && n <= 100000 ? n : null; };
+  const kotu = /bakiye|masraf|komisyon|ücret|ucret|bsmv|vergi|limit/i;
+  // 1) Anahtar kelimeden sonra gelen ilk tutar
+  for (const m of t.matchAll(new RegExp(String.raw`(?:i[şs]lem\s*tutar[ıi]|g[öo]nderilen\s*tutar|havale\s*tutar[ıi]|eft\s*tutar[ıi]|fast\s*tutar[ıi]|tutar|miktar|amount)[^\d\n]{0,25}` + SAYI, "gi"))) {
+    const once = t.slice(Math.max(0, m.index - 20), m.index);
+    if (kotu.test(once) || kotu.test(m[0])) continue;
+    const n = uygun(m[1]); if (n) return n;
+  }
+  // 2) Para birimiyle yan yana yazılan tutarlar (bakiye / masraf olmayan ilk uygun)
+  for (const re of [new RegExp(SAYI + String.raw`\s*(?:TL|TRY|₺)`, "gi"), new RegExp(String.raw`(?:TL|TRY|₺)\s*` + SAYI, "gi")]) {
+    for (const m of t.matchAll(re)) {
+      if (kotu.test(t.slice(Math.max(0, m.index - 25), m.index))) continue;
+      const n = uygun(m[1]); if (n) return n;
+    }
+  }
+  return null;
 }
 
 /** Metindeki ilk tarih: 21.10.2026, 21/10/2026 ya da 2026-10-21 */
@@ -114,6 +162,19 @@ const harfler = (s) => String(s || "").toLocaleUpperCase("tr")
   .replace(/İ/g, "I").replace(/Ş/g, "S").replace(/Ğ/g, "G").replace(/Ü/g, "U").replace(/Ö/g, "O").replace(/Ç/g, "C").replace(/I/g, "I")
   .replace(/[^A-Z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
 const ibanTemiz = (s) => String(s || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+
+/** Levenshtein mesafesi (küçük metinler için) */
+function duzeltmeMesafesi(a, b) {
+  a = String(a); b = String(b);
+  if (Math.abs(a.length - b.length) > 3) return 99;
+  let onceki = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    const su = [i];
+    for (let j = 1; j <= b.length; j++) su[j] = Math.min(onceki[j] + 1, su[j - 1] + 1, onceki[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    onceki = su;
+  }
+  return onceki[b.length];
+}
 
 function tutarSayi(v) {
   if (typeof v === "number") return v;
@@ -147,13 +208,19 @@ export function dekontDegerlendir(okunan, { iban, alici, kapora, rezTarihi, bugu
   const beklenen = ibanTemiz(iban);
   const okunanIban = ibanTemiz(okunan.alici_iban);
   const metin = ibanTemiz(okunan._metin || okunan.tum_metin || "");
-  const metindeVar = metin.includes(beklenen) || metin.includes(beklenen.slice(4)); // "TR70" bazen ayrı yazılır
-  if (!(okunanIban === beklenen || metindeVar)) nedenler.push(`IBAN eşleşmiyor (${okunan.alici_iban || "okunamadı"}).`);
+  const metindeVar = metin.includes(beklenen) || metin.includes(beklenen.slice(4)) // "TR70" bazen ayrı yazılır
+    || metin.includes(beklenen.slice(-10)); // hesap numarası kısmı (son 10 hane) yeterince ayırt edici
+  // Görsel okumada 1–2 rakam yanlış okunabilir: okunan IBAN en fazla 2 karakter farklıysa kabul
+  const yakin = okunanIban.length >= 24 && duzeltmeMesafesi(okunanIban, beklenen) <= 2;
+  if (!(okunanIban === beklenen || metindeVar || yakin)) nedenler.push(`IBAN eşleşmiyor (${okunan.alici_iban || "okunamadı"}).`);
   // Alıcı adı: tüm kelimeler geçmeli (ör. AHMET + AYSU)
   const ad = harfler(okunan.alici_ad);
   const kelimeler = harfler(alici).split(" ").filter((k) => k.length > 1);
   const tumMetin = harfler(okunan._metin || okunan.tum_metin || "");
-  if (!kelimeler.every((k) => ad.includes(k) || tumMetin.includes(k))) nedenler.push(`Hesap adı eşleşmiyor (${okunan.alici_ad || "okunamadı"}).`);
+  // Her kelime adda ya da metinde geçmeli; 4+ harfli kelimelerde 1 harf okuma hatası kabul (AYSU ~ AYSO)
+  const sozcukler = `${ad} ${tumMetin}`.split(" ");
+  const geciyor = (k) => ad.includes(k) || tumMetin.includes(k) || (k.length >= 4 && sozcukler.some((w) => Math.abs(w.length - k.length) <= 1 && duzeltmeMesafesi(w, k) <= 1));
+  if (!kelimeler.every(geciyor)) nedenler.push(`Hesap adı eşleşmiyor (${okunan.alici_ad || "okunamadı"}).`);
   // Tutar onayı engellemez (kimi maçın tamamını, kimi 500 TL öder); kaporadan azsa yöneticiye bilgi gider
   const tutar = tutarSayi(okunan.tutar);
   const eksik = tutar == null || tutar < kapora;

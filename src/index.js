@@ -411,12 +411,14 @@ const rezCevap = (r) => ({
 
 /** Dekontu okur, kurallara göre değerlendirir ve sonucu rezervasyona yazar. */
 async function dekontKontrolEt(env, d, rez, veri) {
-  const okunan = await dekontOku(env, { tur: rez.dekont.tur, veri });
-  const deger = dekontDegerlendir(okunan, {
+  const kurallar = {
     iban: IBAN.no, alici: IBAN.alici, kapora: rez.kaporaTutar ?? FIYATLAR.kapora,
     rezTarihi: String(rez.olusturma || "").slice(0, 10) || null, bugun: simdi().tarih,
     tarihKontrol: KURALLAR.dekontTarihKontrol,
-  });
+  };
+  // Bir model IBAN'ı / adı okuyamazsa sıradaki model de denenir, okumalar birleştirilir
+  const okunan = await dekontOku(env, { tur: rez.dekont.tur, veri }, { yeterli: (o) => dekontDegerlendir(o, kurallar).onay });
+  const deger = dekontDegerlendir(okunan, kurallar);
   const k = await d.dekontSonuc(rez.kayitNo, await ozet(veri), deger);
   return { okunan, k };
 }

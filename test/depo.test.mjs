@@ -450,7 +450,7 @@ test("PDF dekont: model çalışmasa da düz metindeki IBAN, hesap adı ve tarih
   assert.equal(o.tarih, "2026-10-21");
   assert.equal(o.alici_iban, "TR700015700000000154834235");
   assert.match(o.alici_ad, /^AHMET AYSU/);
-  assert.equal(o.tutar, "1.200,00");
+  assert.equal(o.tutar, 1200);
   const d = dekontDegerlendir(o, { iban: "TR70 0015 7000 0000 0154 8342 35", alici: "Ahmet Aysu", kapora: 1200, rezTarihi: "2026-10-21", bugun: "2026-10-22" });
   assert.equal(d.onay, true, d.nedenler.join());
 });
@@ -762,4 +762,15 @@ test("Avans: Admin girer, puantajda kalan hakediş görünür; kasayı etkilemez
   assert.ok((await d.avansSil(kisi.avansListe[0].anahtar, admin)).basarili);
   kisi = (await d.puantajAy("2026-10")).kisiler[0];
   assert.equal(kisi.kalan, 600);
+});
+
+test("Dekont: tutar metinden bulunur; IBAN'da 1-2 rakam okuma hatası ve adda 1 harf hatası tolere edilir", async () => {
+  const { tutarBul, dekontDegerlendir } = await import("../src/dekont-kontrol.js");
+  assert.equal(tutarBul("İşlem Tutarı: 1.200,00 TL Masraf: 0,00 TL"), 1200);
+  assert.equal(tutarBul("Kullanılabilir Bakiye 15.340,22 TL Tutar 500 TL"), 500);
+  assert.equal(tutarBul("₺1.200"), 1200);
+  const kural = { iban: "TR70 0015 7000 0000 0154 8342 35", alici: "AHMET AYSU", kapora: 1200, tarihKontrol: false };
+  assert.ok(dekontDegerlendir({ alici_iban: "TR700015700000000154834236", alici_ad: "AHMET AYSO", tutar: "1.200,00" }, kural).onay);
+  assert.ok(dekontDegerlendir({ alici_iban: null, alici_ad: null, _metin: "Alıcı AHMET AYSU IBAN ...0154 8342 35 Tutar 1.200,00 TL" }, kural).onay);
+  assert.equal(dekontDegerlendir({ alici_iban: "TR120006400000112345678901", alici_ad: "AHMET AYSU" }, kural).onay, false);
 });

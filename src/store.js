@@ -17,7 +17,7 @@ import { DurableObject } from "cloudflare:workers";
 import { SAATLER, KURALLAR, DURUM, EKSTRALAR } from "./config.js";
 import {
   simdi, gunAdi, gunEkle, macZamani, tarihNormalize, saatNormalize,
-  telefonNormalize, gecerliSaat, fiyat, isletmeGunu, haftaBasi,
+  telefonNormalize, telefonGercekci, gecerliSaat, fiyat, isletmeGunu, haftaBasi,
 } from "./time.js";
 
 export const GUNLER = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"];
@@ -216,6 +216,9 @@ export class RezervasyonDeposu extends DurableObject {
     if (!kirp(ad, 60) || kirp(ad, 60).length < (panel ? 2 : 3)) return { hata: "Ad soyad gerekli." };
     if (!telefon && !(panel && !kirp(tel, 20))) {
       return { hata: "Geçersiz telefon. 05XX XXX XX XX biçiminde bir cep telefonu gerekli." };
+    }
+    if (!panel && !telefonGercekci(telefon)) {
+      return { hata: "Bu telefon numarası geçerli görünmüyor. Lütfen kendi cep telefonunuzu doğru yazın (05XX XXX XX XX)." };
     }
     const tarih = takvimTarihi(gun, saat);
     if (!panel) {

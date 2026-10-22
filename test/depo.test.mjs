@@ -462,3 +462,11 @@ test("Dekont tarih kontrolü kapatılabilir (deneme dönemi)", async () => {
   assert.equal(dekontDegerlendir(eski, k).onay, false);
   assert.equal(dekontDegerlendir(eski, { ...k, tarihKontrol: false }).onay, true);
 });
+
+test("Telefon kuralı: gerçek GSM öneki, uydurma numaralar reddedilir", async () => {
+  const { telefonGercekci } = await import("../src/time.js");
+  for (const t of ["05321112233", "05058044791", "05453519261", "05537048026", "05612345670"]) assert.ok(telefonGercekci(t), t);
+  for (const t of ["05555555555", "05121112233", "05991112233", "05321234567", "0532111223"]) assert.equal(telefonGercekci(t), false, t);
+  const d = demoDepo();
+  assert.match((await d.olustur({ gunTarihi: "2026-10-21", saat: "21:00", ad: "Uydurma", telefon: "0555 555 55 55" })).hata, /geçerli görünmüyor/);
+});

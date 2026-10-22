@@ -63,6 +63,20 @@ export function telefonNormalize(v) {
   return /^05\d{9}$/.test(d) ? d : null;
 }
 
+/**
+ * Müşterinin yazdığı cep telefonu gerçekçi mi? (normalize edilmiş 05XXXXXXXXX)
+ * - Türkiye GSM önekleri: 50x, 53x, 54x, 55x, 56x
+ * - Son 7 hane hep aynı olamaz (0555 555 55 55 gibi uydurma numaralar), 1234567 gibi ardışık olamaz
+ */
+export function telefonGercekci(t) {
+  if (!/^05\d{9}$/.test(t || "")) return false;
+  if (!/^05[03456]/.test(t)) return false;
+  const son7 = t.slice(4);
+  if (/^(\d)\1{6}$/.test(son7)) return false;
+  if ("0123456789".includes(son7) || "9876543210".includes(son7)) return false;
+  return true;
+}
+
 /** Gece saatleri (00:00–05:59) bir önceki günün gecesine aittir. Maçın "işletme günü"nü verir. */
 export function isletmeGunu(tarih, saat) {
   return Number(saat.slice(0, 2)) < 6 ? gunEkle(tarih, -1) : tarih;

@@ -171,6 +171,7 @@
   .iptal-baslik h2 { color: #b42318; margin-bottom: 6px; }
   .iptal-baslik p { margin-bottom: 10px; }
   .iptal-baslik a { font-weight: 600; color: var(--cim, #0067a4); }
+  .ipucu.kotu { color: #b42318; font-weight: 600; } .ipucu.iyi { color: #14532d; font-weight: 600; }
   .iade-not { font-weight: 700; color: #b42318; margin: 0 0 10px; font-size: 15px; }
   .vip { border: 2px solid #f3c97a; background: #fff8ec; border-radius: 12px; padding: 10px 14px 12px; margin: 0 0 16px; }
   .vip legend { font-weight: 700; padding: 0 6px; }
@@ -277,8 +278,12 @@
           </div>
           <div class="alan">
             <label for="telefon">Cep telefonu</label>
-            <input id="telefon" name="telefon" type="tel" inputmode="tel" autocomplete="off" placeholder="05XX XXX XX XX" required>
-            <p class="ipucu">Rezervasyonla ilgili sizi bu numaradan ararız.</p>
+            <input id="telefon" name="telefon" type="tel" inputmode="numeric" autocomplete="off" placeholder="05XX XXX XX XX" maxlength="14" required>
+          </div>
+          <div class="alan">
+            <label for="telefon2">Cep telefonu (tekrar)</label>
+            <input id="telefon2" name="telefon2" type="tel" inputmode="numeric" autocomplete="off" placeholder="05XX XXX XX XX" maxlength="14" required>
+            <p class="ipucu" id="tel-ipucu">Rezervasyonla ilgili sizi bu numaradan ararız; iptal ve devam için de bu numara gerekir.</p>
           </div>
           <div class="alan">
             <label for="not">Not <small>(isteğe bağlı)</small></label>
@@ -540,6 +545,24 @@
     }
   }
 
+  // ---------- Telefon: 05XX XXX XX XX biçimi, iki kez yazılır ----------
+  const telefonSade = (v) => { let d = String(v || "").replace(/\D/g, ""); if (d.startsWith("90") && d.length === 12) d = "0" + d.slice(2); if (d.length === 10 && d[0] === "5") d = "0" + d; return d; };
+  const telefonGecerli = (d) => /^05[03456]\d{8}$/.test(d) && !/^(\d)\1{6}$/.test(d.slice(4));
+  const telefonBicim = (d) => [d.slice(0, 4), d.slice(4, 7), d.slice(7, 9), d.slice(9, 11)].filter(Boolean).join(" ");
+  function telefonKontrol() {
+    const a = telefonSade($("telefon").value), b = telefonSade($("telefon2").value), ip = $("tel-ipucu");
+    if (!a) { ip.className = "ipucu"; ip.textContent = "Rezervasyonla ilgili sizi bu numaradan ararız; iptal ve devam için de bu numara gerekir."; return; }
+    if (!telefonGecerli(a)) { ip.className = "ipucu kotu"; ip.textContent = a.length < 11 ? "Numara eksik: 05XX XXX XX XX" : "Bu numara geçerli görünmüyor."; return; }
+    if (b && a !== b) { ip.className = "ipucu kotu"; ip.textContent = "İki numara aynı değil."; return; }
+    ip.className = b ? "ipucu iyi" : "ipucu"; ip.textContent = b ? "✓ Telefon numarası doğru" : "Numarayı bir kez daha yazın.";
+  }
+  ["telefon", "telefon2"].forEach((id) => $(id).addEventListener("input", (e) => {
+    const d = telefonSade(e.target.value).slice(0, 11);
+    if (/^\d+$/.test(e.target.value.replace(/\s/g, ""))) e.target.value = telefonBicim(d);
+    telefonKontrol();
+  }));
+  $("telefon2").addEventListener("paste", (e) => e.preventDefault()); // ikinciyi elle yazsın
+
   function uyar(el, metin) { el.textContent = metin; el.hidden = false; el.scrollIntoView({ block: "center" }); }
 
   // Saat tabelası kendini tazeler (15 sn'de bir ve sayfaya geri dönülünce): ⏳ dakikaları ve dolu/boş saatler güncel kalır.
@@ -575,7 +598,9 @@
     const uyari = $("form-uyari");
     const ad = $("ad").value.trim(), telefon = $("telefon").value.trim();
     if (ad.length < 3) return uyar(uyari, "Ad soyadınızı yazın.");
-    if (telefon.replace(/\D/g, "").length < 10) return uyar(uyari, "Cep telefonu numaranızı 05XX XXX XX XX biçiminde yazın.");
+    const tSade = telefonSade(telefon);
+    if (!telefonGecerli(tSade)) return uyar(uyari, "Cep telefonunuzu 05XX XXX XX XX biçiminde, eksiksiz ve doğru yazın.");
+    if (tSade !== telefonSade($("telefon2").value)) return uyar(uyari, "İki telefon numarası aynı değil. Lütfen kontrol edin.");
     if (!$("kvkk").checked) return uyar(uyari, "Devam etmek için onay kutusunu işaretleyin.");
 
     const g = veri.gunler[gunIdx];
@@ -595,7 +620,7 @@
         if (/dolu/i.test(v.hata || "")) { secilenSaat = null; await yukle(); }
         return;
       }
-      ["ad", "telefon", "not"].forEach((id) => { $(id).value = ""; }); $("kvkk").checked = false; // formu sıfırla
+      ["ad", "telefon", "telefon2", "not"].forEach((id) => { $(id).value = ""; }); $("kvkk").checked = false; telefonKontrol(); // formu sıfırla
       document.querySelectorAll("[data-ekstra]").forEach((x) => { x.checked = false; });
       sonRez = { kayitNo: v.kayitNo, telefon };
       basariGoster(v, g);
@@ -798,7 +823,7 @@
     $("tamam").hidden = true; $("secim").hidden = false;
     document.querySelector(".wp-yuzen").hidden = false;
     secilenSaat = null;
-    ["ad", "telefon", "not"].forEach((id) => { $(id).value = ""; }); $("kvkk").checked = false;
+    ["ad", "telefon", "telefon2", "not"].forEach((id) => { $(id).value = ""; }); $("kvkk").checked = false;
     await yukle();
   });
 

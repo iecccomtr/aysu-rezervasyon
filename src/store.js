@@ -1055,8 +1055,9 @@ export class RezervasyonDeposu extends DurableObject {
       const anahtar = `p:${g}:${u.eposta}`;
       const eski = await this.st.get(anahtar);
       if (sil) {
+        if (yapan.rol !== "admin") return { hata: "Puantaj kaydını sadece Admin silebilir." };
         await this.st.delete(anahtar);
-        await this.kayitTut(yapan, "Puantaj kaydını sildi", `${u.ad} · ${g}`);
+        await this.kayitTut(yapan, "Puantaj kaydını sildi", `${u.ad} · ${g}${eski?.giris ? ` · ${zamanYazi(eski.giris)}–${eski.cikis ? zamanYazi(eski.cikis) : "?"}` : ""}`);
         return { basarili: true };
       }
       const ms = (s, sonraki) => {

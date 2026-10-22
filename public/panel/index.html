@@ -58,6 +58,15 @@
   .ozel-saat-alt { margin: 14px 0 4px; text-align: center; }
   .salt-okur .arti { display: none; }
   .ben { color: #b8d3e8; font-size: 13px; text-align: right; line-height: 1.2; }
+  @media (max-width: 360px) {
+    .ust .ic { gap: 8px; }
+    .ust h1 { font-size: 20px; }
+    .ust .logo img { height: 26px; }
+    .ust .sag { gap: 6px; }
+    .ust .sag a[href="/rezervasyon/"] { display: none; }
+    .ben { max-width: 92px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ust button { padding: 6px 10px; }
+  }
 
   /* ---------- Üst çubuk ---------- */
   .ust { position: sticky; top: 0; z-index: 5; background: var(--cim-koyu); color: var(--tebesir); padding: max(10px, env(safe-area-inset-top)) 16px 10px; }
@@ -1564,8 +1573,8 @@
     const duzeltir = ["admin", "mudur"].includes(ben.rol);
     const ic = ac(`${k.ad} · puantaj`, `
       <p class="soluk" style="margin-bottom:10px">${saatSayi(k.saat)} saat × ${saatSayi(k.saatlikUcret)} ₺ = ${para(k.brut)}${k.kesinti ? ` − kantin ${para(k.kesinti)}` : ""} = <b>${para(k.ucret)}</b>${k.avans ? `<br>Verilen avans / ödeme: −${para(k.avans)} → <b>Kalan: ${para(k.kalan)}</b>` : ""}${k.bekleyenKesinti ? `<br><small>Çalışmadığı günde aldığı ${para(k.bekleyenKesinti)} kantin, çalıştığı ilk günden düşülecek.</small>` : ""}<br><small>Saatler yarım saate yuvarlanır, her güne yarım saat yol eklenir.</small></p>
-      <table class="stok-t"><thead><tr><th>Gün</th><th>Giriş</th><th>Çıkış</th><th>Saat</th><th>Kantin</th></tr></thead><tbody>
-      ${k.gunler.map((g, i) => `<tr data-g="${i}"${g.acik ? ' class="az"' : ""}><td>${tarihYazi(g.gun)} ${KISA[gunNo(g.gun)]}${g.duzelten ? ` <small class="soluk">(düzelten: ${kacis(g.duzelten)})</small>` : ""}</td><td>${g.giris || "—"}</td><td>${g.cikis || (g.acik ? "açık" : "—")}</td><td>${saatSayi(g.saat)}</td><td>${g.kesinti ? "−" + para(g.kesinti) : "—"}</td></tr>`).join("")}
+      <table class="stok-t"><thead><tr><th>Gün</th><th>Giriş</th><th>Çıkış</th><th>Saat</th><th>Kantin</th>${ben.rol === "admin" ? "<th></th>" : ""}</tr></thead><tbody>
+      ${k.gunler.map((g, i) => `<tr data-g="${i}"${g.acik ? ' class="az"' : ""}><td>${tarihYazi(g.gun)} ${KISA[gunNo(g.gun)]}${g.duzelten ? ` <small class="soluk">(düzelten: ${kacis(g.duzelten)})</small>` : ""}</td><td>${g.giris || "—"}</td><td>${g.cikis || (g.acik ? "açık" : "—")}</td><td>${saatSayi(g.saat)}</td><td>${g.kesinti ? "−" + para(g.kesinti) : "—"}</td>${ben.rol === "admin" ? `<td><button class="x-sil" type="button" data-p-sil="${i}" aria-label="Bu günü sil">×</button></td>` : ""}</tr>`).join("")}
       </tbody></table>
       ${duzeltir ? '<p class="soluk" style="font-size:13px;margin-top:8px">Düzeltmek için güne dokunun.</p>' : ""}
       ${(k.avansListe || []).length || ben.rol === "admin" ? `<h3 style="font-size:20px;margin:16px 0 8px">Avans / ödemeler</h3>
@@ -1588,6 +1597,14 @@
       if (r.hata) return dlgUyari(r.hata);
       dlg.close(); bildir("Silindi"); puantajYukle();
     }));
+    ic.querySelectorAll("[data-p-sil]").forEach((b) => b.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const g = k.gunler[b.dataset.pSil];
+      if (!confirm(`${k.ad} · ${tarihYazi(g.gun)} puantaj kaydı silinsin mi?`)) return;
+      const r = await api("puantaj/duzelt", { eposta: k.eposta, gun: g.gun, sil: true });
+      if (r.hata) return dlgUyari(r.hata);
+      dlg.close(); bildir("Puantaj kaydı silindi"); puantajYukle(); kullaniciYukle();
+    }));
     if (!duzeltir) return;
     ic.querySelectorAll("[data-g]").forEach((tr) => tr.addEventListener("click", () => puantajDuzeltAc(k, k.gunler[tr.dataset.g])));
   }
@@ -1603,7 +1620,7 @@
       </div>
       <p class="soluk" style="font-size:13px;margin:-4px 0 12px">06:00'dan önceki çıkış ertesi gün sayılır (gece yarısını geçen vardiya).</p>
       <div style="display:grid;gap:8px"><button class="dugme" type="button" id="pd-kaydet">Kaydet</button>
-      ${g ? '<button class="dugme tehlike" type="button" id="pd-sil">Bu günün kaydını sil</button>' : ""}</div>`);
+      ${g && ben.rol === "admin" ? '<button class="dugme tehlike" type="button" id="pd-sil">Bu günün kaydını sil</button>' : ""}</div>`);
     const gonder = async (ek) => {
       const r = await api("puantaj/duzelt", { eposta: $("pd-kisi").value, gun: $("pd-gun").value, giris: $("pd-giris").value, cikis: $("pd-cikis").value, ...ek });
       if (r.hata) return dlgUyari(r.hata);

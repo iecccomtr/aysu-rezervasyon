@@ -663,6 +663,11 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const yol = url.pathname;
+    // Tek adres: www.aysuhalisaha.com → aysuhalisaha.com (Google'da iki ayrı site gibi görünmesin)
+    if (url.hostname === "www.aysuhalisaha.com") {
+      url.hostname = "aysuhalisaha.com";
+      return Response.redirect(url.toString(), 301);
+    }
 
     if (yol === "/api/saglik") return json({ tamam: true, depo: "cloudflare" });
 

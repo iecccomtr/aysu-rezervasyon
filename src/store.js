@@ -901,6 +901,61 @@ export class RezervasyonDeposu extends DurableObject {
     });
   }
 
+  /**
+   * Günlük "GELDİM / ÇIKTIM" e-postası: ilk maçtan 2 saat önce (beklenen girişten 1 saat önce)
+   * Admin dışındaki aktif kullanıcılara bir kez gider. Dönen listeyi Worker gönderir.
+   */
+  async puantajEpostalari(simdiMs = Date.now()) {
+    return this.kilitli(async () => {
+      const n = simdi();
+      const gun = isletmeGunu(n.tarih, n.saat);
+      const b = await this.beklenenBaslama(gun);
+      if (!b.baslama) return [];
+      const baslamaMs = macZamani(takvimTarihi(gun, b.baslama), b.baslama);
+      if (simdiMs < baslamaMs - 3600_000 || simdiMs > baslamaMs + 4 * 3600_000) return [];
+      const liste = [];
+      for (const u of await this.kullaniciListesi()) {
+        if (u.durum !== "aktif" || u.rol === "admin" || !ROLLER[u.rol]) continue;
+        if (await this.st.get(`pe:${gun}:${u.eposta}`)) continue;
+        const token = hex(crypto.getRandomValues(new Uint8Array(24)));
+        await this.st.put(`pt:${token}`, { eposta: u.eposta, gun, bitis: baslamaMs + 30 * 3600_000 });
+        await this.st.put(`pe:${gun}:${u.eposta}`, { zaman: simdiYazi() });
+        liste.push({ eposta: u.eposta, ad: u.ad, gun, gunAd: gunAdi(gun), baslama: b.baslama, ilkMac: b.ilkMac, token });
+      }
+      return liste;
+    });
+  }
+
+  /** E-postadaki bağlantı: kişi, gün ve o günkü giriş/çıkış durumu */
+  async puantajBaglanti(token) {
+    const t = typeof token === "string" && /^[0-9a-f]{48}$/.test(token) ? await this.st.get(`pt:${token}`) : null;
+    if (!t || t.bitis < Date.now()) return { hata: "Bağlantının süresi dolmuş. Panelden giriş / çıkış yapabilirsiniz." };
+    const u = await this.st.get(`u:${t.eposta}`);
+    if (!u || u.durum !== "aktif") return { hata: "Hesap bulunamadı." };
+    const k = (await this.st.get(`p:${t.gun}:${u.eposta}`)) || null;
+    const b = await this.beklenenBaslama(t.gun);
+    return {
+      ben: { eposta: u.eposta, ad: u.ad, rol: u.rol }, gun: t.gun, gunAd: gunAdi(t.gun), baslama: b.baslama, ilkMac: b.ilkMac,
+      giris: k?.giris ? zamanYazi(k.giris) : null, cikis: k?.cikis ? zamanYazi(k.cikis) : null, saat: saatFark(k),
+    };
+  }
+
+  async puantajBaglantiIsle(token, islem) {
+    const b = await this.puantajBaglanti(token);
+    if (b.hata) return b;
+    const n = simdi();
+    if (islem === "geldim") {
+      if (isletmeGunu(n.tarih, n.saat) !== b.gun) return { hata: "Bu bağlantı başka bir gün içindir. Panelden giriş yapın." };
+      const r = await this.puantajGiris(b.ben);
+      return r.hata ? r : this.puantajBaglanti(token);
+    }
+    if (islem === "ciktim") {
+      const r = await this.puantajCikis(b.ben);
+      return r.hata ? r : this.puantajBaglanti(token);
+    }
+    return { hata: "Geçersiz işlem." };
+  }
+
   /** Aylık puantaj: kişi kişi günler, saatler ve ödenecek tutar. eposta verilirse sadece o kişi. */
   async puantajAy(ay, eposta) {
     if (!/^\d{4}-\d{2}$/.test(ay || "")) return { hata: "Geçersiz ay." };
@@ -1545,7 +1600,8 @@ export class RezervasyonDeposu extends DurableObject {
       for (const k of (await this.st.list({ prefix: "l:", end: `l:${gunEkle(sinir, -365)}` })).keys()) silinecek.push(k);
       // 90 günden eski dekont özetleri
       for (const [k, v] of await this.st.list({ prefix: "dh:" })) if (!v.tarih || v.tarih < gunEkle(sinir, -90)) silinecek.push(k);
-      for (const onek of ["o:", "s:", "t:"]) {
+      for (const k of (await this.st.list({ start: "pe:", end: `pe:${gunEkle(sinir, -7)}` })).keys()) silinecek.push(k);
+      for (const onek of ["o:", "s:", "t:", "pt:"]) {
         for (const [k, v] of await this.st.list({ prefix: onek })) if (!v.bitis || v.bitis < Date.now()) silinecek.push(k);
       }
       for (let i = 0; i < silinecek.length; i += 128) await this.st.delete(silinecek.slice(i, i + 128));

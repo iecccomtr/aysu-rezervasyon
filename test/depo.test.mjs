@@ -582,3 +582,25 @@ test("Kasa: alınan kapora otomatik gelir, sonradan girilen kapora da güncellen
   assert.equal(k2.kayit.maclar[0].onOdeme, 1200);
   assert.equal(k2.kayit.ozet.olmasiGereken, 3700 - 1200);
 });
+
+test("Puantaj e-postası: ilk maçtan 2 saat önce bir kez; GELDİM / ÇIKTIM bağlantısı", async () => {
+  const d = demoDepo({ PANEL_KURULUM_KODU: "k" });
+  const admin = await d.oturum((await d.panelKur({ kurulumKodu: "k", eposta: "admin@aysu.com", ad: "Admin", sifre: "aysu-2026!" })).token);
+  await d.kayitOl({ eposta: "p@aysu.com", ad: "Personel Bir", sifre: "personel-1", rol: "personel" });
+  await d.kullaniciGuncelle({ eposta: "p@aysu.com", rol: "personel", durum: "aktif" }, admin);
+  await d.panelRezEkle({ gunTarihi: "2026-10-19", saat: "20:00", ad: "Maç", telefon: "" });
+  saatiAyarla("2026-10-19T17:30");
+  assert.equal((await d.puantajEpostalari()).length, 0, "çok erken");
+  saatiAyarla("2026-10-19T18:00");
+  const l = await d.puantajEpostalari();
+  assert.deepEqual(l.map((x) => [x.eposta, x.baslama]), [["p@aysu.com", "19:00"]], "admin'e gitmez");
+  assert.equal((await d.puantajEpostalari()).length, 0, "bir kez");
+  saatiAyarla("2026-10-19T18:52");
+  const g = await d.puantajBaglantiIsle(l[0].token, "geldim");
+  assert.equal(g.giris, "18:52");
+  assert.match((await d.puantajBaglantiIsle(l[0].token, "geldim")).hata, /zaten/);
+  saatiAyarla("2026-10-20T01:22");
+  const c = await d.puantajBaglantiIsle(l[0].token, "ciktim");
+  assert.equal(c.cikis, "01:22"); assert.equal(c.saat, 6.5);
+  assert.match((await d.puantajBaglanti("yanlis")).hata, /süresi/);
+});

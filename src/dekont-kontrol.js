@@ -233,7 +233,7 @@ export function dekontDegerlendir(okunan, { iban, alici, kapora, rezTarihi, bugu
   const eksik = tutar == null || tutar < kapora;
   // En az tutar (ör. 500 TL): altındaki ödeme kapora sayılmaz; tutar okunamazsa onay verilmez
   if (enAzTutar) {
-    if (tutar == null) nedenler.push("Dekonttaki tutar okunamadı.");
+    if (tutar == null) { /* okunamadıysa onay verilir; Müdür / Müdür Yardımcısı'na kontrol e-postası gider */ }
     else if (tutar < enAzTutar) nedenler.push(`Ödenen tutar (${tutar} TL) en az ${enAzTutar} TL olmalı.`);
   }
   const tarih = tarihNorm(okunan.tarih);
@@ -241,7 +241,7 @@ export function dekontDegerlendir(okunan, { iban, alici, kapora, rezTarihi, bugu
   else if (!tarih) nedenler.push("Dekont tarihi okunamadı.");
   else if (rezTarihi && tarih < oncekiGun(rezTarihi)) nedenler.push(`Dekont tarihi (${tarih}) rezervasyondan önce.`);
   else if (bugun && tarih > bugun) nedenler.push(`Dekont tarihi (${tarih}) ileri bir tarih.`);
-  return { onay: nedenler.length === 0, nedenler, tutar, eksik, okunan };
+  return { onay: nedenler.length === 0, nedenler, tutar, eksik, tutarOkunamadi: tutar == null, okunan };
 }
 
 export async function ozet(veri) {

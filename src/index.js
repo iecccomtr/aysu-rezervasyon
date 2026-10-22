@@ -427,7 +427,7 @@ async function dekontKontrolEt(env, d, rez, veri) {
   const okunan = await dekontOku(env, { tur: rez.dekont.tur, veri }, { yeterli: (o) => dekontDegerlendir(o, kurallar).onay });
   const deger = dekontDegerlendir(okunan, kurallar);
   const k = await d.dekontSonuc(rez.kayitNo, await ozet(veri), deger);
-  return { okunan, k };
+  return { okunan, k, deger };
 }
 
 /** Yeni kayıt: Admin ve Müdür(ler)e tek tıkla onay bağlantısı. */
@@ -596,7 +596,7 @@ export default {
         const r = await d.dekontYukle({ kayitNo: g.kayitNo, telefon: g.telefon, tur: g.tur, ad: g.ad, veri });
         if (!r.basarili) return json(r, 400);
         // Otomatik kontrol: doğru IBAN + alıcı + tutar + tarih → rezervasyon kesinleşir
-        const { okunan, k } = await dekontKontrolEt(env, d, r, veri);
+        const { okunan, k, deger } = await dekontKontrolEt(env, d, r, veri);
         if (k.onay) onbellegiTemizle(request, ctx);
         const uzanti = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "application/pdf": "pdf" }[r.dekont.tur];
         // Sadece bu dekontla kesinleşen rezervasyon için "Yeni rezervasyon" e-postası
@@ -610,6 +610,18 @@ export default {
             ["Kapora", `${k.rez.kapora || "?"} TL (dekont ekte)`], ["Durum", "Onaylı — kapora dekontla doğrulandı"]],
           ekler: [{ ad: `dekont-${r.kayitNo}.${uzanti}`, tur: r.dekont.tur, veri }],
         }))());
+        // Tutar okunamadı ama IBAN / hesap adı doğru: onaylandı, Müdür ve Müdür Yardımcısı dekontu kontrol etsin
+        if (k.onay && deger?.tutarOkunamadi) ctx.waitUntil((async () => {
+          const kime = await d.rolEpostalari(["mudur", "mudur_yrd"]);
+          if (!kime.length) return;
+          await epostaYolla(env, {
+            kime, konu: `Dekont kontrolü: tutar okunamadı — ${r.gun} ${r.saat} (${r.kayitNo})`,
+            satirlar: [["Maç", `${r.gun}, ${r.tarih} saat ${r.saat}`], ["Ad soyad", r.ad], ["Telefon", r.telefon], ["Kayıt no", r.kayitNo],
+              ["Beklenen kapora", `${r.kaporaTutar ?? "?"} TL`], ["Durum", "Onaylandı (IBAN ve hesap adı doğru), tutar okunamadı"]],
+            alt: "Ekteki dekontta tutarı kontrol edin (en az 500 TL). Sorun varsa panelden kapora tutarını düzeltin ya da rezervasyonu iptal edin.",
+            ekler: [{ ad: `dekont-${r.kayitNo}.${uzanti}`, tur: r.dekont.tur, veri }],
+          });
+        })().catch((e) => console.error("Dekont kontrol e-postası", e)));
         return json({ basarili: true, kayitNo: r.kayitNo, onay: k.onay, nedenler: k.onay ? [] : k.nedenler,
           toplam: k.toplam, gereken: k.gereken, eksik: k.onay && k.eksik, durum: k.rez.durum });
       } catch (e) {
@@ -716,6 +728,20 @@ export default {
     }
     // 5 dakikada bir: dekontu gelmeyen online opsiyonları düşür, işletmeye haber ver
     ctx.waitUntil(depo(env).opsiyonlariDusur());
+    // İş başı saati geldi ama hiçbir çalışan GELDİM demedi → Admin, Müdür ve Müdür Yardımcısı'na uyarı
+    ctx.waitUntil((async () => {
+      const d = depo(env);
+      const u = await d.acilisKontrol();
+      if (!u) return;
+      const kime = await d.rolEpostalari(["admin", "mudur", "mudur_yrd"]);
+      if (!kime.length) return;
+      await epostaYolla(env, {
+        kime, konu: `UYARI: İşyeri açılmadı — çalışan görünmüyor (${u.gunAd} ilk maç ${u.ilkMac})`,
+        satirlar: [["Gün", `${u.gunAd} ${u.gun.split("-").reverse().join(".")}`], ["İş başı", u.baslama], ["İlk maç", u.ilkMac], ["Son maç", u.sonMac || "-"],
+          ["Durum", "Henüz hiçbir çalışan panelden GELDİM demedi"]],
+        alt: "Sahayı açacak çalışanı arayın. Çalışan geldiyse panelden GELDİM'e basmasını hatırlatın.",
+      });
+    })().catch((e) => console.error("Açılış uyarısı", e)));
     // Abone veresiyesi: abonenin sonraki maçında o günkü yöneticiye hatırlatma
     ctx.waitUntil((async () => {
       const l = await depo(env).veresiyeHatirlatmalari();

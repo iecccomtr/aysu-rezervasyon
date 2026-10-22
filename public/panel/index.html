@@ -1708,9 +1708,15 @@
   async function otoKaydet() {
     if (!kasaDegisti || !kk) return;
     const gonderilen = JSON.stringify(kk), gun = kasaGun;
-    const r = await api("kasa", { ...kk, gun, otomatik: true }).catch(() => null);
+    const r = await api("kasa", { ...kk, gun, otomatik: true, taban: kasa.kayitli ? kasa.kayit : null }).catch(() => null);
     if (!r || r.hata || gun !== kasaGun) { const d = $("kasa-degisti"); if (d && r?.hata) d.textContent = r.hata; if (r?.hata) bildir(r.hata); return; }
-    kasa.kayit = r.kayit; kasa.kayitli = true; kk.birimler = r.kayit.birimler; kk.kira = r.kayit.kira;
+    kasa.kayit = r.kayit; kasa.kayitli = true; kk.birimler = r.kayit.birimler; kk.kira = r.kayit.kira; kk.surum = r.kayit.surum;
+    if (r.birlesti && JSON.stringify({ ...JSON.parse(gonderilen), birimler: kk.birimler, kira: kk.kira, surum: kk.surum }) === JSON.stringify(kk)) {
+      // Başka bir yöneticinin aynı anda yaptığı değişiklikler birleştirildi: ekranı son hâle getir
+      kk = kopya(r.kayit); kasaDegisti = false; kasaCiz(); stokCiz();
+      bildir("Başka bir yöneticinin değişiklikleri de eklendi");
+      return;
+    }
     const u = await api("urunler").catch(() => null);
     if (Array.isArray(u)) kasa.urunler = u;
     if (JSON.stringify(kk) === gonderilen || JSON.stringify({ ...JSON.parse(gonderilen), birimler: kk.birimler, kira: kk.kira }) === JSON.stringify(kk)) {
@@ -1958,7 +1964,7 @@
     if (!confirm(`${tarihYazi(kasaGun)} kasası gönderilsin mi?\n\nGünlük ciro: ${para(o.ciro)}\nKasada olması gereken: ${para(o.olmasiGereken)}${kk.sayilan !== null && kk.sayilan !== undefined && kk.sayilan !== "" ? `\nSayılan kasa: ${para(sayi(kk.sayilan))}` : "\nSayılan kasa girilmedi!"}${o.odenmemis ? `\n\nDİKKAT: ${para(o.odenmemis)} kantin henüz tahsil edilmedi.` : ""}\n\nRapor PDF olarak Admin'e gidecek.`)) return;
     clearTimeout(otoZaman);
     const b = $("k-kaydet"); b.disabled = true;
-    const r = await api("kasa", { ...kk, gun: kasaGun }).catch(() => ({ hata: "Kaydedilemedi" }));
+    const r = await api("kasa", { ...kk, gun: kasaGun, taban: kasa.kayitli ? kasa.kayit : null }).catch(() => ({ hata: "Kaydedilemedi" }));
     b.disabled = false;
     if (r.hata) return bildir(r.hata);
     kasaDegisti = false; bildir("Kasa gönderildi, rapor Admin'e iletildi");
@@ -2163,10 +2169,10 @@
     if ($("uygulama").hidden || sekme !== "kasa" || dlg.open || kasaDegisti || !kasaGun || document.visibilityState !== "visible") return;
     const v = await api(`kasa?gun=${kasaGun}`).catch(() => null);
     if (!v || v.hata || kasaDegisti || dlg.open) return;
-    if (JSON.stringify(v.kayit.maclar) === JSON.stringify(kasa.kayit.maclar) && v.kayitli === kasa.kayitli) return;
+    if (JSON.stringify(v.kayit.maclar) === JSON.stringify(kasa.kayit.maclar) && v.kayitli === kasa.kayitli && (v.kayit.surum || 0) === (kasa.kayit.surum || 0)) return;
     const y = window.scrollY;
     kasa = v; kk = kopya(v.kayit); kasaCiz(); stokCiz(); window.scrollTo({ top: y });
-    bildir("Maç listesi rezervasyonlara göre güncellendi");
+    bildir("Kasa güncellendi (rezervasyon ya da başka yönetici)");
   }, 20_000);
   // Başka bir haftaya geçildiyse ve 2 dakika dokunulmadıysa bugünün haftasına dön
   let sonHareket = Date.now();
@@ -2181,6 +2187,21 @@
   const takvimTazele = () => { if (!$("uygulama").hidden && sekme === "takvim" && !dlg.open && document.visibilityState === "visible") haftaYukle(); };
   setInterval(takvimTazele, 15_000);
   document.addEventListener("visibilitychange", takvimTazele);
+
+  // Yeni sürüm yayınlanınca açık panel kendini yeniler (yazılmamış değişiklik ya da açık pencere yokken)
+  let surumEtiketi = null;
+  const surumKontrol = async () => {
+    try {
+      const r = await fetch("/panel/", { method: "HEAD", cache: "no-store" });
+      const e = r.headers.get("etag") || r.headers.get("last-modified");
+      if (!e) return;
+      if (!surumEtiketi) { surumEtiketi = e; return; }
+      if (e !== surumEtiketi && !kasaDegisti && !dlg.open) { bildir("Panel güncellendi, yenileniyor…"); setTimeout(() => location.reload(), 1200); }
+    } catch {}
+  };
+  surumKontrol();
+  setInterval(surumKontrol, 60_000);
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") surumKontrol(); });
 
   basla();
 })();

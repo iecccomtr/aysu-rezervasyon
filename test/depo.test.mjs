@@ -803,11 +803,49 @@ test("Tedarikçi rehberi: varsayılan Elektrikçi ve PAKSU; sadece Admin değiş
   assert.match((await d.rehberKaydet([{ ad: "X", tel: "123" }], admin)).hata, /Geçersiz/);
 });
 
-test("Dekont: 500 TL altı onaylanmaz, tutar okunamazsa onay yok, maçın tamamı kabul", async () => {
+test("Dekont: 500 TL altı onaylanmaz, tutar okunamazsa onay (kontrol e-postası), maçın tamamı kabul", async () => {
   const { dekontDegerlendir } = await import("../src/dekont-kontrol.js");
   const k = { iban: "TR70 0015 7000 0000 0154 8342 35", alici: "AHMET AYSU", kapora: 1200, tarihKontrol: false, enAzTutar: 500 };
   const d = (tutar) => dekontDegerlendir({ alici_iban: "TR700015700000000154834235", alici_ad: "AHMET AYSU", tutar }, k);
   assert.equal(d("300,00").onay, false); assert.match(d("300,00").nedenler[0], /en az 500/);
-  assert.equal(d(null).onay, false);
+  assert.ok(d(null).onay, "tutar okunamazsa onay; yöneticiye kontrol e-postası gider"); assert.ok(d(null).tutarOkunamadi);
   assert.ok(d("500").onay); assert.ok(d("3.700,00 TL").onay);
+});
+
+test("Kasa: iki yönetici aynı anda kantin girerse ikisinin girdiği de korunur", async () => {
+  const d = demoDepo({ PANEL_KURULUM_KODU: "k" });
+  const admin = await d.oturum((await d.panelKur({ kurulumKodu: "k", eposta: "admin@aysu.com", ad: "Admin", sifre: "aysu-2026!" })).token);
+  await d.panelRezEkle({ gunTarihi: "2026-10-19", saat: "20:00", ad: "Yusuf", telefon: "" });
+  const ilk = await d.kasaGetir("2026-10-19", admin);
+  const t = (await d.kasaKaydet({ ...ilk.kayit }, admin)).kayit; // surum 1
+  const su = ilk.urunler[22].id, cay = ilk.urunler[29].id;
+  // A ve B aynı sürümü açtı
+  const a = JSON.parse(JSON.stringify(t)), b = JSON.parse(JSON.stringify(t));
+  a.maclar[0].kantin = { [su]: 2 }; a.maclar[0].krampon = 1;
+  b.maclar[0].kantin = { [cay]: 3 }; b.maclar[0].krampon = 2; b.not = "B'nin notu";
+  assert.ok((await d.kasaKaydet({ ...a, taban: t }, admin)).basarili);
+  const rb = await d.kasaKaydet({ ...b, taban: t }, admin);
+  assert.ok(rb.birlesti);
+  assert.deepEqual(rb.kayit.maclar[0].kantin, { [su]: 2, [cay]: 3 });
+  assert.equal(rb.kayit.maclar[0].krampon, 3);
+  assert.equal(rb.kayit.not, "B'nin notu");
+  assert.equal(rb.kayit.surum, 3);
+});
+
+test("Açılış uyarısı: iş başı saatinde GELDİM diyen yoksa bir kez uyarır", async () => {
+  const d = demoDepo({ PANEL_KURULUM_KODU: "k" });
+  const admin = await d.oturum((await d.panelKur({ kurulumKodu: "k", eposta: "admin@aysu.com", ad: "Admin", sifre: "aysu-2026!" })).token);
+  await d.panelRezEkle({ gunTarihi: "2026-10-19", saat: "20:00", ad: "Yusuf", telefon: "" });
+  saatiAyarla("2026-10-19T18:30"); assert.equal(await d.acilisKontrol(), null, "henüz erken");
+  saatiAyarla("2026-10-19T19:05");
+  const u = await d.acilisKontrol();
+  assert.equal(u.baslama, "19:00"); assert.equal(u.ilkMac, "20:00");
+  assert.equal(await d.acilisKontrol(), null, "bir kez");
+  // Başka gün: çalışan geldiyse uyarı yok
+  await d.panelRezEkle({ gunTarihi: "2026-10-20", saat: "20:00", ad: "Ali Can", telefon: "" });
+  await d.kayitOl({ eposta: "p@aysu.com", ad: "Personel Bir", sifre: "personel-1", rol: "personel" });
+  await d.kullaniciGuncelle({ eposta: "p@aysu.com", rol: "personel", durum: "aktif" }, admin);
+  const p = await d.oturum((await d.panelGiris({ eposta: "p@aysu.com", sifre: "personel-1" })).token);
+  saatiAyarla("2026-10-20T18:50"); await d.puantajGiris(p);
+  saatiAyarla("2026-10-20T19:05"); assert.equal(await d.acilisKontrol(), null);
 });

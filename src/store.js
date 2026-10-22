@@ -186,6 +186,45 @@ export const personelKesintileri = (k) => {
   }
   return r;
 };
+/**
+ * Aynı kasayı iki yönetici aynı anda düzenlerse: kişinin yaptığı değişiklikler (taban → yeni farkı)
+ * sunucudaki son hâlin üstüne uygulanır. Adetler (kantin, krampon, eldiven, ikram) fark olarak eklenir,
+ * böylece ikisinin girdiği ürünler de kaybolmaz; diğer alanlarda son değiştiren geçerli olur.
+ */
+export function kasaUcYol(guncel, taban, yeni) {
+  const esit = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+  const sonuc = JSON.parse(JSON.stringify(guncel));
+  const sayac = (g, t, y) => {
+    const r = { ...(g || {}) };
+    for (const id of new Set([...Object.keys(t || {}), ...Object.keys(y || {})])) {
+      const fark = (Number(y?.[id]) || 0) - (Number(t?.[id]) || 0);
+      if (!fark) continue;
+      r[id] = Math.max(0, (Number(r[id]) || 0) + fark);
+      if (!r[id]) delete r[id];
+    }
+    return r;
+  };
+  for (const a of ["devir", "sayilan", "birakilan", "not", "girisler", "cikislar", "veresiye", "avanslar"]) {
+    if (!esit(yeni[a], taban[a])) sonuc[a] = yeni[a];
+  }
+  const tabanMac = new Map((taban.maclar || []).map((m) => [m.saat, m]));
+  const yeniSaatler = new Set((yeni.maclar || []).map((m) => m.saat));
+  sonuc.maclar = (sonuc.maclar || []).filter((m) => !(tabanMac.has(m.saat) && !yeniSaatler.has(m.saat))); // benim sildiğim satır
+  for (const y of yeni.maclar || []) {
+    const t = tabanMac.get(y.saat);
+    const g = sonuc.maclar.find((m) => m.saat === y.saat);
+    if (!g) { if (!t) sonuc.maclar.push(y); continue; }
+    for (const a of ["ucret", "vip", "ekstra", "onOdeme", "veresiyeKim", "odendi", "odemeZamani", "tur", "ad"]) if (!esit(y[a], t?.[a])) g[a] = y[a];
+    for (const a of ["krampon", "eldiven"]) g[a] = Math.max(0, (Number(g[a]) || 0) + ((Number(y[a]) || 0) - (Number(t?.[a]) || 0)));
+    for (const a of ["kantin", "kantinOdenen", "veresiyeKantin", "ikramKantin"]) g[a] = sayac(g[a], t?.[a], y[a]);
+  }
+  sonuc.ikram = { ...(sonuc.ikram || {}) };
+  for (const kim of new Set([...Object.keys(taban.ikram || {}), ...Object.keys(yeni.ikram || {})])) {
+    sonuc.ikram[kim] = sayac(sonuc.ikram[kim], taban.ikram?.[kim], yeni.ikram?.[kim]);
+  }
+  return sonuc;
+}
+
 /** Kasa günü hesapları (sunucu ve panel aynı formülü kullanır) */
 export const kasaOzet = (k) => {
   const b = k.birimler || {}, kira = k.kira || { krampon: 0, eldiven: 0 };
@@ -898,6 +937,29 @@ export class RezervasyonDeposu extends DurableObject {
     return { gun, ilkMac: ilk, sonMac: son, baslama: `${String(h).padStart(2, "0")}:00`, bitis };
   }
 
+  /**
+   * Açılış uyarısı: maç olan günde iş başı saati (ilk maçtan 1 saat önce) geldiği hâlde
+   * hiçbir çalışan GELDİM dememişse bir kez uyarı döner (Admin / Müdür / Müdür Yrd.'a e-posta).
+   *   ua:<gün>  gönderildi işareti
+   */
+  async acilisKontrol(simdiMs = Date.now()) {
+    return this.kilitli(async () => {
+      const n = simdi();
+      const gun = isletmeGunu(n.tarih, n.saat);
+      const b = await this.beklenenBaslama(gun);
+      if (!b.baslama || !b.ilkMac) return null;
+      const baslamaMs = macZamani(takvimTarihi(gun, b.baslama), b.baslama);
+      const macMs = macZamani(takvimTarihi(gun, b.ilkMac), b.ilkMac);
+      if (simdiMs < baslamaMs || simdiMs > macMs + 3600_000) return null;
+      if (await this.st.get(`ua:${gun}`)) return null;
+      const gelen = [...(await this.st.list({ prefix: `p:${gun}:` })).values()].some((k) => k.giris);
+      if (gelen) return null;
+      await this.st.put(`ua:${gun}`, { zaman: simdiYazi() });
+      await this.kayitTut(null, "Açılış uyarısı", `${gun} · iş başı ${b.baslama}, ilk maç ${b.ilkMac} · GELDİM diyen çalışan yok`);
+      return { gun, gunAd: gunAdi(gun), baslama: b.baslama, ilkMac: b.ilkMac, sonMac: b.sonMac };
+    });
+  }
+
   /** Çalışanın bugünkü kartı: beklenen saat, kendi giriş/çıkışı, bu ayki toplam. */
   async puantajBugun(ben) {
     const n = simdi();
@@ -1368,6 +1430,12 @@ export class RezervasyonDeposu extends DurableObject {
       if (!gun) return { hata: "Gün gerekli." };
       if (!this.kasaYetkili(yapan, gun)) return { hata: "Geçmiş günlerin kasasını sadece Admin düzenleyebilir." };
       const [eski, urunler, f] = await Promise.all([this.st.get(`kasa:${gun}`), this.urunler(), this.fiyatAyar()]);
+      // Eşzamanlı düzenleme: kişi eski bir sürümün üstünden kaydediyorsa değişiklikleri son hâlle birleştir
+      let birlesti = false;
+      if (eski && g.taban && typeof g.taban === "object" && (g.taban.surum || 0) !== (eski.surum || 0)) {
+        g = { ...kasaUcYol(eski, g.taban, g), gun, otomatik: g.otomatik };
+        birlesti = true;
+      }
       const urunMap = new Map(urunler.map((u) => [u.id, u]));
       const aboneMap = new Map((await this.aboneler()).map((a) => [a.id, a]));
       const tumKullanicilar = await this.kullaniciListesi();
@@ -1414,7 +1482,7 @@ export class RezervasyonDeposu extends DurableObject {
         // O günün birim fiyatları sabitlenir: sonradan fiyat değişse de eski günün cirosu değişmez
         birimler: { ...(eski?.birimler || {}) },
         kira: eski?.kira || { krampon: f.krampon, eldiven: f.eldiven },
-        guncelleyen: yapan.ad, guncelleme: simdiYazi(), olusturan: eski?.olusturan || yapan.ad,
+        guncelleyen: yapan.ad, guncelleme: simdiYazi(), olusturan: eski?.olusturan || yapan.ad, surum: (eski?.surum || 0) + 1,
       };
       for (const id of Object.keys(kasaTuketim(kayit))) {
         if (kayit.birimler[id] === undefined) kayit.birimler[id] = { satis: urunMap.get(id)?.satis || 0, alis: urunMap.get(id)?.alis || 0, ad: urunMap.get(id)?.ad || id };
@@ -1434,11 +1502,11 @@ export class RezervasyonDeposu extends DurableObject {
       await this.st.put(`kasa:${gun}`, kayit);
       await this.veresiyeEsitle(kayit);
       // Otomatik (arka planda) kayıtlar işlem kaydına yazılmaz; "Kasayı gönder" düğmesi yazar
-      if (g.otomatik) return { basarili: true, kayit, ilkKayit: !eski, otomatik: true };
+      if (g.otomatik) return { basarili: true, kayit, ilkKayit: !eski, otomatik: true, birlesti };
       const o = kayit.ozet, para = (x) => `${Math.round(x).toLocaleString("tr-TR")} TL`;
       await this.kayitTut(yapan, eski ? "Kasa raporunu güncelledi" : "Kasa raporunu kaydetti",
         `${gun} · ciro ${para(o.ciro)} · giriş ${para(o.giris)} · çıkış ${para(o.cikis)} · kasada olması gereken ${para(o.olmasiGereken)}${kayit.sayilan !== null ? ` · sayılan ${para(kayit.sayilan)} (fark ${para(o.fark)})` : ""}`);
-      return { basarili: true, kayit, ilkKayit: !eski };
+      return { basarili: true, kayit, ilkKayit: !eski, birlesti };
     });
   }
 
@@ -1909,6 +1977,7 @@ export class RezervasyonDeposu extends DurableObject {
       for (const k of (await this.st.list({ prefix: "l:", end: `l:${gunEkle(sinir, -365)}` })).keys()) silinecek.push(k);
       // 90 günden eski dekont özetleri
       for (const [k, v] of await this.st.list({ prefix: "dh:" })) if (!v.tarih || v.tarih < gunEkle(sinir, -90)) silinecek.push(k);
+      for (const k of (await this.st.list({ start: "ua:", end: `ua:${gunEkle(sinir, -7)}` })).keys()) silinecek.push(k);
       for (const onek of ["o:", "s:", "t:"]) {
         for (const [k, v] of await this.st.list({ prefix: onek })) if (!v.bitis || v.bitis < Date.now()) silinecek.push(k);
       }

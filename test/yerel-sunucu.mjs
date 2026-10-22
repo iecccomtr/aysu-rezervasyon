@@ -46,6 +46,8 @@ globalThis.fetch = async (url, init) => {
 
 const env = {
   RESEND_API_KEY: "yerel",
+  // Yerel denemede dekont okuyucu taklidi: her dekontu doğru kabul eder
+  AI: { run: async () => ({ response: JSON.stringify({ alici_iban: "TR700015700000000154834235", alici_ad: "AHMET AYSU", tutar: 1200, tarih: new Date().toISOString().slice(0, 10) }) }) },
   ASSETS,
   PANEL_KURULUM_KODU: KOD,
   REZERVASYON_DEPOSU: { idFromName: () => "aysu", get: () => depo },

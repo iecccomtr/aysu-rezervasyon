@@ -513,7 +513,7 @@ export default {
       const g = await govdeOku(request);
       if (!g) return json({ hata: "Geçersiz istek." }, 400);
       try {
-        const r = await depo(env).iptal({ kayitNo: g.kayitNo, telefon: g.telefon });
+        const r = await depo(env).iptal({ kayitNo: g.kayitNo, tarih: g.tarih, saat: g.saat, telefon: g.telefon });
         if (!r.basarili) return json(r, 409);
         onbellegiTemizle(request, ctx);
         if (r.onayliydi) ctx.waitUntil(bildir(env, {

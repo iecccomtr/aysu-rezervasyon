@@ -165,6 +165,9 @@
   .ops-hata { color: #b42318; font-weight: 600; margin-top: 6px; }
   .ops-hata:empty { display: none; }
   .ops-uyari { background: #fff1d6; color: #7a4a00; border-radius: 10px; padding: 10px 12px; margin-top: 10px; font-size: 15px; }
+  .saat.iptal-sec { color: #ffb4a8; border: 2px solid #e5484d; background: transparent; text-decoration: none; }
+  .saat.iptal-sec[aria-pressed="true"] { background: #e5484d; color: #fff; }
+  .iade-not { font-weight: 700; color: #b42318; margin: 0 0 10px; font-size: 15px; }
   .vip { border: 2px solid #f3c97a; background: #fff8ec; border-radius: 12px; padding: 10px 14px 12px; margin: 0 0 16px; }
   .vip legend { font-weight: 700; padding: 0 6px; }
   .vip legend small { font-weight: 400; color: var(--gri, #566270); }
@@ -281,6 +284,7 @@
             <span>Ad ve telefonumun rezervasyon için kullanılmasını kabul ediyorum. <a href="/kvkk.html" target="_blank">Aydınlatma metni</a></span>
           </label>
           <div id="dogrulama-kutu" style="margin-bottom:8px"></div>
+          <p class="iade-not">Kaporaların iadesi yoktur.</p>
           <button class="dugme" id="gonder" type="submit">Rezervasyonu tamamla</button>
         </form>
       </section>
@@ -289,8 +293,8 @@
     <!-- ===== Başarılı ===== -->
     <section class="tamam" id="tamam" hidden aria-live="polite">
       <div class="isaret"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
-      <h2>Yeriniz opsiyonlandı</h2>
-      <p class="alt">Yeriniz kapora gönderimi için <b>15 dakika</b> süreyle adınıza opsiyonlandı; bu sürede saat başkasına verilmez. Kaporayı gönderip dekontu yüklediğinizde rezervasyonunuz kesinleşir. Süre içinde dekont gelmezse yer boşa çıkar.</p>
+      <h2 id="t-baslik">Yeriniz opsiyonlandı</h2>
+      <p class="alt" id="t-aciklama">Yeriniz kapora gönderimi için <b>15 dakika</b> süreyle adınıza opsiyonlandı; bu sürede saat başkasına verilmez. Kaporayı gönderip dekontu yüklediğinizde rezervasyonunuz kesinleşir. Süre içinde dekont gelmezse yer boşa çıkar.</p>
       <p class="sayac" id="t-sayac" role="timer" aria-live="off"></p>
 
       <div class="bilet">
@@ -302,9 +306,11 @@
       </div>
 
       <div class="dekont-kutu" id="t-dekont">
+        <div id="t-yukleme">
         <h3>Ödeme yaptıktan sonra dekontu yükleyin</h3>
         <p>Dekonttaki IBAN ve hesap adı doğruysa rezervasyonunuz <b>hemen kesinleşir</b>. Kapora gelmeden rezervasyon kesinleşmez.</p>
         <label class="dugme tam" for="t-dosya">Dekontu yükle (PDF veya JPG)</label>
+        </div>
         <input type="file" id="t-dosya" accept="application/pdf,image/jpeg,image/png,image/*" hidden>
         <p class="dekont-sonuc" id="t-dekont-sonuc" role="status" aria-live="polite"></p>
       </div>
@@ -316,6 +322,12 @@
       <p class="alt-bilgi">Sayfadan çıkarsanız ayırdığınız saate (⏳) dokunup telefonunuzu yazarak devam edebilirsiniz. İptal için arayın: <a href="tel:+905555102626">0 555 510 26 26</a></p>
     </section>
 
+
+    <!-- ===== İptal (en altta) ===== -->
+    <div class="iptal-alan" id="iptal-alan">
+      <p class="alt-bilgi" style="text-align:left;margin-bottom:10px">Rezervasyonu iptal etmek için önce yukarıdan <b>günü ve saati seçin</b>, sonra <b>Rezervasyonu iptal et</b>'e basın. Kaporaların iadesi yoktur.</p>
+      <button class="dugme ikincil tam" type="button" id="iptal-ac">Rezervasyonu iptal et</button>
+    </div>
 
     <p class="alt-bilgi"><a href="/">Ana sayfa</a> · Abonelik ve toplu rezervasyon için <a href="https://wa.me/905555102626" target="_blank" rel="noopener">WhatsApp'tan yazın</a></p>
   </main>
@@ -403,7 +415,9 @@
     if (!g) { el.innerHTML = '<p class="bos-mesaj">Gösterilecek gün yok.</p>'; return; }
     const gunduz = g.saatler.filter((s) => !gece(s.saat));
     const geceler = g.saatler.filter((s) => gece(s.saat));
-    const dugme = (s) => s.opsiyon
+    const dugme = (s) => iptalModu
+      ? `<button type="button" class="saat${s.bos ? "" : " iptal-sec"}" data-iptal="${s.saat}" ${s.bos ? "disabled" : ""} aria-label="${s.saat}${s.bos ? " boş" : " iptal için seç"}">${s.saat}</button>`
+      : s.opsiyon
       ? `<button type="button" class="saat opsiyonlu" data-ops="${s.saat}" aria-label="${s.saat} başka müşteriye ayrılmış">${s.saat}<small>⏳ ${s.opsiyon.dk} dk</small></button>`
       : `<button type="button" class="saat" data-saat="${s.saat}" ${s.bos ? "" : "disabled"} aria-pressed="${s.saat === secilenSaat}" aria-label="${s.saat} ${s.bos ? "boş" : "dolu"}">${s.saat}</button>`;
     let html = "";
@@ -413,6 +427,14 @@
     else html += `<p class="tabela-not">Sarı saatler boş. Üstü çizili saatler dolu.${g.saatler.some((s) => s.opsiyon) ? " ⏳ işaretli saat başka bir müşteriye kısa süreliğine ayrılmış." : ""}</p>`;
     html += `<div class="ops-uyari" id="ops-uyari" role="status" hidden></div>`;
     el.innerHTML = html;
+    if (iptalModu) {
+      el.querySelector(".tabela-not").textContent = "İptal etmek istediğiniz rezervasyonun saatine dokunun.";
+      el.querySelectorAll("[data-iptal]:not(:disabled)").forEach((b) => b.addEventListener("click", () => {
+        el.querySelectorAll("[data-iptal]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+        iptalSor(g, b.dataset.iptal);
+      }));
+      return;
+    }
     el.querySelectorAll("[data-ops]").forEach((b) => b.addEventListener("click", () => {
       const s = g.saatler.find((x) => x.saat === b.dataset.ops);
       const u = $("ops-uyari");
@@ -449,7 +471,7 @@
     if (!secilenSaat) return;
     $("ozet-zaman").textContent = `${g.gun} ${tarihYazi(g.tarih)}${gece(secilenSaat) ? " gecesi" : ""}, ${secilenSaat}`;
     $("ozet-ucret").textContent = tl(toplamUcret());
-    $("ozet-kapora").textContent = `${tl(veri.kapora)} kapora`;
+    $("ozet-kapora").textContent = `${tl(veri.kapora)} kapora · kaporaların iadesi yoktur`;
     if (kaydir) $("form-adim").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
   }
 
@@ -583,8 +605,8 @@
       if (!r.ok || !v.basarili) { sonucEl.classList.add("kotu"); sonucEl.textContent = v.hata || "Dekont yüklenemedi. WhatsApp'tan gönderebilirsiniz."; return; }
       if (v.onay && sonRez && sonRez.kayitNo === kayitNo) sonRez.onayli = true;
       if (v.onay) {
-        clearInterval(sayacZaman); $("t-sayac").textContent = ""; // kesinleşti: süre artık işlemez
-        sonucEl.classList.add("iyi"); sonucEl.textContent = "✓ Dekontunuz doğrulandı, rezervasyonunuz kesinleşti. İyi maçlar!";
+        if (sonucEl.id === "t-dekont-sonuc") kesinlestiGoster();
+        else { sonucEl.classList.add("iyi"); sonucEl.textContent = "✓ Dekontunuz doğrulandı, rezervasyonunuz kesinleşti. İyi maçlar!"; }
       } else {
         sonucEl.classList.add("kotu");
         sonucEl.textContent = `Dekont doğrulanamadı${v.nedenler && v.nedenler.length ? ": " + v.nedenler.join(" ") : "."} IBAN'ı (TR70 0015 7000 0000 0154 8342 35) ve hesap adını (Ahmet Aysu) kontrol edip dekontu yeniden yükleyin. Opsiyon süresi içinde doğrulanmazsa yer boşa çıkar.`;
@@ -615,6 +637,36 @@
 
   try { localStorage.removeItem("aysu-son-rez"); } catch {}
 
+  // ================= Rezervasyonu iptal et: gün + saat seç → telefon =================
+  // İptal modunda dolu / ⏳ saatler de seçilebilir; seçince telefon sorulur.
+  let iptalModu = false;
+  $("iptal-ac").addEventListener("click", () => {
+    iptalModu = !iptalModu;
+    $("iptal-ac").textContent = iptalModu ? "Vazgeç" : "Rezervasyonu iptal et";
+    secilenSaat = null; formuGuncelle(); saatleriCiz();
+    if (iptalModu) $("tabela").scrollIntoView({ behavior: "smooth", block: "center" });
+  });
+  function iptalSor(g, saat) {
+    const u = $("ops-uyari");
+    u.innerHTML = `<p><b>${g.gun} ${tarihYazi(g.tarih)}, ${saat}</b> rezervasyonunu iptal etmek için telefonunuzu yazın:</p>
+      <form class="ops-devam" novalidate><input type="tel" inputmode="tel" placeholder="05XX XXX XX XX" autocomplete="off" aria-label="Cep telefonu">
+      <button class="dugme kucuk" type="submit">İptal et</button></form><p class="ops-hata" role="alert"></p>
+      <p style="margin-top:6px;font-size:14px">Kaporaların iadesi yoktur. Onaylı maça 3 saatten az kaldıysa arayın: 0 555 510 26 26</p>`;
+    u.hidden = false;
+    u.querySelector("input").focus();
+    u.querySelector("form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const telefon = u.querySelector("input").value.trim();
+      const r = await fetch("/api/iptal", { method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ tarih: g.tarih, saat, telefon }) }).catch(() => null);
+      const v = r ? await r.json().catch(() => ({})) : {};
+      if (!r || !r.ok) { u.querySelector(".ops-hata").textContent = v.hata || "İptal yapılamadı."; return; }
+      iptalModu = false; $("iptal-ac").textContent = "Rezervasyonu iptal et";
+      await yukle();
+      const u2 = $("ops-uyari"); u2.innerHTML = `<p><b>✓ ${g.gun} ${tarihYazi(g.tarih)}, ${saat} rezervasyonu iptal edildi.</b></p>`; u2.hidden = false;
+    });
+  }
+
   // Onay ekranı açıkken durumu sunucudan tazele: 10 sn'de bir ve sekmeye geri dönülünce hemen
   let durumZaman = null;
   async function durumTazele() {
@@ -626,8 +678,7 @@
     if (!v) return;
     const el = $("t-dekont-sonuc");
     if (v.durum === "Onaylı") {
-      sonRez.onayli = true; clearInterval(sayacZaman); clearInterval(durumZaman); $("t-sayac").textContent = "";
-      el.className = "dekont-sonuc iyi"; el.textContent = "✓ Rezervasyonunuz kesinleşti. İyi maçlar!";
+      kesinlestiGoster();
     } else if (v.durum === "Düştü" || v.durum === "İptal") {
       clearInterval(sayacZaman); clearInterval(durumZaman);
       $("t-sayac").className = "sayac az";
@@ -642,7 +693,28 @@
   }
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") durumTazele(); });
 
+  /** Kapora doğrulandı: yükleme ve WhatsApp düğmeleri kalkar, "kesinleşti" yazar. */
+  function kesinlestiGoster() {
+    if (sonRez) sonRez.onayli = true;
+    clearInterval(sayacZaman); clearInterval(durumZaman);
+    $("t-sayac").textContent = "";
+    $("t-baslik").textContent = "Rezervasyonunuz kesinleşti";
+    $("t-aciklama").textContent = "Kaporanız alındı. Kalan tutarı maç günü sahada ödersiniz. İyi maçlar!";
+    $("t-yukleme").hidden = true;
+    $("t-wp").hidden = true;
+    // Kapora kutusu: IBAN ve "gönderin" yazısı kalkar
+    const k = $("t-kapora");
+    const h = k.querySelector("h3"); if (h) h.textContent = "✓ Kapora alındı";
+    k.querySelectorAll(".iban, .iban + p").forEach((x) => { x.hidden = true; });
+    const el = $("t-dekont-sonuc");
+    el.className = "dekont-sonuc iyi"; el.textContent = "✓ Rezervasyonunuz kesinleşti.";
+  }
+
   function basariGoster(v, g) {
+    // Yeni rezervasyon ekranı: başlangıç hâli
+    $("t-baslik").textContent = "Yeriniz opsiyonlandı";
+    $("t-aciklama").innerHTML = "Yeriniz kapora gönderimi için <b>15 dakika</b> süreyle adınıza opsiyonlandı; bu sürede saat başkasına verilmez. Kaporayı gönderip dekontu yüklediğinizde rezervasyonunuz kesinleşir. Süre içinde dekont gelmezse yer boşa çıkar.";
+    $("t-yukleme").hidden = false; $("t-wp").hidden = false;
     sayacBaslat(v.opsiyonKalan != null ? Date.now() + v.opsiyonKalan : v.opsiyonBitis);
     durumIzle();
     if (sonRez) sonRez.yazi = `${g.gun} ${tarihYazi(g.tarih)}, ${v.saat}`;
@@ -655,7 +727,8 @@
         <h3>${tl(v.kapora)} kapora gönderin</h3>
         <div class="iban"><code></code><button type="button" class="kopyala">IBAN'ı kopyala</button></div>
         <p>Hesap adı: <b class="alici"></b></p>
-        <p>Kalan <b>${tl(v.kalan)}</b> maç günü sahada ödenir.</p>`;
+        <p>Kalan <b>${tl(v.kalan)}</b> maç günü sahada ödenir.</p>
+        <p style="font-weight:700;color:#b42318">Kaporaların iadesi yoktur.</p>`;
       k.querySelector("code").textContent = v.iban;
       k.querySelector(".alici").textContent = v.alici || "";
       k.querySelector(".kopyala").addEventListener("click", async (e) => {

@@ -388,10 +388,17 @@ export class RezervasyonDeposu extends DurableObject {
     return (await this.st.get(`d:${String(kayitNo || "").trim().toUpperCase()}`)) || null;
   }
 
-  async iptal({ kayitNo, telefon: tel }) {
+  /** Müşteri iptali: kayıt no ile ya da seçtiği gün + saat ile (telefon eşleşmeli). */
+  async iptal({ kayitNo, tarih: gunGirdi, saat: s, telefon: tel }) {
     return this.kilitli(async () => {
       const telefon = telefonNormalize(tel);
       if (!telefon) return { hata: "Geçersiz telefon." };
+      if (!kayitNo && gunGirdi && s) {
+        const gun = tarihNormalize(gunGirdi), saat = saatNormalize(s);
+        const sl = gun && saat ? this.slot(await this.durumYukle(gun, gun), gun, saat) : null;
+        if (!sl || sl.tur !== "rez" || sl.rez.telefon !== telefon) return { hata: "Seçtiğiniz gün ve saatte bu numaraya ait rezervasyon bulunamadı." };
+        kayitNo = sl.rez.kayitNo;
+      }
       const b = await this.kayitBul(kayitNo);
       if (!b || b.kayit.telefon !== telefon || iptalMi(b.kayit.durum)) {
         return { hata: "Bu numaraya ait böyle bir aktif rezervasyon bulunamadı." };

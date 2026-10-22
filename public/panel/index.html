@@ -479,7 +479,7 @@
           </div>
           <div class="iki-alan">
             <div class="alan"><label for="f-eldiven">Eldiven kirası (TL)</label><input id="f-eldiven" inputmode="numeric"></div>
-            <div class="alan"><label for="f-siparis">Tespo sipariş no (WhatsApp)</label><input id="f-siparis" type="tel" inputmode="tel" placeholder="05XX XXX XX XX"></div>
+            <div class="alan"><label for="f-siparis">Tespo (kantin tedarikçisi) WhatsApp no</label><input id="f-siparis" type="tel" inputmode="tel" placeholder="05XX XXX XX XX"></div>
           </div>
           <p class="soluk" style="font-size:14px;margin:-4px 0 12px">Yeni fiyatlar kaydettiğiniz andan sonraki rezervasyonlarda geçerli olur; önceki rezervasyonların ücreti değişmez.</p>
           <button class="dugme" type="submit">Fiyatları kaydet</button>
@@ -1945,8 +1945,8 @@
       ${azalan.length ? `<p class="soluk" style="font-size:13px;margin-bottom:8px">İstediğiniz sipariş adedini yazın (boş bırakılan ürün listeye adetsiz eklenir, 0 yazılan eklenmez).</p>
       ${azalan.map((u) => `<div class="k-sat" style="grid-template-columns:1fr 60px 90px"><span><b>${kacis(u.ad)}</b></span><span class="${u.stok <= 0 ? "" : "soluk"}" style="${u.stok <= 0 ? "color:#b42318;font-weight:700" : ""}">stok ${u.stok}</span>
         <input data-siparis="${u.id}" inputmode="numeric" placeholder="adet" value="${kacis(siparisAdet[u.id] || "")}" aria-label="${kacis(u.ad)} sipariş adedi"></div>`).join("")}
-      <button class="dugme wp tam" type="button" id="s-wp" style="margin-top:8px">Tespo'ya WhatsApp'tan sipariş gönder</button>
-      <p class="soluk" style="font-size:13px;margin-top:6px">Liste Tespo'ya (${telYazi(siparisTel())}) WhatsApp'ta hazır mesaj olarak açılır; gönder'e basmanız yeterli.</p>`
+      <button class="dugme wp tam" type="button" id="s-wp" style="margin-top:8px">Kantin siparişini Tespo'ya gönder (WhatsApp)</button>
+      <p class="soluk" style="font-size:13px;margin-top:6px">Kantin sipariş listesi Tespo'nun WhatsApp'ında (${telYazi(siparisTel())}) hazır mesaj olarak açılır; gönder'e basmanız yeterli.</p>`
       : '<p class="soluk">Stoğu azalan ürün yok.</p>'}</div>`;
     $("kasa-stok-alan").innerHTML = `<details class="kutu kasa-kart"${stokAcik ? " open" : ""}><summary style="cursor:pointer"><b style="font-size:20px">Kantin stok</b> <span class="soluk">· ${l.filter((u) => u.aktif !== false && u.stok <= 5).length} ürün azaldı</span></summary>
       <table class="stok-t" style="margin-top:8px"><thead><tr><th>Ürün</th>${admin ? "<th>Alış</th>" : ""}<th>Satış</th><th>Stok</th></tr></thead><tbody>
@@ -1965,7 +1965,7 @@
       }
       if (!satirlar.length) return bildir("Listede ürün yok");
       const tarih = new Date(Date.now() + 3 * 3600000).toISOString().slice(0, 10).split("-").reverse().join(".");
-      const metin = `Merhaba, Aysu Halı Saha kantin sipariş listesi (${tarih}):\n\n${satirlar.join("\n")}\n\nSipariş veren: Aysu Halı Saha`;
+      const metin = `Merhaba, kantin siparişimiz (${tarih}):\n\n${satirlar.join("\n")}\n\nAysu Halı Saha`;
       window.open(`${wa(siparisTel())}?text=${encodeURIComponent(metin)}`, "_blank", "noopener");
       // Yöneticilere bilgi e-postası
       api("siparis", { satirlar: satirlar.map((x) => x.replace(/^• /, "")) }).then((r) => r.hata || bildir("Sipariş yöneticilere e-postayla bildirildi"));

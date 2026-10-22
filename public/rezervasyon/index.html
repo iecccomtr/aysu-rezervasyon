@@ -10,7 +10,7 @@
 <meta property="og:url" content="https://aysuhalisaha.com/rezervasyon/">
 <meta property="og:title" content="Online rezervasyon · Aysu Halı Saha">
 <meta property="og:description" content="Boş saatleri görün, maçınızı hemen ayırtın.">
-<meta property="og:image" content="https://aysuhalisaha.com/galeri/saha-genis.jpg">
+<meta property="og:image" content="https://aysuhalisaha.com/galeri/tesis.jpg">
 <meta property="og:locale" content="tr_TR">
 <link rel="icon" href="/img/favicon.png">
 <meta name="theme-color" content="#0067a4">
@@ -304,8 +304,8 @@
       <div class="dekont-kutu" id="t-dekont">
         <h3>Ödeme yaptıktan sonra dekontu yükleyin</h3>
         <p>Dekonttaki IBAN ve hesap adı doğruysa rezervasyonunuz <b>hemen kesinleşir</b>. Kapora gelmeden rezervasyon kesinleşmez.</p>
-        <label class="dugme tam" for="t-dosya">Dekontun ekran görüntüsünü yükle</label>
-        <input type="file" id="t-dosya" accept="image/*" hidden>
+        <label class="dugme tam" for="t-dosya">Dekontu yükle (PDF veya JPG)</label>
+        <input type="file" id="t-dosya" accept="application/pdf,image/jpeg,image/png,image/*" hidden>
         <p class="dekont-sonuc" id="t-dekont-sonuc" role="status" aria-live="polite"></p>
       </div>
 
@@ -552,7 +552,11 @@
   let sonRez = null; // { kayitNo, telefon }
   /** Ekran görüntüsünü küçültüp JPEG yapar (uzun kenar en fazla 2000 px). */
   async function dosyaHazirla(dosya) {
-    if (!dosya.type.startsWith("image/")) throw new Error("Dekontun ekran görüntüsünü (fotoğraf) yükleyin. PDF kabul edilmiyor.");
+    if (dosya.type === "application/pdf" || /\.pdf$/i.test(dosya.name)) {
+      if (dosya.size > 1_800_000) throw new Error("PDF çok büyük (en fazla 1,8 MB). Ekran görüntüsünü JPG olarak yükleyebilirsiniz.");
+      return { tur: "application/pdf", veri: new Uint8Array(await dosya.arrayBuffer()), ad: "dekont.pdf" };
+    }
+    if (!dosya.type.startsWith("image/")) throw new Error("Dekontu PDF ya da JPG (ekran görüntüsü) olarak yükleyin.");
     const resim = await createImageBitmap(dosya);
     const oran = Math.min(1, 2000 / Math.max(resim.width, resim.height));
     const tuval = document.createElement("canvas");

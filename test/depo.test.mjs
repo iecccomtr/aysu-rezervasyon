@@ -439,3 +439,15 @@ test("Opsiyonlu yer: başkası denerse 'x dakika sonra tekrar deneyin' uyarısı
   const s = (await d.musaitlik("2026-10-21")).detay.find((x) => x.saat === "21:00");
   assert.deepEqual(s.opsiyon, { dk: 10 });
 });
+
+test("PDF dekont: model çalışmasa da düz metindeki IBAN, hesap adı ve tarihle doğrulanır", async () => {
+  const { dekontOku, dekontDegerlendir } = await import("../src/dekont-kontrol.js");
+  const env = { AI: {
+    toMarkdown: async () => [{ data: "FAST İşlem Dekontu\nİşlem Tarihi: 21.10.2026 14:05\nAlıcı: AHMET AYSU\nAlıcı IBAN: TR70 0015 7000 0000 0154 8342 35\nTutar: 1.200,00 TL" }],
+    run: async () => { throw new Error("model yok"); },
+  } };
+  const o = await dekontOku(env, { tur: "application/pdf", veri: new Uint8Array(300) });
+  assert.equal(o.tarih, "2026-10-21");
+  const d = dekontDegerlendir(o, { iban: "TR70 0015 7000 0000 0154 8342 35", alici: "Ahmet Aysu", kapora: 1200, rezTarihi: "2026-10-21", bugun: "2026-10-22" });
+  assert.equal(d.onay, true, d.nedenler.join());
+});

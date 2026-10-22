@@ -49,13 +49,15 @@ export async function dekontOku(env, { tur, veri }) {
   try {
     if (tur === "application/pdf") {
       // PDF → metin → alanlar
-      const [md] = await env.AI.toMarkdown([{ name: "dekont.pdf", blob: new Blob([veri], { type: tur }) }]);
+      const [md] = await zamanAsimi(env.AI.toMarkdown([{ name: "dekont.pdf", blob: new Blob([veri], { type: tur }) }]), 15_000);
       const metin = String(md?.data || "").slice(0, 12000);
-      if (!metin.trim()) return { hata: "PDF'ten yazı okunamadı." };
-      // Önce düz metinde IBAN ara (model hatasına karşı yedek)
-      const y = await env.AI.run(METIN_MODELI, { messages: [{ role: "system", content: TALIMAT }, { role: "user", content: metin }], max_tokens: 400 });
-      const j = jsonAl(y) || {};
-      return { ...j, _metin: metin };
+      if (!metin.trim()) return { hata: "PDF'ten yazı okunamadı (taranmış PDF olabilir). Ekran görüntüsünü JPG olarak yükleyin." };
+      // Model alanları çıkaramasa bile IBAN / hesap adı / tarih düz metinde aranır
+      let j = {};
+      try {
+        j = jsonAl(await zamanAsimi(env.AI.run(METIN_MODELI, { messages: [{ role: "system", content: TALIMAT }, { role: "user", content: metin }], max_tokens: 400 }), 15_000)) || {};
+      } catch { /* düz metin yedeği yeter */ }
+      return { ...j, tarih: j.tarih || metindenTarih(metin), _metin: metin, _model: "pdf" };
     }
     const resim = `data:${tur};base64,${b64(veri)}`;
     const hatalar = [];
@@ -85,6 +87,12 @@ export async function dekontOku(env, { tur, veri }) {
   }
 }
 
+/** Metindeki ilk tarih: 21.10.2026, 21/10/2026 ya da 2026-10-21 */
+function metindenTarih(metin) {
+  const m = String(metin).match(/\b(\d{1,2})[./](\d{1,2})[./](20\d{2})\b/) || String(metin).match(/\b(20\d{2})-(\d{2})-(\d{2})\b/);
+  if (!m) return null;
+  return m[3].length === 4 ? `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}` : `${m[1]}-${m[2]}-${m[3]}`;
+}
 const oncekiGun = (t) => { const d = new Date(t + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() - 1); return d.toISOString().slice(0, 10); };
 const harfler = (s) => String(s || "").toLocaleUpperCase("tr")
   .replace(/İ/g, "I").replace(/Ş/g, "S").replace(/Ğ/g, "G").replace(/Ü/g, "U").replace(/Ö/g, "O").replace(/Ç/g, "C").replace(/I/g, "I")

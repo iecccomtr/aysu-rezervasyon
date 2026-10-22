@@ -23,7 +23,7 @@ import {
 export const GUNLER = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"];
 const DURUMLAR = [DURUM.bekliyor, DURUM.onayli, DURUM.iptal];
 const OTURUM_GUN = 30;
-const DEKONT_TURLERI = ["image/jpeg", "image/png", "image/webp"]; // sadece ekran görüntüsü / fotoğraf
+const DEKONT_TURLERI = ["image/jpeg", "image/png", "image/webp", "application/pdf"]; // JPG (ekran görüntüsü) ya da PDF
 const DEKONT_EN_FAZLA = 1_800_000; // Durable Object kaydı başına 2 MB sınırının altında
 
 /** Panel rolleri. yonetici: her şeye erişir; diğerleri sadece haftalık tabloyu görür. */
@@ -309,7 +309,7 @@ export class RezervasyonDeposu extends DurableObject {
         }
         b.kayit = { ...b.kayit, durum: DURUM.bekliyor, opsiyonDustu: false, iptalEden: undefined, opsiyonBitis: Date.now() + 5 * 60_000 };
       }
-      if (!DEKONT_TURLERI.includes(tur)) return { hata: "Dekontun ekran görüntüsünü (fotoğraf) yükleyin. PDF kabul edilmiyor." };
+      if (!DEKONT_TURLERI.includes(tur)) return { hata: "Dekontu PDF ya da JPG (ekran görüntüsü) olarak yükleyin." };
       if (!(veri instanceof Uint8Array) || veri.byteLength < 100) return { hata: "Dosya okunamadı." };
       if (veri.byteLength > DEKONT_EN_FAZLA) return { hata: "Dosya çok büyük (en fazla 1,8 MB)." };
       const dekont = { zaman: simdiYazi(), tur, ad: kirp(ad, 80) || "dekont", boyut: veri.byteLength };

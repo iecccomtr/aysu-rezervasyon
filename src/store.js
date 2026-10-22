@@ -2188,6 +2188,7 @@ export class RezervasyonDeposu extends DurableObject {
       for (const a of aboneler) {
         if (!a.telefon) continue;
         const k = kisi(a.telefon, a.ad);
+        if (!a.bitis) k.aktifAbone = true;
         if (!a.bitis && aboneNo(a)) k.aboneNo = Math.min(k.aboneNo || 999, aboneNo(a));
         for (const x of slotSirala(slotlarOf(a))) k.abone.push(`${GUNLER[x.gun]} ${x.saat}`);
       }

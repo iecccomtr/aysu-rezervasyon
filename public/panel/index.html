@@ -1314,9 +1314,9 @@
     </div>`;
   }
 
-  function aboneForm(a) {
+  function aboneForm(a, on) {
     const yeni = !a;
-    a = a || { ad: "", telefon: "", slotlar: [], baslangic: "", not: "", ucret: "" };
+    a = a || { ad: on?.ad || "", telefon: on?.telefon || "", slotlar: [], baslangic: "", not: on?.not || "", ucret: "" };
     let satirlar = slotSatirlari(a.slotlar || []);
     if (!satirlar.length) satirlar = [{ gunler: [], bas: "20:00", son: "20:00" }];
     ac(yeni ? "Yeni abone" : a.ad, `
@@ -1371,7 +1371,7 @@
       try {
         const r = await api("abone", { id: yeni ? undefined : a.id, no: $("d-no").value, ad: $("d-ad").value, telefon: $("d-tel").value, slotlar, baslangic: $("d-bas").value, ucret: $("d-ucret").value, depozito: $("d-depozito").value, veresiye: $("d-veresiye").checked, not: $("d-not").value });
         if (r.hata) return dlgUyari(r.hata);
-        dlg.close(); bildir(r.uyari || (yeni ? "Abone eklendi" : "Kaydedildi")); aboneYukle();
+        dlg.close(); bildir(r.uyari || (yeni ? "Abone eklendi" : "Kaydedildi")); aboneYukle(); if (sekme === "musteriler") musteriYukle();
       } finally { btn.disabled = false; }
     });
     const sil = $("d-sil");
@@ -1401,8 +1401,9 @@
   }
   function musteriCiz() {
     const q = sade($("musteri-ara").value);
-    const l = musteriler.filter((m) => !q || sade(m.ad).includes(q) || (m.aboneNo && sade(`abone ${m.aboneNo}`).includes(q)) || m.telefon.includes(q.replace(/\D/g, "") || "§") || sade(m.etiket).includes(q));
-    $("musteri-sayi").textContent = `${musteriler.length} müşteri`;
+    // Aboneler sadece Aboneler sekmesinde; müşteri listesinde görünmez
+    const l = musteriler.filter((m) => !m.aktifAbone).filter((m) => !q || sade(m.ad).includes(q) || (m.aboneNo && sade(`abone ${m.aboneNo}`).includes(q)) || m.telefon.includes(q.replace(/\D/g, "") || "§") || sade(m.etiket).includes(q));
+    $("musteri-sayi").textContent = `${musteriler.filter((m) => !m.aktifAbone).length} müşteri`;
     if (!l.length) {
       $("musteri-liste").innerHTML = `<p class="bos-durum">${musteriler.length ? "Aramaya uyan müşteri yok." : "Rezervasyonlar geldikçe müşteriler burada listelenir."}</p>`;
       return;
@@ -1433,6 +1434,7 @@
       <div class="eylemler">
         <a class="dugme ikincil kucuk" href="tel:${m.telefon}">Ara</a>
         <a class="dugme ikincil kucuk" target="_blank" rel="noopener" href="${wa(m.telefon)}">WhatsApp</a>
+        ${no || m.abone.some((a) => !a.bitis) ? "" : '<button class="dugme ikincil kucuk" type="button" id="d-abone-yap">⟳ Abone yap</button>'}
         <button class="dugme ikincil kucuk" type="button" id="d-musteri-sil" style="color:#b42318;border-color:#e8b4ae">🗑 Sil</button>
       </div>
       <form id="d-form" novalidate>
@@ -1444,6 +1446,7 @@
       ${m.rezervasyonlar.length ? `<ul class="gecmis-liste">${m.rezervasyonlar.map((r) => `
         <li><span>${tarihYazi(r.isletmeGunu || r.tarih, true)} ${r.saat}<br><small class="soluk">${kacis(r.kaynak || "")} · ${kacis(r.kayitNo)}${r.kapora ? " · kapora " + kacis(r.kapora) : ""}</small></span>
         <span class="rozet ${durumSinif(r.durum)}">${r.durum === "Kapora bekleniyor" ? "⏳ Opsiyon" : kacis(r.durum)}</span></li>`).join("")}</ul>` : '<p class="soluk">Kayıt yok.</p>'}`);
+    $("d-abone-yap")?.addEventListener("click", () => aboneForm(null, { ad: m.ad, telefon: m.telefon, not: m.not }));
     $("d-musteri-sil").addEventListener("click", async () => {
       if (!confirm(`${m.ad || telYazi(m.telefon)} ve tüm geçmiş kayıtları kalıcı olarak silinsin mi?`)) return;
       const r = await api("musteri-sil", { telefon: m.telefon });

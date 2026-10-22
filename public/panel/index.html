@@ -55,8 +55,7 @@
   @media print { body.salt-okur #uygulama { display: none !important; } body.salt-okur::after { content: "Bu sayfa yazdırılamaz."; } }
   .ozel-satir th.saat-b { color: var(--turuncu, #ef7f1a); }
   .ozel-satir th.saat-b small { display: block; font-size: 10px; font-weight: 600; }
-  #ozel-saat { margin-left: auto; }
-  #ozel-saat + #bugune { margin-left: 0; }
+  .ozel-saat-alt { margin: 14px 0 4px; text-align: center; }
   .salt-okur .arti { display: none; }
   .ben { color: #b8d3e8; font-size: 13px; text-align: right; line-height: 1.2; }
 
@@ -316,8 +315,7 @@
           <button type="button" data-gorunum-tur="tablo">Hafta tablosu</button>
           <button type="button" data-gorunum-tur="liste">Gün listesi</button>
         </div>
-        <button class="dugme ikincil kucuk" type="button" id="ozel-saat" data-yonetici>+ Özel saat</button>
-        <button class="dugme ikincil kucuk" type="button" id="bugune">Bugün</button>
+        <button class="dugme ikincil kucuk" type="button" id="bugune" style="margin-left:auto">Bugün</button>
       </div>
 
       <div id="tablo-gorunum">
@@ -336,6 +334,7 @@
         <div class="baslik-satir"><h2 id="gun-baslik"></h2></div>
         <div class="kutu saatler" id="saatler"></div>
       </div>
+      <div class="ozel-saat-alt"><button class="dugme ikincil kucuk" type="button" id="ozel-saat" data-yonetici>+ Özel saat ekle</button></div>
     </section>
 
     <!-- Aboneler -->

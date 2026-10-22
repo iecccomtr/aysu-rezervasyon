@@ -448,6 +448,9 @@ test("PDF dekont: model çalışmasa da düz metindeki IBAN, hesap adı ve tarih
   } };
   const o = await dekontOku(env, { tur: "application/pdf", veri: new Uint8Array(300) });
   assert.equal(o.tarih, "2026-10-21");
+  assert.equal(o.alici_iban, "TR700015700000000154834235");
+  assert.match(o.alici_ad, /^AHMET AYSU/);
+  assert.equal(o.tutar, "1.200,00");
   const d = dekontDegerlendir(o, { iban: "TR70 0015 7000 0000 0154 8342 35", alici: "Ahmet Aysu", kapora: 1200, rezTarihi: "2026-10-21", bugun: "2026-10-22" });
   assert.equal(d.onay, true, d.nedenler.join());
 });

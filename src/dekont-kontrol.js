@@ -57,7 +57,7 @@ export async function dekontOku(env, { tur, veri }) {
       try {
         j = jsonAl(await zamanAsimi(env.AI.run(METIN_MODELI, { messages: [{ role: "system", content: TALIMAT }, { role: "user", content: metin }], max_tokens: 400 }), 15_000)) || {};
       } catch { /* düz metin yedeği yeter */ }
-      return { ...j, tarih: j.tarih || metindenTarih(metin), _metin: metin, _model: "pdf" };
+      return { ...j, ...metindenAlanlar(metin, j), _metin: metin, _model: j.alici_iban ? "pdf" : "pdf-metin" };
     }
     const resim = `data:${tur};base64,${b64(veri)}`;
     const hatalar = [];
@@ -85,6 +85,22 @@ export async function dekontOku(env, { tur, veri }) {
   } catch (e) {
     return { hata: "Dekont okunamadı: " + String(e?.message || e) };
   }
+}
+
+/** Model alan çıkaramazsa PDF metninden IBAN, hesap adı, tutar ve tarihi düz arama ile bulur. */
+function metindenAlanlar(metin, j) {
+  const t = String(metin);
+  const ibanlar = [...t.toUpperCase().matchAll(/TR\s?\d{2}(?:\s?\d{4}){5}\s?\d{2}/g)].map((m) => m[0].replace(/\s/g, ""));
+  // Hesap adı: "Alıcı" / "Alıcı Adı" etiketinden sonraki satır parçası
+  const adM = t.match(/al[ıi]c[ıi](?:\s*(?:ad[ıi](?:\s*soyad[ıi])?|unvan[ıi]|hesap ad[ıi]))?\s*[:\-]?\s*([A-ZÇĞİÖŞÜa-zçğıöşü .]{3,60})/i);
+  // Tutar: "Tutar: 1.200,00 TL" ya da "1.200,00 TL"
+  const tutarM = t.match(/tutar[^\d\n]{0,30}([\d.]+,\d{2})/i) || t.match(/([\d.]+,\d{2})\s*(?:TL|TRY|₺)/i);
+  return {
+    alici_iban: j.alici_iban || (ibanlar.length ? ibanlar.at(-1) : null),
+    alici_ad: j.alici_ad || (adM ? adM[1].trim() : null),
+    tutar: j.tutar ?? (tutarM ? tutarM[1] : null),
+    tarih: j.tarih || metindenTarih(t),
+  };
 }
 
 /** Metindeki ilk tarih: 21.10.2026, 21/10/2026 ya da 2026-10-21 */

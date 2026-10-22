@@ -167,6 +167,10 @@
   .ops-uyari { background: #fff1d6; color: #7a4a00; border-radius: 10px; padding: 10px 12px; margin-top: 10px; font-size: 15px; }
   .saat.iptal-sec { color: #ffb4a8; border: 2px solid #e5484d; background: transparent; text-decoration: none; }
   .saat.iptal-sec[aria-pressed="true"] { background: #e5484d; color: #fff; }
+  .iptal-baslik { background: #fff1f0; border: 2px solid #e5484d; border-radius: 14px; padding: 14px 16px; margin: 4px 0 18px; }
+  .iptal-baslik h2 { color: #b42318; margin-bottom: 6px; }
+  .iptal-baslik p { margin-bottom: 10px; }
+  .iptal-baslik a { font-weight: 600; color: var(--cim, #0067a4); }
   .iade-not { font-weight: 700; color: #b42318; margin: 0 0 10px; font-size: 15px; }
   .vip { border: 2px solid #f3c97a; background: #fff8ec; border-radius: 12px; padding: 10px 14px 12px; margin: 0 0 16px; }
   .vip legend { font-weight: 700; padding: 0 6px; }
@@ -228,6 +232,11 @@
 
   <main class="kap">
     <!-- ===== Rezervasyon adımları ===== -->
+    <div class="iptal-baslik" id="iptal-baslik" hidden>
+      <h2>Rezervasyon iptali</h2>
+      <p>İptal etmek istediğiniz rezervasyonun <b>gününü ve saatini</b> aşağıdan seçin, ardından telefon numaranızı yazın. <b>Kaporaların iadesi yoktur.</b></p>
+      <a href="/rezervasyon/">← Yeni rezervasyon yap</a>
+    </div>
     <div id="secim">
       <section class="adim" aria-labelledby="b-gun">
         <div class="adim-baslik"><h2 id="b-gun">Gün seçin</h2></div>
@@ -308,7 +317,7 @@
       <div class="dekont-kutu" id="t-dekont">
         <div id="t-yukleme">
         <h3>Ödeme yaptıktan sonra dekontu yükleyin</h3>
-        <p>Dekonttaki IBAN ve hesap adı doğruysa rezervasyonunuz <b>hemen kesinleşir</b>. Kapora gelmeden rezervasyon kesinleşmez.</p>
+        <p>Bankanızdaki dekontun <b>ekran görüntüsünü alıp</b> buradan yükleyin (PDF de olur). Dekonttaki IBAN ve hesap adı doğruysa rezervasyonunuz <b>hemen kesinleşir</b>. Kapora gelmeden rezervasyon kesinleşmez.</p>
         <label class="dugme tam" for="t-dosya">Dekontu yükle (PDF veya JPG)</label>
         </div>
         <input type="file" id="t-dosya" accept="application/pdf,image/jpeg,image/png,image/*" hidden>
@@ -323,10 +332,9 @@
     </section>
 
 
-    <!-- ===== İptal (en altta) ===== -->
+    <!-- ===== İptal (en altta): ayrı iptal sayfasını açar ===== -->
     <div class="iptal-alan" id="iptal-alan">
-      <p class="alt-bilgi" style="text-align:left;margin-bottom:10px">Rezervasyonu iptal etmek için önce yukarıdan <b>günü ve saati seçin</b>, sonra <b>Rezervasyonu iptal et</b>'e basın. Kaporaların iadesi yoktur.</p>
-      <button class="dugme ikincil tam" type="button" id="iptal-ac">Rezervasyonu iptal et</button>
+      <a class="dugme ikincil tam" id="iptal-ac" href="/rezervasyon/?iptal">Rezervasyonu iptal et</a>
     </div>
 
     <p class="alt-bilgi"><a href="/">Ana sayfa</a> · Abonelik ve toplu rezervasyon için <a href="https://wa.me/905555102626" target="_blank" rel="noopener">WhatsApp'tan yazın</a></p>
@@ -524,7 +532,7 @@
         istenen = {};
       } else if (gunIdx >= veri.gunler.length) gunIdx = 0;
       sayfa = sayfaOf(gunIdx);
-      $("fiyat-not").textContent = `Maç ${tl(veri.fiyat)}`;
+      $("fiyat-not").textContent = iptalModu ? "" : `Maç ${tl(veri.fiyat)}`;
       gunleriCiz(); saatleriCiz(); formuGuncelle(Boolean(secilenSaat));
     } catch {
       $("gunler").innerHTML = "";
@@ -533,6 +541,34 @@
   }
 
   function uyar(el, metin) { el.textContent = metin; el.hidden = false; el.scrollIntoView({ block: "center" }); }
+
+  // Saat tabelası kendini tazeler (15 sn'de bir ve sayfaya geri dönülünce): ⏳ dakikaları ve dolu/boş saatler güncel kalır.
+  // Müşterinin seçimi ve yazdıkları korunur; seçtiği saat bu arada dolduysa uyarılır.
+  async function tabelaTazele() {
+    if (!veri || $("secim").hidden || document.visibilityState !== "visible") return;
+    const ops = $("ops-uyari");
+    if ($("tabela").contains(document.activeElement) || (ops && !ops.hidden)) return; // telefon yazıyor / uyarı açık
+    const r = await fetch("/api/musaitlik", { cache: "no-store" }).catch(() => null);
+    const v = r && r.ok ? await r.json().catch(() => null) : null;
+    if (!v || !Array.isArray(v.gunler) || !v.gunler.length) return;
+    const eskiTarih = veri.gunler[gunIdx]?.tarih;
+    veri = v;
+    const i = veri.gunler.findIndex((g) => g.tarih === eskiTarih);
+    gunIdx = i >= 0 ? i : 0;
+    sayfa = sayfaOf(gunIdx);
+    if (secilenSaat) {
+      const s = veri.gunler[gunIdx].saatler.find((x) => x.saat === secilenSaat);
+      if (!s || !s.bos) {
+        secilenSaat = null; formuGuncelle();
+        gunleriCiz(); saatleriCiz();
+        const u = $("ops-uyari"); if (u) { u.innerHTML = "<p><b>Seçtiğiniz saat bu arada doldu.</b> Lütfen başka bir saat seçin.</p>"; u.hidden = false; }
+        return;
+      }
+    }
+    gunleriCiz(); saatleriCiz();
+  }
+  setInterval(tabelaTazele, 15_000);
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") tabelaTazele(); });
 
   $("form").addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -639,13 +675,13 @@
 
   // ================= Rezervasyonu iptal et: gün + saat seç → telefon =================
   // İptal modunda dolu / ⏳ saatler de seçilebilir; seçince telefon sorulur.
-  let iptalModu = false;
-  $("iptal-ac").addEventListener("click", () => {
-    iptalModu = !iptalModu;
-    $("iptal-ac").textContent = iptalModu ? "Vazgeç" : "Rezervasyonu iptal et";
-    secilenSaat = null; formuGuncelle(); saatleriCiz();
-    if (iptalModu) $("tabela").scrollIntoView({ behavior: "smooth", block: "center" });
-  });
+  // /rezervasyon/?iptal → iptal sayfası: rezervasyon formu yok, dolu saatler seçilir
+  const iptalModu = new URLSearchParams(location.search).has("iptal");
+  if (iptalModu) {
+    $("iptal-baslik").hidden = false;
+    $("iptal-alan").hidden = true;
+    document.title = "Rezervasyon iptali · Aysu Halı Saha";
+  }
   function iptalSor(g, saat) {
     const u = $("ops-uyari");
     u.innerHTML = `<p><b>${g.gun} ${tarihYazi(g.tarih)}, ${saat}</b> rezervasyonunu iptal etmek için telefonunuzu yazın:</p>
@@ -661,7 +697,6 @@
         body: JSON.stringify({ tarih: g.tarih, saat, telefon }) }).catch(() => null);
       const v = r ? await r.json().catch(() => ({})) : {};
       if (!r || !r.ok) { u.querySelector(".ops-hata").textContent = v.hata || "İptal yapılamadı."; return; }
-      iptalModu = false; $("iptal-ac").textContent = "Rezervasyonu iptal et";
       await yukle();
       const u2 = $("ops-uyari"); u2.innerHTML = `<p><b>✓ ${g.gun} ${tarihYazi(g.tarih)}, ${saat} rezervasyonu iptal edildi.</b></p>`; u2.hidden = false;
     });

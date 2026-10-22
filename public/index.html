@@ -208,7 +208,7 @@
   .sss details p { padding: 0 0 14px; color: var(--gri); }
   .dugme.ikinci:hover { background: rgba(244,247,241,.1); }
   /* Google puanı */
-  .puan { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; max-width: 100%; margin-top: 18px; padding: 7px 14px 7px 8px; border-radius: 999px;
+  .puan { display: flex; width: max-content; align-items: center; flex-wrap: wrap; gap: 6px 8px; max-width: 100%; margin-top: 18px; padding: 7px 14px 7px 8px; border-radius: 999px;
     background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.25); color: var(--tebesir); text-decoration: none; font-size: 15px; }
   .puan:hover { background: rgba(255,255,255,.2); }
   .puan .g { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: #fff; color: #4285f4; font: 700 15px/1 Arial, sans-serif; }
@@ -217,6 +217,9 @@
   .puan .yildiz .bos { color: rgba(255,255,255,.35); }
   .puan b { font-size: 17px; }
   .puan .metin { white-space: nowrap; }
+  .puan-ta { margin-top: 8px; display: flex; width: max-content; }
+  .puan .g.ta { background: #00aa6c; color: #fff; }
+  .puan .baloncuk { color: #00aa6c; font-size: 17px; letter-spacing: 1px; font-family: Arial, sans-serif; text-shadow: 0 0 1px rgba(255,255,255,.4); }
   @media (max-width: 380px) { .puan { font-size: 13px; gap: 5px; padding-right: 10px; flex-wrap: nowrap; } .puan .yildiz { font-size: 14px; letter-spacing: 0; } .puan b { font-size: 15px; } }
   @media (max-width: 340px) { .puan .metin { font-size: 12px; } .puan .g { width: 20px; height: 20px; font-size: 13px; } }
 
@@ -361,6 +364,12 @@
         <b>4,0</b>
         <span class="yildiz" aria-hidden="true">★★★★<span class="bos">★</span></span>
         <span class="metin">209 Google yorumu</span>
+      </a>
+      <a class="puan puan-ta" href="https://www.tripadvisor.com.tr/Attraction_Review-g319806-d23733838-Reviews-Aysu_Hali_Saha-Eskisehir_Eskisehir_Province.html" target="_blank" rel="noopener" aria-label="Tripadvisor'da 5 üzerinden 5,0 puan, 1 yorum. Yorumu Tripadvisor'da okuyun.">
+        <span class="g ta" aria-hidden="true">T</span>
+        <b>5,0</b>
+        <span class="baloncuk" aria-hidden="true">●●●●●</span>
+        <span class="metin">1 Tripadvisor yorumu</span>
       </a>
       <div class="eylemler" id="giris-eylem">
         <a class="dugme ana" href="/rezervasyon/">Online rezervasyon yap</a>

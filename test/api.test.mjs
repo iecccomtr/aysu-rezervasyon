@@ -342,3 +342,41 @@ test("Onay ekranı durumu: opsiyon süresi, düşme ve kayıt no + telefon eşle
   const d2 = (await istek("/api/rezervasyon-durum", { kayitNo: r.kayitNo, telefon: REZ.telefon })).veri;
   assert.equal(d2.durum, "Düştü");
 });
+
+test("İşlem kaydı: kim neyi neyden neye değiştirdi Admin'de görünür", async () => {
+  const { istek, cerezSil } = await kur();
+  await istek("/api/panel/kur", { kurulumKodu: "kurulum-kodu", eposta: "admin@aysu.com", ad: "Admin", sifre: "aysu-sifre-1" });
+  await istek("/api/panel/kayit", { eposta: "yrd@aysu.com", ad: "Mehmet Yrd", sifre: "yrd-12345", rol: "mudur_yrd" });
+  await istek("/api/panel/kullanici", { eposta: "yrd@aysu.com", rol: "mudur_yrd", durum: "aktif" });
+  cerezSil();
+  await istek("/api/panel/giris", { eposta: "yrd@aysu.com", sifre: "yrd-12345" });
+  const t = (await istek("/api/panel/rez", { gun: "2026-10-23", saat: "20:00", ad: "Eren", telefon: "0533 000 00 00", kapora: "1200" })).veri;
+  await istek("/api/panel/rez-guncelle", { kayitNo: t.kayitNo, durum: "İptal", kapora: "0" });
+  cerezSil();
+  await istek("/api/panel/giris", { eposta: "admin@aysu.com", sifre: "aysu-sifre-1" });
+  const k = (await istek("/api/panel/islemler")).veri;
+  const g = k.find((x) => x.islem === "Rezervasyon güncelledi");
+  assert.equal(g.kim, "Mehmet Yrd"); assert.equal(g.rol, "Müdür Yardımcısı");
+  assert.match(g.detay, /Durum: Onaylı → İptal/); assert.match(g.detay, /Kapora: 1200 → 0/);
+  assert.ok(k.some((x) => x.islem === "Rezervasyon ekledi" && /Eren/.test(x.detay)));
+});
+
+test("Rezervasyon iptali: Müdür ve Müdür Yardımcısı'na e-posta (siteden ve panelden)", async () => {
+  const { istek, cerezSil } = await kur({ RESEND_API_KEY: "re_test" });
+  await istek("/api/panel/kur", { kurulumKodu: "kurulum-kodu", eposta: "admin@aysu.com", ad: "Admin", sifre: "aysu-sifre-1" });
+  for (const [eposta, rol] of [["mudur@aysu.com", "mudur"], ["yrd@aysu.com", "mudur_yrd"]]) {
+    await istek("/api/panel/kayit", { eposta, ad: rol, sifre: "sifre-1234", rol });
+    await istek("/api/panel/kullanici", { eposta, rol, durum: "aktif" });
+  }
+  const t = (await istek("/api/panel/rez", { gun: "2026-10-24", saat: "20:00", ad: "Eren", telefon: "0533 000 00 00", kapora: "1200" })).veri;
+  const n = epostalar.length;
+  await istek("/api/panel/rez-guncelle", { kayitNo: t.kayitNo, durum: "İptal" });
+  let e = epostalar.slice(n).find((x) => /iptal edildi/.test(x.subject));
+  assert.deepEqual(e.to.sort(), ["mudur@aysu.com", "yrd@aysu.com"]); assert.match(e.text, /Admin \(Admin, panel\)/);
+  const t2 = (await istek("/api/panel/rez", { gun: "2026-10-25", saat: "20:00", ad: "Ali", telefon: "0532 111 22 33", kapora: "1200" })).veri;
+  cerezSil();
+  const m = epostalar.length;
+  assert.equal((await istek("/api/iptal", { tarih: "2026-10-25", saat: "20:00", telefon: "0532 111 22 33" })).durum, 200);
+  e = epostalar.slice(m).find((x) => /iptal edildi/.test(x.subject));
+  assert.match(e.text, /Müşteri \(siteden\)/); assert.ok(t2.kayitNo);
+});

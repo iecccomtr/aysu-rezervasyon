@@ -410,7 +410,11 @@ export class RezervasyonDeposu extends DurableObject {
         return { hata: `Maça ${KURALLAR.iptalEnGecSaat} saatten az kaldığı için çevrimiçi iptal yapılamıyor. Lütfen işletmeyi arayın.` };
       }
       await this.st.put(b.anahtar, { ...b.kayit, durum: DURUM.iptal, iptalEden: "Müşteri" });
-      return { basarili: true, kayitNo: b.kayit.kayitNo, tarih: b.kayit.tarih, saat: b.kayit.saat, onayliydi: b.kayit.durum === DURUM.onayli };
+      if (b.kayit.durum === DURUM.onayli) {
+        await this.kayitTut({ ad: "Müşteri (site)" }, "Müşteri rezervasyonu iptal etti", `${b.kayit.kayitNo} · ${b.kayit.isletmeGunu || b.kayit.tarih} ${b.kayit.saat} · ${b.kayit.ad} · ${telefon}`);
+      }
+      return { basarili: true, kayitNo: b.kayit.kayitNo, tarih: b.kayit.tarih, saat: b.kayit.saat, gun: b.kayit.gun, ad: b.kayit.ad, kapora: b.kayit.kapora,
+        onayliydi: b.kayit.durum === DURUM.onayli };
     });
   }
 
@@ -756,7 +760,11 @@ export class RezervasyonDeposu extends DurableObject {
       }
       k.guncelleme = simdiYazi();
       await this.st.put(b.anahtar, k);
-      return { basarili: true, rez: k };
+      // İşlem kaydı için ne değişti (önce → sonra)
+      const degisen = [["durum", "Durum"], ["kapora", "Kapora"], ["not", "Not"], ["ad", "Ad"], ["telefon", "Telefon"]]
+        .filter(([a]) => (b.kayit[a] || "") !== (k[a] || ""))
+        .map(([a, ad]) => `${ad}: ${b.kayit[a] || "—"} → ${k[a] || "—"}`);
+      return { basarili: true, rez: k, degisen };
     });
   }
 
@@ -976,7 +984,6 @@ export class RezervasyonDeposu extends DurableObject {
       for (const [anahtar, r] of eskiRez) {
         if ((r.isletmeGunu || isletmeGunu(r.tarih, r.saat)) >= sinir) continue; // bu haftanın gece maçı
         silinecek.push(anahtar, `k:${r.kayitNo}`);
-        if (r.dekont) silinecek.push(`d:${r.kayitNo}`);
         if (!r.telefon) continue;
         const o = ozet.get(r.telefon) || { mac: 0, iptal: 0, ilk: null, son: null, ad: "" };
         if (iptalMi(r.durum)) o.iptal++;
@@ -999,6 +1006,10 @@ export class RezervasyonDeposu extends DurableObject {
       const atla = await this.st.list({ start: "x:", end: `x:${sinir}` });
       silinecek.push(...atla.keys());
       // süresi dolmuş oturum ve şifre bağlantıları
+      // Dekontlar 3 ay saklanır (anlaşmazlık / muhasebe kontrolü için), sonra silinir
+      for (const [k, v] of await this.st.list({ prefix: "d:" })) if (!v.zaman || v.zaman.slice(0, 10) < gunEkle(sinir, -90)) silinecek.push(k);
+      // İşlem kaydı 1 yıl saklanır
+      for (const k of (await this.st.list({ prefix: "l:", end: `l:${gunEkle(sinir, -365)}` })).keys()) silinecek.push(k);
       // 90 günden eski dekont özetleri
       for (const [k, v] of await this.st.list({ prefix: "dh:" })) if (!v.tarih || v.tarih < gunEkle(sinir, -90)) silinecek.push(k);
       for (const onek of ["o:", "s:", "t:"]) {

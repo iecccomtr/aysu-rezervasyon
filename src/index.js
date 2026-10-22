@@ -223,6 +223,7 @@ async function panel(request, env, ctx, yol) {
     if (!yetkili) return json({ hata: "Yetkisiz." }, 401);
     const g = (await govdeOku(request)) || {};
     const r = await d.iceAktar(g);
+    await d.kayitTut(ben || { ad: "Kurulum kodu" }, "Tablodan içe aktarma", JSON.stringify(r).slice(0, 200));
     onbellegiTemizle(request, ctx);
     return json(r);
   }
@@ -266,10 +267,20 @@ async function panel(request, env, ctx, yol) {
     case "POST rez": return degisti(await d.panelRezEkle({
       gunTarihi: g.gun, saat: g.saat, ad: g.ad, telefon: g.telefon, not: g.not, durum: g.durum, kapora: g.kapora, ekstra: g.ekstra,
     }));
-    case "POST rez-guncelle": return degisti(await d.panelRezGuncelle(g));
+    case "POST rez-guncelle": {
+      const r = await d.panelRezGuncelle(g);
+      if (r.basarili && (r.degisen || []).some((x) => x.startsWith("Durum: Onaylı → İptal"))) {
+        ctx.waitUntil(iptalBildir(env, d, { ...r.rez, kimden: `${ben.ad} (${ROLLER[ben.rol]?.ad || ""}, panel)` }));
+      }
+      return degisti(r);
+    }
     case "GET aboneler": return json(await d.aboneListe());
     case "POST abone": return degisti(await d.aboneKaydet(g));
-    case "POST abone-sil": return degisti(await d.aboneSil(g.id));
+    case "POST abone-sil": {
+      const ab = (await d.aboneListe()).find((x) => x.id === g.id);
+      const r = await d.aboneSil(g.id);
+      return degisti(r && r.basarili ? { ...r, ad: ab ? `${ab.no ? "Abone " + ab.no + " · " : ""}${ab.ad}` : g.id } : r);
+    }
     case "POST abone-atla": return degisti(await d.aboneAtla(g));
     case "GET musteriler": return json(await d.musteriler());
     case "GET musteri": {
@@ -319,6 +330,18 @@ async function panel(request, env, ctx, yol) {
   }
 }
 
+/** Rezervasyon iptali: Müdür ve Müdür Yardımcısı'na e-posta (yoksa işletme adresine). */
+async function iptalBildir(env, d, r) {
+  const kime = await d.rolEpostalari(["mudur", "mudur_yrd"]);
+  const ileti = {
+    konu: `Rezervasyon iptal edildi: ${r.gun || ""} ${r.tarih} ${r.saat}`.replace(/\s+/g, " "),
+    satirlar: [["Maç", `${r.gun ? r.gun + ", " : ""}${r.tarih} saat ${r.saat}`], ["Ad soyad", r.ad || "-"], ["Telefon", r.telefon || "-"],
+      ["Kayıt no", r.kayitNo], ["İptal eden", r.kimden], ["Kapora", r.kapora ? `${r.kapora} (iade yok)` : "-"]],
+  };
+  if (kime.length) await epostaYolla(env, { kime, ...ileti });
+  else await bildir(env, ileti);
+}
+
 /** Müşteriye dönen rezervasyon özeti (onay ekranı). */
 const rezCevap = (r) => ({
   basarili: true, kayitNo: r.kayitNo, tarih: r.tarih, gun: r.gun, saat: r.saat, durum: r.durum,
@@ -362,12 +385,12 @@ const ISLEM_ADLARI = {
 function islemDetayi(yol, g, r) {
   const k = r.rez || r;
   switch (yol) {
-    case "rez": return `${g.gun} ${g.saat} · ${g.ad || ""}`;
-    case "rez-guncelle": return `${k.kayitNo || g.kayitNo} · ${k.tarih || ""} ${k.saat || ""} · ${k.ad || ""} · ${g.durum || ""}${g.kapora ? " · kapora " + g.kapora : ""}`;
-    case "abone": return `${g.ad || ""}`;
-    case "abone-sil": return `${g.id}`;
+    case "rez": return `${g.gun} ${g.saat} · ${g.ad || ""}${g.telefon ? " · " + g.telefon : ""}${g.kapora ? " · kapora " + g.kapora : ""}${g.ekstra?.length ? " · VIP " + g.ekstra.join("+") : ""}`;
+    case "rez-guncelle": return `${k.kayitNo || g.kayitNo} · ${k.isletmeGunu || k.tarih || ""} ${k.saat || ""} · ${k.ad || ""} · ${(r.degisen || []).join(" · ") || "değişiklik yok"}`;
+    case "abone": return `${g.id ? "Düzenledi" : "Yeni"} · ${r.abone?.no ? "Abone " + r.abone.no + " · " : ""}${g.ad || ""} · ${(r.abone?.slotlar || []).map((x) => ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"][x.gun] + " " + x.saat).join(", ")}`;
+    case "abone-sil": return `${r.ad || g.id}`;
     case "abone-atla": return `${g.gun} ${g.saat || ""} · ${g.gelmiyor ? "gelmiyor" : "geliyor"} (${g.kapsam || "saat"})`;
-    case "musteri-not": return `${g.telefon || ""} · ${g.etiket || ""}`;
+    case "musteri-not": return `${g.telefon || ""} · etiket: ${g.etiket || "—"} · not: ${String(g.not || "—").slice(0, 80)}`;
     case "kullanici": return `${g.eposta} · ${[g.rol, g.durum].filter(Boolean).join(" · ")}`;
     case "kullanici-sil": return `${g.eposta}`;
     default: return "";
@@ -516,10 +539,7 @@ export default {
         const r = await depo(env).iptal({ kayitNo: g.kayitNo, tarih: g.tarih, saat: g.saat, telefon: g.telefon });
         if (!r.basarili) return json(r, 409);
         onbellegiTemizle(request, ctx);
-        if (r.onayliydi) ctx.waitUntil(bildir(env, {
-          konu: `İptal: ${r.tarih} ${r.saat} (${r.kayitNo})`,
-          satirlar: [["Maç", `${r.tarih} saat ${r.saat}`], ["Kayıt no", r.kayitNo], ["Telefon", String(g.telefon).trim()]],
-        }));
+        if (r.onayliydi) ctx.waitUntil(iptalBildir(env, depo(env), { ...r, kimden: "Müşteri (siteden)", telefon: String(g.telefon).trim() }));
         return json(r);
       } catch (e) {
         console.error(e);

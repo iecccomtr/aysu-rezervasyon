@@ -75,6 +75,12 @@ Takvim tablosunda aboneler adla değil **numarayla** görünür ("Abone 3"). Num
 - Telefonla / panelden girdiğiniz rezervasyonlar Onaylı kaydedilir.
 - **Dekont tarih ve tekrar kontrolü şu an KAPALI** (denemeler aynı eski dekontla yapılıyor). Canlıya geçerken `src/config.js` → `dekontTarihKontrol: true` ve `dekontTekrarKontrol: true` yapılmalı.
 
+### İptal ve işlem kaydı
+- Müşteri rezervasyon sayfasının altındaki **Rezervasyonu iptal et** ile iptal sayfasına geçer, gün ve saati seçer, telefonunu yazar. Kaporaların iadesi yoktur. Onaylı maça 3 saatten az kaldıysa iptal için aramalıdır.
+- Onaylı bir rezervasyon iptal edilince (siteden ya da panelden) **Müdür ve Müdür Yardımcısı'na e-posta** gider; kimin iptal ettiği yazar.
+- Paneldeki her değişiklik **İşlem kaydı**na (sadece Admin) kim / ne zaman / neyi neyden neye değiştirdi olarak yazılır; 1 yıl saklanır.
+- Dekontlar 3 ay saklanır; ayrıca her dekont e-postayla da gelir.
+
 ### Müşteri silme
 Müşteri kartı → **Müşteriyi sil**: müşterinin notu ve tüm geçmiş rezervasyon kayıtları kalıcı silinir. İleri tarihli aktif rezervasyonu ya da aboneliği varsa önce onları kaldırmanız istenir. İşlem kaydına yazılır.
 

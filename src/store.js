@@ -1222,7 +1222,7 @@ export class RezervasyonDeposu extends DurableObject {
           ad: kirp(m?.ad, 40), ucret: tutar(m?.ucret), vip: tutar(m?.vip), onOdeme: tutar(m?.onOdeme),
           krampon: Math.min(50, Math.max(0, Math.round(Number(m?.krampon)) || 0)),
           eldiven: Math.min(50, Math.max(0, Math.round(Number(m?.eldiven)) || 0)),
-          kantin: kantinTemiz(m?.kantin), veresiyeKantin: veresiyeIzin(m) || Object.keys(eski?.maclar?.find((x) => x.saat === m?.saat)?.veresiyeKantin || {}).length ? kantinTemiz(m?.veresiyeKantin) : {},
+          kantin: kantinTemiz(m?.kantin), kantinOdenen: kantinTemiz(m?.kantinOdenen), veresiyeKantin: veresiyeIzin(m) || Object.keys(eski?.maclar?.find((x) => x.saat === m?.saat)?.veresiyeKantin || {}).length ? kantinTemiz(m?.veresiyeKantin) : {},
           veresiyeKim: kirp(m?.veresiyeKim, 60), ...(m?.veresiyeAcik ? { veresiyeAcik: true } : {}), ikramKantin: kantinTemiz(m?.ikramKantin),
           ...(m?.odendi ? { odendi: true, odemeZamani: kirp(m.odemeZamani, 20) } : {}), ...(m?.kayitNo ? { kayitNo: kirp(m.kayitNo, 20) } : {}),
           ...(m?.kaynak === "takvim" ? { kaynak: "takvim", tkOn: tutar(m?.tkOn ?? m?.onOdeme) } : {}),
@@ -1261,7 +1261,7 @@ export class RezervasyonDeposu extends DurableObject {
       if (degisen.length) await this.st.put(Object.fromEntries(degisen));
       await this.st.put(`kasa:${gun}`, kayit);
       await this.veresiyeEsitle(kayit);
-      // Otomatik (arka planda) kayıtlar işlem kaydına yazılmaz; "Kasayı kaydet" düğmesi yazar
+      // Otomatik (arka planda) kayıtlar işlem kaydına yazılmaz; "Kasayı gönder" düğmesi yazar
       if (g.otomatik) return { basarili: true, kayit, ilkKayit: !eski, otomatik: true };
       const o = kayit.ozet, para = (x) => `${Math.round(x).toLocaleString("tr-TR")} TL`;
       await this.kayitTut(yapan, eski ? "Kasa raporunu güncelledi" : "Kasa raporunu kaydetti",

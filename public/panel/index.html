@@ -128,19 +128,8 @@
   .mac.t-abone .saat-i { background: var(--mavi, #2b5fb3); border-color: var(--mavi, #2b5fb3); }
   .mac.t-bos .saat-i { background: #9aa5ae; border-color: #9aa5ae; }
   .depozito { display: block; margin-top: 3px; color: #8a5a00; font-weight: 600; font-size: 13px; }
-  .adisyon-maclar { display: flex; gap: 6px; overflow-x: auto; margin-bottom: 12px; padding-bottom: 2px; }
-  .adisyon-maclar button { flex: none; min-width: 84px; border: 1px solid var(--cizgi); background: var(--kart); border-radius: 12px; padding: 6px 10px; cursor: pointer; line-height: 1.15; text-align: center; }
-  .adisyon-maclar button b { display: block; font: 700 22px/1.1 "Barlow Condensed", sans-serif; }
-  .adisyon-maclar button small { display: block; font-size: 12px; color: var(--gri); max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .adisyon-maclar button[aria-pressed="true"] { background: var(--cim); border-color: var(--cim); color: #fff; }
-  .adisyon-maclar button[aria-pressed="true"] small { color: #cfe3f2; }
-  .adisyon-maclar button.odendi { border-color: #1a7f37; }
-  .adisyon-kira { display: grid; gap: 8px; }
-  .adisyon-kira > div { display: flex; align-items: center; justify-content: space-between; font-weight: 600; font-size: 17px; }
-  .adisyon-kira small { color: var(--gri); font-weight: 500; }
-  .adisyon-kira .adim button { width: 44px; height: 40px; font-size: 22px; }
-  .adisyon-kira .adim span { min-width: 44px; font-size: 18px; font-weight: 700; }
-  .kasa-mod button[aria-pressed="true"] { background: var(--cim); color: #fff; }
+  .odeme-durum { display: inline-flex; gap: 6px; align-items: center; }
+  .odenmedi { background: #fde8e8; color: var(--hata); font-weight: 700; font-size: 13px; border-radius: 999px; padding: 3px 9px; }
   .vip-sec { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 8px; align-items: center; }
   .vip-sec label { display: flex; gap: 6px; align-items: center; font-weight: 600; font-size: 15px; cursor: pointer; }
   .vip-sec input { width: 20px; height: 20px; accent-color: #ef7f1a; }
@@ -172,7 +161,7 @@
   .ozet-t input { width: 130px; border: 1px solid #b5c3cf; border-radius: 8px; padding: 6px 8px; font-size: 16px; text-align: right; }
   .kasa-kaydet { position: sticky; bottom: calc(70px + env(safe-area-inset-bottom)); z-index: 4; display: flex; gap: 8px; align-items: center; background: var(--kart); border: 1px solid var(--cizgi); border-radius: 999px; padding: 6px 6px 6px 16px; box-shadow: 0 4px 18px rgba(0,0,0,.12); margin: 14px 0; }
   .kasa-kaydet .degisti { color: var(--sari-koyu); font-weight: 600; }
-  .urun-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; max-height: 60vh; overflow: auto; }
+  .urun-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; max-height: calc(100dvh - 400px); min-height: 180px; overflow: auto; }
   .urun { border: 1px solid var(--cizgi); border-radius: 10px; padding: 6px 8px; font-size: 13px; line-height: 1.2; }
   .urun.var { border-color: var(--cim); background: var(--cim-acik); }
   .urun.yok { opacity: .45; }
@@ -425,10 +414,6 @@
         <button class="ok" type="button" id="kasa-sonraki" aria-label="Sonraki gün">›</button>
       </div>
       <p class="soluk" id="kasa-durum" style="text-align:center;margin:-4px 0 12px;font-size:14px"></p>
-      <div class="gorunum-sec kasa-mod" role="group" aria-label="Kasa görünümü" style="margin:0 auto 12px;display:flex;width:max-content">
-        <button type="button" data-kasa-mod="adisyon">Maç adisyonu</button>
-        <button type="button" data-kasa-mod="gun">Gün kasası</button>
-      </div>
       <div id="kasa-ic"></div>
       <div id="kasa-stok-alan"></div>
       <div id="kasa-ay-alan" hidden></div>
@@ -1541,6 +1526,9 @@
     for (const m of kk.maclar) {
       let kantin = 0;
       for (const [id, a] of Object.entries(m.kantin || {})) { const b = birim(id); kantin += a * b.satis; o.kantinKar += a * (b.satis - b.alis); }
+      let odenmemis = 0;
+      for (const [id, a] of Object.entries(m.kantin || {})) odenmemis += Math.max(0, a - (m.kantinOdenen?.[id] || 0)) * birim(id).satis;
+      o.odenmemis = (o.odenmemis || 0) + odenmemis;
       let veresiye = 0;
       for (const [id, a] of Object.entries(m.veresiyeKantin || {})) veresiye += a * birim(id).satis;
       o.veresiyeKantin += veresiye;
@@ -1551,7 +1539,7 @@
       o.mac += sayi(m.ucret); o.vip += sayi(m.vip); o.kantin += kantin; o.onOdeme += sayi(m.onOdeme);
       o.kramponAdet += m.krampon || 0; o.eldivenAdet += m.eldiven || 0; o.krampon += krampon; o.eldiven += eldiven;
       const toplam = sayi(m.ucret) + sayi(m.vip) + kantin + krampon + eldiven;
-      o.maclar.push({ kantin, veresiye, ikram, toplam, kapora: sayi(m.onOdeme), kalan: toplam - sayi(m.onOdeme) });
+      o.maclar.push({ kantin, odenmemis, veresiye, ikram, toplam, kapora: sayi(m.onOdeme), kalan: toplam - sayi(m.onOdeme) });
     }
     o.personelKantin = 0;
     for (const [kim, v] of Object.entries(kk.ikram || {})) for (const [id, a] of Object.entries(v)) {
@@ -1591,7 +1579,7 @@
     clearTimeout(stokZaman); stokZaman = setTimeout(stokCiz, 150);
     clearTimeout(otoZaman); otoZaman = setTimeout(otoKaydet, 2500);
   }
-  // Kasa arka planda kendiliğinden kaydedilir (stok hemen düşer); "Kasayı kaydet" ayrıca Admin'e PDF rapor gönderir
+  // Kasa arka planda kendiliğinden kaydedilir (stok hemen düşer); "Kasayı gönder" ayrıca Admin'e PDF rapor gönderir
   async function otoKaydet() {
     if (!kasaDegisti || !kk) return;
     const gonderilen = JSON.stringify(kk), gun = kasaGun;
@@ -1616,77 +1604,7 @@
       <div class="k-alt"><button class="dugme ikincil kucuk" type="button" data-ekle="${ad}">+ Satır ekle</button>${ekDugme}</div></div>`;
   }
 
-  // ---- Maç adisyonu: maç sırasında alınanlar tek dokunuşla eklenir, maç sonunda tek seferde tahsil ----
-  let kasaMod = null, adisyonMac = null, adisyonAra = "";
-  document.querySelectorAll("[data-kasa-mod]").forEach((b) => b.addEventListener("click", () => { kasaMod = b.dataset.kasaMod; kasaCiz(); window.scrollTo({ top: 0 }); }));
-  function simdikiMac() {
-    // Şu an oynanan maç; yoksa sıradaki; o da yoksa sonuncusu
-    const dk = (x) => { const [h, m] = x.split(":").map(Number); return (h < 6 ? h + 24 : h) * 60 + m; };
-    const n = dk(new Date(Date.now() + 3 * 3600000).toISOString().slice(11, 16));
-    const l = kk.maclar.map((m, i) => ({ i, d: dk(m.saat || "00:00") }));
-    return (l.find((x) => n >= x.d && n < x.d + 60) || l.find((x) => x.d > n) || l.at(-1))?.i ?? null;
-  }
-  function adisyonCiz() {
-    if (!kk.maclar.length) { $("kasa-ic").innerHTML = '<div class="kutu kasa-kart"><p class="soluk">Bugün maç yok.</p></div>'; return; }
-    if (adisyonMac === null || !kk.maclar[adisyonMac]) adisyonMac = simdikiMac();
-    const i = adisyonMac, m = kk.maclar[i], kr = kira();
-    const urunler = canliUrunler().filter((u) => u.aktif !== false);
-    const q = adisyonAra.toLocaleLowerCase("tr");
-    $("kasa-ic").innerHTML = `
-      <div class="adisyon-maclar">${kk.maclar.map((x, j) => `<button type="button" data-ad-mac="${j}" aria-pressed="${j === i}" class="${x.odendi ? "odendi" : ""}">
-        <b>${kacis(x.saat)}</b><small>${kacis(x.ad)}</small>${x.odendi ? "<small>✓ ödendi</small>" : ""}</button>`).join("")}</div>
-      <div class="kutu kasa-kart mac t-${m.tur}" style="margin-bottom:12px">
-        <div class="mac-ust"><span class="saat-i">${kacis(m.saat)}</span><span class="tur-y">${m.tur === "abone" ? "Abone" : "Normal"}</span><b class="ad-y">${kacis(m.ad)}</b></div>
-        <div class="adisyon-kira">
-          <div><span>👟 Krampon <small>${para(kr.krampon)}</small></span><span class="adim"><button type="button" data-ad-kira="krampon" data-d="-1">−</button><span>${m.krampon || 0}</span><button type="button" data-ad-kira="krampon" data-d="1">+</button></span></div>
-          <div><span>🧤 Eldiven <small>${para(kr.eldiven)}</small></span><span class="adim"><button type="button" data-ad-kira="eldiven" data-d="-1">−</button><span>${m.eldiven || 0}</span><button type="button" data-ad-kira="eldiven" data-d="1">+</button></span></div>
-        </div>
-      </div>
-      <div class="kutu kasa-kart adisyon-hesap" id="ad-hesap"></div>
-      <div class="kutu kasa-kart">
-        <h3>Kantin<span class="sag soluk" id="ad-kantin-top"></span></h3>
-        <input type="search" id="ad-ara" value="${kacis(adisyonAra)}" placeholder="Ürün ara" style="width:100%;border:1px solid #b5c3cf;border-radius:10px;padding:9px 12px;font-size:16px;margin-bottom:8px">
-        <div class="urun-grid" style="max-height:none">${urunler.map((u) => `<div class="urun${m.kantin?.[u.id] ? " var" : ""}${u.stok <= 0 && !m.kantin?.[u.id] ? " yok" : ""}" data-ad-urun="${u.id}" data-ad="${kacis(u.ad.toLocaleLowerCase("tr"))}"${q && !u.ad.toLocaleLowerCase("tr").includes(q) ? " hidden" : ""}>
-          <b>${kacis(u.ad)}</b><small class="soluk">${para(birim(u.id).satis)}${u.stok <= 5 ? ` · <span style="color:#b42318">stok ${u.stok}</span>` : ""}</small>
-          <span class="adim"><button type="button" data-d="-1">−</button><span>${m.kantin?.[u.id] || 0}</span><button type="button" data-d="1">+</button></span></div>`).join("")}</div>
-      </div>`;
-    $("ad-ara").addEventListener("input", (e) => {
-      adisyonAra = e.target.value; const q2 = adisyonAra.toLocaleLowerCase("tr");
-      $("kasa-ic").querySelectorAll("[data-ad-urun]").forEach((el) => { el.hidden = q2 && !el.dataset.ad.includes(q2); });
-    });
-    adisyonHesapCiz();
-  }
-  function adisyonHesapCiz() {
-    const el = $("ad-hesap"); if (!el) return;
-    const i = adisyonMac, m = kk.maclar[i], o = kasaOzetHesapla(), mo = o.maclar[i], kr = kira();
-    const kalemler = Object.entries(m.kantin || {}).map(([id, a]) => [`${birim(id).ad} ×${a}`, a * birim(id).satis]);
-    $("ad-kantin-top").textContent = mo.kantin ? para(mo.kantin) : "";
-    const sat = (a, v, c = "") => `<tr class="${c}"><td>${a}</td><td>${v}</td></tr>`;
-    el.innerHTML = `<h3>Maç sonu hesap${m.odendi ? '<span class="sag rozet r-onayli">✓ Ödendi ' + kacis(m.odemeZamani || "") + "</span>" : ""}</h3>
-      <table class="ozet-t">
-        ${sat(m.tur === "abone" ? "Abone maç ücreti" : "Maç ücreti", para(m.ucret))}
-        ${m.vip ? sat("VIP hizmet", para(m.vip)) : ""}
-        ${m.krampon ? sat(`Krampon ×${m.krampon}`, para(m.krampon * kr.krampon)) : ""}
-        ${m.eldiven ? sat(`Eldiven ×${m.eldiven}`, para(m.eldiven * kr.eldiven)) : ""}
-        ${kalemler.map(([a, v]) => sat(a, para(v))).join("")}
-        ${m.onOdeme ? sat("Alınan kapora", "− " + para(m.onOdeme), "eksi") : ""}
-        ${sat("ÖDENECEK", para(mo.kalan), "buyuk")}
-      </table>
-      <button class="dugme tam" type="button" data-ad-ode style="margin-top:12px;font-size:18px;padding:14px;${m.odendi ? "background:#5b6b78" : "background:#1a7f37"}">${m.odendi ? "Ödemeyi geri al" : "Ödendi"}</button>
-      <p class="soluk" style="font-size:13px;margin-top:8px">Maç sırasında alınanları buradan ekleyin; her dokunuş kendiliğinden kaydedilir ve stoktan düşer. Veresiye ve ikram için "Gün kasası"ndaki maç kutusunu kullanın.</p>`;
-  }
-
   function kasaCiz() {
-    if (!kasaMod) kasaMod = kasa.gun === kasa.bugun ? "adisyon" : "gun";
-    document.querySelectorAll("[data-kasa-mod]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.kasaMod === kasaMod)));
-    $("kasa-stok-alan").hidden = kasaMod === "adisyon";
-    if (kasaMod === "adisyon") {
-      $("kasa-baslik").textContent = `${tarihYazi(kasa.gun, true)} ${kasa.gunAd}`;
-      $("kasa-sonraki").disabled = kasa.gun >= kasa.bugun;
-      $("kasa-onceki").disabled = ben.rol !== "admin" && kasa.gun <= gunEkle(kasa.bugun, -1);
-      $("kasa-durum").textContent = "";
-      return adisyonCiz();
-    }
     const bugunMu = kasa.gun === kasa.bugun;
     $("kasa-baslik").textContent = `${tarihYazi(kasa.gun, true)} ${kasa.gunAd}`;
     $("kasa-sonraki").disabled = kasa.gun >= kasa.bugun;
@@ -1723,6 +1641,7 @@
             <span class="adim" aria-label="Krampon"><button type="button" data-adim="maclar.${i}.krampon" data-d="-1">−</button><span>👟 ${m.krampon || 0}</span><button type="button" data-adim="maclar.${i}.krampon" data-d="1">+</button></span>
             <span class="adim" aria-label="Eldiven"><button type="button" data-adim="maclar.${i}.eldiven" data-d="-1">−</button><span>🧤 ${m.eldiven || 0}</span><button type="button" data-adim="maclar.${i}.eldiven" data-d="1">+</button></span>
             <button class="dugme ikincil kucuk" type="button" data-kantin="${i}">Kantin <span data-mk="${i}"></span></button>
+            <span class="odeme-durum" data-mo="${i}"></span>
             ${m.veresiyeAcik || Object.keys(m.veresiyeKantin || {}).length ? `<button class="dugme ikincil kucuk" type="button" data-veresiye="${i}" style="border-color:#b98a00;color:#8a5a00">Veresiye <span data-mv="${i}"></span></button>` : ""}
             <button class="dugme ikincil kucuk" type="button" data-ikram-mac="${i}" style="border-color:#1a7f37;color:#1a7f37">İkram <span data-mi="${i}"></span></button>
             <span class="mac-top" data-mt="${i}"></span>
@@ -1756,17 +1675,18 @@
       </div>
 
       <div class="kasa-kaydet"><span id="kasa-degisti" class="soluk">${kasa.kayitli ? "Kaydedildi" : "Henüz kaydedilmedi"}</span>
-        <button class="dugme" type="button" id="k-kaydet" style="margin-left:auto">Kasayı kaydet</button></div>`;
+        <button class="dugme" type="button" id="k-kaydet" style="margin-left:auto">Kasayı gönder</button></div>`;
     kasaOzetCiz();
   }
 
   function kasaOzetCiz() {
-    if (kasaMod === "adisyon") return adisyonHesapCiz();
     const o = kasaOzetHesapla();
     o.maclar.forEach((m, i) => {
       const t = document.querySelector(`[data-mt="${i}"]`);
       if (t) t.innerHTML = m.kapora ? `<small>Toplam ${para(m.toplam)} − kapora ${para(m.kapora)}</small>Kalan ${para(m.kalan)}` : para(m.toplam);
       const k = document.querySelector(`[data-mk="${i}"]`); if (k) k.textContent = m.kantin ? `· ${para(m.kantin)}` : "";
+      const od = document.querySelector(`[data-mo="${i}"]`);
+      if (od) od.innerHTML = m.odenmemis ? `<span class="odenmedi">Ödenmedi ${para(m.odenmemis)}</span><button class="dugme kucuk" type="button" data-tahsil="${i}" style="background:#1a7f37">Tahsil et</button>` : (m.kantin ? '<span class="rozet r-onayli">✓ kantin ödendi</span>' : "");
       const ik = document.querySelector(`[data-mi="${i}"]`); if (ik) ik.textContent = m.ikram ? `· ${para(m.ikram)}` : "";
       const v = document.querySelector(`[data-mv="${i}"]`); if (v) v.textContent = m.veresiye ? `· ${para(m.veresiye)}${kk.maclar[i].veresiyeKim ? " · " + kk.maclar[i].veresiyeKim : ""}` : "";
     });
@@ -1786,6 +1706,7 @@
       (o.veresiyeKantin ? sat('<span class="soluk">Veresiye kantin (kasaya girmedi)</span>', `<span class="soluk">${para(o.veresiyeKantin)}</span>`) : "") +
       (o.gelenKapora ? sat('<span class="soluk">O gün gelen kaporalar (ileri tarihli, toplama katılmaz)</span>', `<span class="soluk">${para(o.gelenKapora)}</span>`) : "") +
       sat("Kasada olması gereken", para(o.olmasiGereken), "buyuk") +
+      (o.odenmemis ? sat('<span style="color:#b42318;font-weight:700">Henüz alınmayan kantin (maç sonunda)</span>', `<span style="color:#b42318">${para(o.odenmemis)}</span>`) : "") +
       `<tr><td><label for="k-sayilan">Sayılan kasa</label></td><td><input id="k-sayilan" data-yol="sayilan" inputmode="numeric" value="${kk.sayilan ?? ""}" placeholder="Sayın"></td></tr>` +
       (o.fark !== null ? sat(o.fark === 0 ? "Fark" : o.fark > 0 ? "Fazla" : "Eksik", para(Math.abs(o.fark)), o.fark < 0 ? "eksi" : "") : "") +
       `<tr><td><label for="k-birakilan">Ertesi güne devir (kasada bırakılan)</label></td><td><input id="k-birakilan" data-yol="birakilan" inputmode="numeric" value="${kk.birakilan ?? ""}" placeholder="0"></td></tr>` +
@@ -1824,29 +1745,6 @@
   });
   $("v-kasa").addEventListener("click", (e) => {
     const b = e.target.closest("button"); if (!b || !kk) return;
-    if (b.dataset.adMac !== undefined) { adisyonMac = Number(b.dataset.adMac); adisyonCiz(); return; }
-    if (b.dataset.adKira) {
-      const m = kk.maclar[adisyonMac]; const a = b.dataset.adKira;
-      m[a] = Math.max(0, (m[a] || 0) + Number(b.dataset.d));
-      b.parentElement.querySelector("span").textContent = m[a];
-      degisti(); adisyonHesapCiz(); return;
-    }
-    const kart = b.closest("[data-ad-urun]");
-    if (kart && b.dataset.d) {
-      const m = kk.maclar[adisyonMac], id = kart.dataset.adUrun;
-      if (Number(b.dataset.d) > 0 && (canliUrunler().find((u) => u.id === id)?.stok ?? 0) <= 0) return bildir("Stokta yok — satış yapılamaz");
-      m.kantin = { ...(m.kantin || {}) };
-      m.kantin[id] = Math.max(0, (m.kantin[id] || 0) + Number(b.dataset.d)); if (!m.kantin[id]) delete m.kantin[id];
-      kart.querySelector(".adim span").textContent = m.kantin[id] || 0;
-      kart.classList.toggle("var", Boolean(m.kantin[id]));
-      degisti(); adisyonHesapCiz(); return;
-    }
-    if (b.dataset.adOde !== undefined) {
-      const m = kk.maclar[adisyonMac];
-      if (m.odendi) { if (!confirm("Ödeme geri alınsın mı?")) return; delete m.odendi; delete m.odemeZamani; }
-      else { m.odendi = true; m.odemeZamani = new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" }); }
-      degisti(); adisyonCiz(); if (m.odendi) bildir(`${m.saat} ${m.ad}: ödendi`); return;
-    }
     if (b.dataset.adim) {
       const p = yolAyir(b.dataset.adim), m = kk.maclar[p[1]];
       m[p[2]] = Math.max(0, (m[p[2]] || 0) + Number(b.dataset.d));
@@ -1861,7 +1759,18 @@
       const l = document.querySelectorAll(`[data-yol^="${b.dataset.ekle}."][data-yol$=".aciklama"]`); l[l.length - 1]?.focus();
     } else if (b.dataset.kantin !== undefined) {
       const m = kk.maclar[b.dataset.kantin];
-      urunSec(`${m.saat} · ${m.ad || "maç"} · kantin`, m.kantin || {}, (yeni) => { m.kantin = yeni; degisti(); kasaOzetCiz(); });
+      urunSec(`${m.saat} · ${m.ad || "maç"} · kantin`, m.kantin || {}, (yeni, _k, odendi) => {
+        m.kantin = yeni;
+        // Ödendi: şu ana kadarki tüm kantin ödendi sayılır; değilse ödenen adetler yeni adetleri aşamaz
+        const od = {};
+        for (const [id, a] of Object.entries(yeni)) od[id] = odendi ? a : Math.min(a, m.kantinOdenen?.[id] || 0);
+        m.kantinOdenen = Object.fromEntries(Object.entries(od).filter(([, a]) => a > 0));
+        degisti(); kasaCiz();
+      }, { odeme: true, aciklama: "Adetleri seçin. Müşteri hemen öderse 'Ödendi'ye, maç sonunda ödeyecekse 'Maç sonunda alınacak'a basın." });
+    } else if (b.dataset.tahsil !== undefined) {
+      const m = kk.maclar[b.dataset.tahsil];
+      if (!confirm(`${m.saat} ${m.ad}: ödenmemiş kantin tahsil edildi mi?`)) return;
+      m.kantinOdenen = { ...(m.kantin || {}) }; degisti(); kasaCiz(); bildir("Tahsil edildi");
     } else if (b.dataset.ode !== undefined) {
       const v = kasa.acikVeresiyeler[b.dataset.ode];
       const bugunMu = kasaGun === kasa.bugun;
@@ -1902,12 +1811,14 @@
   });
 
   async function kasaKaydet() {
+    const o = kasaOzetHesapla();
+    if (!confirm(`${tarihYazi(kasaGun)} kasası gönderilsin mi?\n\nGünlük ciro: ${para(o.ciro)}\nKasada olması gereken: ${para(o.olmasiGereken)}${kk.sayilan !== null && kk.sayilan !== undefined && kk.sayilan !== "" ? `\nSayılan kasa: ${para(sayi(kk.sayilan))}` : "\nSayılan kasa girilmedi!"}${o.odenmemis ? `\n\nDİKKAT: ${para(o.odenmemis)} kantin henüz tahsil edilmedi.` : ""}\n\nRapor PDF olarak Admin'e gidecek.`)) return;
     clearTimeout(otoZaman);
     const b = $("k-kaydet"); b.disabled = true;
     const r = await api("kasa", { ...kk, gun: kasaGun }).catch(() => ({ hata: "Kaydedilemedi" }));
     b.disabled = false;
     if (r.hata) return bildir(r.hata);
-    kasaDegisti = false; bildir("Kasa kaydedildi, rapor Admin'e gönderildi");
+    kasaDegisti = false; bildir("Kasa gönderildi, rapor Admin'e iletildi");
     kasaYukle(kasaGun);
   }
 
@@ -1922,7 +1833,12 @@
       <div class="urun-grid">${aktif.map((u) => `<div class="urun${sec[u.id] ? " var" : ""}${u.stok <= 0 && !sec[u.id] ? " yok" : ""}" data-u="${u.id}" data-ad="${kacis(u.ad.toLocaleLowerCase("tr"))}">
         <b>${kacis(u.ad)}</b><small class="soluk">${para(birim(u.id).satis)} · stok ${u.stok}</small>
         <span class="adim"><button type="button" data-d="-1">−</button><span>${sec[u.id] || 0}</span><button type="button" data-d="1">+</button></span></div>`).join("")}</div>
-      <div style="display:flex;align-items:center;gap:10px;margin-top:12px"><b id="us-top"></b><button class="dugme" type="button" id="us-tamam" style="margin-left:auto">Tamam</button></div>`);
+      ${ek?.odeme ? `<div style="margin-top:12px"><b id="us-top"></b>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+          <button class="dugme" type="button" id="us-odendi" style="background:#1a7f37;font-size:17px;padding:13px">Ödendi</button>
+          <button class="dugme ikincil" type="button" id="us-tamam" style="font-size:15px">Maç sonunda alınacak</button>
+        </div></div>`
+      : `<div style="display:flex;align-items:center;gap:10px;margin-top:12px"><b id="us-top"></b><button class="dugme" type="button" id="us-tamam" style="margin-left:auto">Tamam</button></div>`}`);
     const topCiz = () => { $("us-top").textContent = `Toplam ${para(Object.entries(sec).reduce((t, [id, a]) => t + a * birim(id).satis, 0))}`; };
     topCiz();
     ic.querySelectorAll("[data-u]").forEach((el) => el.addEventListener("click", (e) => {
@@ -1938,7 +1854,8 @@
       const q = e.target.value.trim().toLocaleLowerCase("tr");
       ic.querySelectorAll("[data-u]").forEach((el) => { el.hidden = q && !el.dataset.ad.includes(q); });
     });
-    $("us-tamam").addEventListener("click", () => { const kim = $("us-kim")?.value.trim() || ""; dlg.close(); bitti(sec, kim); });
+    $("us-tamam").addEventListener("click", () => { const kim = $("us-kim")?.value.trim() || ""; dlg.close(); bitti(sec, kim, false); });
+    $("us-odendi")?.addEventListener("click", () => { dlg.close(); bitti(sec, "", true); });
   }
 
   // ---- Stok ----

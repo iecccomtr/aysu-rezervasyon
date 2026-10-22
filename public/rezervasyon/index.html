@@ -706,7 +706,7 @@
 
   async function dekontGonder(kayitNo, telefon, dosya, sonucEl) {
     sonucEl.className = sonucEl.className.replace(/ (iyi|bekle|kotu)/g, "");
-    sonucEl.textContent = "Dekont kontrol ediliyor, lütfen bekleyin (en fazla 30 saniye)…";
+    sonucEl.textContent = "Dekont kontrol ediliyor, lütfen bekleyin (en fazla 45 saniye)…";
     try {
       const f = await dosyaHazirla(dosya);
       const r = await fetch("/api/dekont", {

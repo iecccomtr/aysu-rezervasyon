@@ -12,11 +12,10 @@ const METIN_MODELI = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 // Sırayla denenir; biri hata verirse sonraki. (Modellerin görsel giriş biçimleri farklı.)
 const GORSEL_DENEMELER = [
   { model: "@cf/meta/llama-4-scout-17b-16e-instruct", bicim: "openai" },
-  { model: "@cf/google/gemma-3-12b-it", bicim: "openai" },
-  { model: "@cf/meta/llama-3.2-11b-vision-instruct", bicim: "bayt", onay: true },
+  { model: "@cf/mistralai/mistral-small-3.1-24b-instruct", bicim: "openai" },
+  { model: "@cf/meta/llama-3.2-11b-vision-instruct", bicim: "prompt", onay: true },
 ];
-const DENEME_SURESI = 15_000; // model başına en fazla 15 sn
-const TOPLAM_SURE = 35_000;   // müşteri en fazla ~35 sn bekler
+const TOPLAM_SURE = 40_000;   // modeller AYNI ANDA çalışır; müşteri en fazla ~40 sn bekler
 const zamanAsimi = (p, ms) => Promise.race([p, new Promise((_, red) => setTimeout(() => red(new Error("zaman aşımı")), ms))]);
 
 const TALIMAT = `Bu bir Türk bankası havale/EFT/FAST dekontu. SADECE şu JSON'u döndür, başka hiçbir şey yazma:
@@ -77,32 +76,40 @@ export async function dekontOku(env, { tur, veri }, { yeterli = () => true } = {
     const resim = `data:${tur};base64,${b64(veri)}`;
     const hatalar = [];
     let sonuc = null;
-    const basla = Date.now();
-    for (const d of GORSEL_DENEMELER) {
-      const kalan = TOPLAM_SURE - (Date.now() - basla);
-      if (kalan < 3000) { hatalar.push("süre doldu"); break; }
-      try {
-        let girdi;
-        if (d.bicim === "openai") {
-          girdi = { messages: [{ role: "user", content: [{ type: "text", text: TALIMAT }, { type: "image_url", image_url: { url: resim } }] }], max_tokens: 900 };
-        } else {
-          if (d.onay) await zamanAsimi(env.AI.run(d.model, { prompt: "agree" }), 5000).catch(() => {}); // Meta lisans onayı (ilk kullanım)
-          girdi = { messages: [{ role: "user", content: TALIMAT }], image: Array.from(veri), max_tokens: 900 };
-        }
-        const y = await zamanAsimi(env.AI.run(d.model, girdi), Math.min(DENEME_SURESI, kalan));
-        const j = jsonAl(y);
-        const hamMetin = typeof y?.response === "string" ? y.response : "";
-        if (j || hamMetin) {
-          // JSON gelmese de modelin yazdığı metin (IBAN / ad geçiyorsa) değerlendirmeye girer
-          const bu = { ...(j || {}), _model: d.model.split("/").pop(), _metin: [j?.tum_metin, hamMetin].filter(Boolean).join(" ") };
-          sonuc = birlestir(sonuc, { ...bu, ...metindenAlanlar(bu._metin, j || {}) });
-          if (yeterli(sonuc)) return sonuc;
-          continue;
-        }
-        hatalar.push(`${d.model.split("/").pop()}: boş yanıt`);
-      } catch (e) {
-        hatalar.push(`${d.model.split("/").pop()}: ${String(e?.message || e).slice(0, 120)}`);
+    // Bütün modeller aynı anda denenir (biri yavaşsa / hesapta kapalıysa diğeri yetişir); okumalar birleştirilir
+    const gorev = async (d) => {
+      let girdi;
+      if (d.bicim === "openai") {
+        girdi = { messages: [{ role: "user", content: [{ type: "text", text: TALIMAT }, { type: "image_url", image_url: { url: resim } }] }], max_tokens: 900 };
+      } else {
+        if (d.onay) await zamanAsimi(env.AI.run(d.model, { prompt: "agree" }), 5000).catch(() => {}); // Meta lisans onayı (ilk kullanım)
+        girdi = { prompt: TALIMAT, image: Array.from(veri), max_tokens: 900 };
       }
+      const y = await env.AI.run(d.model, girdi);
+      const j = jsonAl(y);
+      const hamMetin = typeof y?.response === "string" ? y.response : (typeof y?.description === "string" ? y.description : "");
+      if (!j && !hamMetin) throw new Error("boş yanıt");
+      return { ...(j || {}), _model: d.model.split("/").pop(), _metin: [j?.tum_metin, hamMetin].filter(Boolean).join(" ") };
+    };
+    const isler = GORSEL_DENEMELER.map((d) => ({ ad: d.model.split("/").pop(), p: gorev(d) }));
+    // Yedek: Cloudflare'in görselden metin çıkarma aracı
+    isler.push({ ad: "toMarkdown", p: (async () => {
+      const [md] = await env.AI.toMarkdown([{ name: "dekont.jpg", blob: new Blob([veri], { type: tur }) }]);
+      const metin = String(md?.data || "");
+      if (!metin.trim()) throw new Error("metin yok");
+      return { _model: "toMarkdown", _metin: metin };
+    })() });
+    let bekleyen = isler.map((x, i) => ({ i, p: x.p.then((r) => ({ i, r }), (e) => ({ i, e })) }));
+    const bitis = Date.now() + TOPLAM_SURE;
+    while (bekleyen.length) {
+      const kalan = bitis - Date.now();
+      if (kalan <= 0) { hatalar.push(...bekleyen.map((x) => `${isler[x.i].ad}: zaman aşımı`)); break; }
+      const sonucu = await Promise.race([...bekleyen.map((x) => x.p), new Promise((ok) => setTimeout(() => ok(null), kalan))]);
+      if (!sonucu) continue;
+      bekleyen = bekleyen.filter((x) => x.i !== sonucu.i);
+      if (sonucu.e) { hatalar.push(`${isler[sonucu.i].ad}: ${String(sonucu.e?.message || sonucu.e).slice(0, 100)}`); continue; }
+      sonuc = birlestir(sonuc, { ...sonucu.r, ...metindenAlanlar(sonucu.r._metin, sonucu.r) });
+      if (yeterli(sonuc)) return sonuc;
     }
     if (sonuc) return sonuc; // kısmi okuma: değerlendirme hangi alanın tutmadığını yazar
     return { hata: "Dekont okunamadı — " + hatalar.join(" | ") };

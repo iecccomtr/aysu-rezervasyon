@@ -73,7 +73,7 @@ Takvim tablosunda aboneler adla değil **numarayla** görünür ("Abone 3"). Num
 - Aynı numarayla aynı anda sadece bir ödemesi bekleyen opsiyon olabilir; kaporası ödenen rezervasyonlarda sınır yoktur.
 - Bağlantısı kopan müşteri ⏳ saatine dokunup telefonunu yazınca kaldığı yerden devam eder. Sayfanın altındaki **Rezervasyonlarım** bölümünden telefonla dekont yükleyip iptal edebilir.
 - Telefonla / panelden girdiğiniz rezervasyonlar Onaylı kaydedilir.
-- **Dekont tarih kontrolü şu an KAPALI** (denemeler eski dekontla yapılıyor). Canlıya geçerken `src/config.js` → `dekontTarihKontrol: true` yapılmalı.
+- **Dekont tarih ve tekrar kontrolü şu an KAPALI** (denemeler aynı eski dekontla yapılıyor). Canlıya geçerken `src/config.js` → `dekontTarihKontrol: true` ve `dekontTekrarKontrol: true` yapılmalı.
 
 ### Müşteri silme
 Müşteri kartı → **Müşteriyi sil**: müşterinin notu ve tüm geçmiş rezervasyon kayıtları kalıcı silinir. İleri tarihli aktif rezervasyonu ya da aboneliği varsa önce onları kaldırmanız istenir. İşlem kaydına yazılır.

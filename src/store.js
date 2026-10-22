@@ -345,7 +345,7 @@ export class RezervasyonDeposu extends DurableObject {
       if (!b) return { hata: "Rezervasyon bulunamadı." };
       const nedenler = [...deger.nedenler];
       const onceki = await this.st.get(`dh:${dosyaOzeti}`);
-      if (onceki && onceki.kayitNo !== b.kayit.kayitNo) nedenler.unshift(`Bu dekont daha önce ${onceki.kayitNo} için yüklenmiş.`);
+      if (KURALLAR.dekontTekrarKontrol && onceki && onceki.kayitNo !== b.kayit.kayitNo) nedenler.unshift("Bu dekont daha önce başka bir rezervasyon için kullanılmış.");
       else await this.st.put(`dh:${dosyaOzeti}`, { kayitNo: b.kayit.kayitNo, tarih: simdi().tarih });
       const onay = nedenler.length === 0;
       const o = deger.okunan || {};

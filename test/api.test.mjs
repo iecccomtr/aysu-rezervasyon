@@ -2,6 +2,7 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import worker from "../src/index.js";
+import { KURALLAR } from "../src/config.js";
 import { saatiAyarla, saatiSifirla, demoDepo } from "./yardimci.mjs";
 
 const gercekFetch = globalThis.fetch;
@@ -258,11 +259,14 @@ test("Dekont: doğru IBAN/alıcı/tutar → otomatik onay; yanlış IBAN → kon
   assert.match(ep.subject, /^Yeni rezervasyon: /);
   assert.equal(ep.attachments.length, 1);
 
-  // Aynı dosya başka rezervasyon için → otomatik onay yok
+  // Aynı dosya başka rezervasyon için → (kontrol açıkken) otomatik onay yok
+  KURALLAR.dekontTekrarKontrol = true;
   const r2 = (await istek("/api/rezervasyon", { ...REZ, saat: "23:00" })).veri;
   const y2 = await yukle(r2.kayitNo);
+  KURALLAR.dekontTekrarKontrol = false;
   assert.equal(y2.veri.onay, false);
-  assert.match(epostalar.at(-1).text, /daha önce/);
+  assert.match(epostalar.at(-1).text, /daha önce başka bir rezervasyon/);
+  assert.doesNotMatch(epostalar.at(-1).text, new RegExp(r1.kayitNo + " için"));
 
   // Yanlış IBAN
   okunacak.alici_iban = "TR11 0000 0000 0000 0000 0000 00";

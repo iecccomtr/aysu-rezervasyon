@@ -319,7 +319,9 @@ export const kasaOzet = (k) => {
   // Önceden alınan kapora ve veresiye kasaya bugün girmez
   o.avans = (k.avanslar || []).reduce((t, x) => t + (Number(x.tutar) || 0), 0); // çalışana kasadan verilen günlük ödeme / avans
   o.ibanOdeme = (k.maclar || []).reduce((t, m) => t + (Number(m.iban) || 0), 0); // maç günü IBAN'a ödenen (kasaya nakit girmez)
-  o.olmasiGereken = o.kasaToplam - o.cikis - o.veresiye - o.avans - o.ibanOdeme;
+  // Gelen kaporalar IBAN'a yatar: kasa toplamına (günün gelirine) girer ama çekmecede nakit olarak beklenmez
+  o.ibanToplam = o.ibanOdeme + o.gelenKapora;
+  o.olmasiGereken = o.kasaToplam - o.cikis - o.veresiye - o.avans - o.ibanToplam;
   o.fark = k.sayilan === null || k.sayilan === undefined ? null : k.sayilan - o.olmasiGereken;
   o.teslim = k.birakilan === null || k.birakilan === undefined ? null : (k.sayilan ?? o.olmasiGereken) - k.birakilan;
   return o;

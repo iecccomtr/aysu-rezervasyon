@@ -957,3 +957,10 @@ test("Görevler: bugünün görevi bir kez onaylanır, Admin listeyi düzenler, 
   const k = await d.gorevlerKaydet([{ ad: "Duşlar", aciklama: "Gider", rol: "temizlik" }, { ad: "" }], admin);
   assert.equal(k.gorevler.length, 1); assert.equal(k.gorevler[0].id, "duslar");
 });
+
+test("Gelen kaporalar IBAN'a yatar: kasa toplamına girer, nakitte beklenmez", async () => {
+  const { kasaOzet } = await import("../src/store.js");
+  const o = kasaOzet({ maclar: [{ saat: "21:00", ucret: 3000 }], gelenKaporalar: [{ tutar: 960 }], girisler: [], cikislar: [{ tutar: 100 }] });
+  assert.equal(o.kasaToplam, 3960);
+  assert.equal(o.olmasiGereken, 3000 - 100);
+});

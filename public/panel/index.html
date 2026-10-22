@@ -1887,7 +1887,8 @@
     o.kasaToplam = o.ciro - o.onOdeme + o.giris + o.gelenKapora; // kapora geldiği günün kasasına girer, maç günü düşülür; personel kantini ay sonu maaştan
     o.avans = (kk.avanslar || []).reduce((t, x) => t + sayi(x.tutar), 0);
     o.ibanOdeme = kk.maclar.reduce((t, m) => t + sayi(m.iban), 0);
-    o.olmasiGereken = o.kasaToplam - o.cikis - o.veresiye - o.avans - o.ibanOdeme;
+    o.ibanToplam = o.ibanOdeme + o.gelenKapora; // gelen kaporalar IBAN'a yatar, çekmecede nakit beklenmez
+    o.olmasiGereken = o.kasaToplam - o.cikis - o.veresiye - o.avans - o.ibanToplam;
     const bosMu = (v) => v === null || v === undefined || v === "";
     o.fark = bosMu(kk.sayilan) ? null : sayi(kk.sayilan) - o.olmasiGereken;
     o.teslim = bosMu(kk.birakilan) ? null : (bosMu(kk.sayilan) ? o.olmasiGereken : sayi(kk.sayilan)) - sayi(kk.birakilan);
@@ -1995,7 +1996,7 @@
         <p class="soluk" style="font-size:13px;margin-top:8px">Maçlar o günün rezervasyon ve abone listesinden kendiliğinden gelir; kasaya maç eklemek ya da çıkarmak için Takvim'de rezervasyonu ekleyin / iptal edin. Krampon ${para(kr.krampon)}, eldiven ${para(kr.eldiven)}. Alınan kapora maçın toplamından düşülür; müşteriden kalan tahsil edilir.</p>
       </div>
 
-      <div class="kutu kasa-kart"><h3>Bugün gelen kaporalar<span class="sag">${para((kk.gelenKaporalar || []).reduce((t, x) => t + x.tutar, 0))}</span></h3>
+      <div class="kutu kasa-kart"><h3>Bugün gelen kaporalar <small class="soluk">(IBAN)</small><span class="sag">${para((kk.gelenKaporalar || []).reduce((t, x) => t + x.tutar, 0))}</span></h3>
         ${(kk.gelenKaporalar || []).map((x, j) => `<div class="k-sat" style="grid-template-columns:1fr auto ${ben.rol === "admin" ? "32px" : ""}"><span><b>${kacis(x.ad)}</b> <small class="soluk">${kacis(x.mac)} maçı · ${kacis(x.yol)}${x.iptal ? " · iptal (iade yok)" : ""}</small></span><b>${para(x.tutar)}</b>${ben.rol === "admin" ? `<button class="x-sil" type="button" data-kapora-sil="${j}" aria-label="Kaporayı kasadan sil">×</button>` : ""}</div>`).join("")
           || '<p class="soluk">Bugün kapora alınmadı.</p>'}
         <p class="soluk" style="font-size:13px;margin-top:6px">Bugün alınan, ileri tarihli maçların kaporaları (dekont ya da panel) rezervasyonlardan kendiliğinden gelir ve <b>bugünün kasasına eklenir</b>. Maç günü o maçın toplamından düşülür, iki kez sayılmaz. Maç günü gelen kapora maçın toplamında kalır.</p></div>
@@ -2055,13 +2056,14 @@
       (o.vip ? sat("VIP hizmet", para(o.vip)) : "") +
       sat("Kantin", para(o.kantin)) + sat(`Krampon (${o.kramponAdet} adet)`, para(o.krampon)) + sat(`Eldiven (${o.eldivenAdet} adet)`, para(o.eldiven)) +
       sat("Bugün tahsil edilen", para(o.ciro - o.onOdeme), "buyuk") +
-      sat("Bugün gelen kaporalar (ileri tarihli maçlar)", para(o.gelenKapora)) +
+      sat("Bugün gelen kaporalar (IBAN, ileri tarihli maçlar)", para(o.gelenKapora)) +
       sat("Diğer kasa girişi", para(o.giris)) + sat("Kasa toplamı", para(o.kasaToplam), "kalin") +
       sat("Kasa çıkışı", "− " + para(o.cikis), "eksi") + (o.avans ? sat("Çalışan ödeme / avans", "− " + para(o.avans), "eksi") : "") + (o.veresiye ? sat("Veresiye", "− " + para(o.veresiye), "eksi") : "") +
       (o.personelKantin ? sat('<span class="soluk">Personel kantini (kasaya girmez, ay sonu maaştan düşülür)</span>', `<span class="soluk">${para(o.personelKantin)}</span>`) : "") +
       (o.ikramDeger ? sat('<span class="soluk">İkram (ücretsiz, kasaya girmedi)</span>', `<span class="soluk">${para(o.ikramDeger)}</span>`) : "") +
       (o.veresiyeKantin ? sat('<span class="soluk">Veresiye kantin (kasaya girmedi)</span>', `<span class="soluk">${para(o.veresiyeKantin)}</span>`) : "") +
       (o.ibanOdeme ? sat("IBAN'a ödenen (maç günü, kasaya nakit girmez)", "− " + para(o.ibanOdeme), "eksi") : "") +
+      (o.gelenKapora ? sat("Gelen kaporalar IBAN'da (kasaya nakit girmez)", "− " + para(o.gelenKapora), "eksi") : "") +
       sat("Kasada olması gereken", para(o.olmasiGereken), "buyuk") +
       sat('<span class="soluk">Günlük ciro (kaporalar dahil)</span>', `<span class="soluk">${para(o.ciro)}</span>`) +
       (o.odenmemis ? sat('<span style="color:#b42318;font-weight:700">Henüz alınmayan kantin (maç sonunda)</span>', `<span style="color:#b42318">${para(o.odenmemis)}</span>`) : "") +

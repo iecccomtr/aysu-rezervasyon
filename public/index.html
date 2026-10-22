@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Aysu Halı Saha | Eskişehir Batıkent Kapalı Halı Saha · Online Rezervasyon</title>
-<meta name="description" content="Eskişehir Tepebaşı Batıkent'te kapalı (balon çatılı) halı saha. Her gün 08:00–02:00 açık, duş, soyunma odası, kafeterya. Boş saatleri görün, online rezervasyon yapın. Google'da 4,0 ★ (209 yorum).">
+<meta name="description" content="Tepebaşı'nın ilk kapalı halı sahası: Eskişehir Batıkent'te balon çatılı saha, VIP hakem ve spiker, saha içi serinletme. Her gün 08:00–02:00 açık, duş, soyunma odası, kafeterya. Boş saatleri görün, online rezervasyon yapın. Google'da 4,0 ★ (209 yorum).">
 <meta name="robots" content="index, follow, max-image-preview:large">
 <link rel="icon" href="/img/favicon.png">
 <link rel="manifest" href="/site.webmanifest">
@@ -42,7 +42,7 @@
   "name": "Aysu Halı Saha",
   "@id": "https://aysuhalisaha.com/#isletme",
   "url": "https://aysuhalisaha.com/",
-  "description": "Eskişehir Tepebaşı Batıkent'te balon çatılı kapalı halı saha. Duş, soyunma odası, kafeterya, otopark. Online rezervasyon.",
+  "description": "Tepebaşı'nın ilk kapalı halı sahası. Eskişehir Batıkent'te balon çatılı saha; VIP hakem ve spiker, saha içi serinletme, duş, soyunma odası, kafeterya, otopark. Online rezervasyon.",
   "logo": "https://aysuhalisaha.com/img/aysu-logo.png",
   "hasMap": "https://www.google.com/maps/place/?q=place_id:ChIJZ76wIWcXzBQRD1Ja6OQDysA",
   "areaServed": "Eskişehir",
@@ -79,6 +79,16 @@
  "@context": "https://schema.org",
  "@type": "FAQPage",
  "mainEntity": [
+  {
+   "@type": "Question",
+   "name": "VIP hakem ve spiker var mı?",
+   "acceptedAnswer": { "@type": "Answer", "text": "Evet. Online rezervasyonda VIP hakem ve VIP spiker seçebilirsiniz; ücreti maç ücretine eklenir." }
+  },
+  {
+   "@type": "Question",
+   "name": "Yazın saha sıcak olur mu?",
+   "acceptedAnswer": { "@type": "Answer", "text": "Sahamızda saha içi serinletme sistemi var; sıcak günlerde de rahat oynarsınız." }
+  },
   {
    "@type": "Question",
    "name": "Aysu Halı Saha nerede?",
@@ -285,6 +295,18 @@
   .bilgi p { color: var(--gri); font-size: 15px; margin-top: 8px; max-width: 30ch; }
   @media (max-width: 760px) { .bilgiler .kap { grid-template-columns: 1fr; gap: 28px; } }
 
+  /* ---------- Neden Aysu ---------- */
+  .neden { padding: 64px 0 56px; }
+  .neden h2 { margin-bottom: 8px; }
+  .neden .ust-not { color: var(--gri); max-width: 60ch; margin-bottom: 28px; }
+  .neden-liste { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; list-style: none; padding: 0; margin: 0; }
+  .neden-liste li { background: #fff; border: 1px solid var(--cizgi); border-top: 4px solid var(--kirmizi); border-radius: 12px; padding: 18px 18px 16px; }
+  .neden-liste .ikon { font-size: 26px; line-height: 1; display: block; margin-bottom: 10px; }
+  .neden-liste b { display: block; font: 700 23px/1.1 "Barlow Condensed", sans-serif; margin-bottom: 6px; }
+  .neden-liste p { color: var(--gri); font-size: 15px; margin: 0; }
+  @media (max-width: 900px) { .neden-liste { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 560px) { .neden-liste { grid-template-columns: 1fr; } }
+
   /* ---------- Tesis ---------- */
   .tesis-ust { display: flex; justify-content: space-between; align-items: end; gap: 24px; flex-wrap: wrap; margin-bottom: 28px; }
   .tesis-ust p { max-width: 46ch; color: var(--gri); }
@@ -444,6 +466,22 @@
     </dl>
   </section>
 
+  <section class="neden" id="neden" aria-labelledby="neden-baslik">
+    <div class="kap">
+      <h2 id="neden-baslik">Neden Aysu Halı Saha?</h2>
+      <p class="ust-not">Tepebaşı'nın ilk kapalı halı sahası. Zeminimize, temizliğimize ve maç keyfinize özen gösteriyoruz.</p>
+      <ul class="neden-liste">
+        <li><span class="ikon" aria-hidden="true">🏟️</span><b>Tepebaşı'nın ilk kapalı sahası</b><p>Tepebaşı ilçesinin ilk kapalı halı sahası. Balon çatı sayesinde yağmurda, karda maç iptal olmaz.</p></li>
+        <li><span class="ikon" aria-hidden="true">🌱</span><b>En iyi zemin</b><p>Eskişehir'in en iyi zeminlerinden birinde oynayın; zeminimizi düzenli bakımla ilk günkü gibi tutuyoruz.</p></li>
+        <li><span class="ikon" aria-hidden="true">🎙️</span><b>VIP hakem ve spiker</b><p>Maçınızı VIP hakem ve spikerle ayırtabilirsiniz; online rezervasyonda tek tıkla eklenir. <a href="https://www.kisa.link/tWitL" target="_blank" rel="noopener">▶ Örnek VIP maç videosu</a></p></li>
+        <li><span class="ikon" aria-hidden="true">❄️</span><b>Saha içi serinletme</b><p>Sıcak günlerde saha içi serinletme sistemi. Eskişehir'de sadece bizde.</p></li>
+        <li><span class="ikon" aria-hidden="true">⭐</span><b>Milli oyuncuların sahası</b><p>Aysu Halı Saha, milli takım oyuncularının antrenman yaptığı bir saha.</p></li>
+        <li><span class="ikon" aria-hidden="true">🧽</span><b>Rutin temizlik</b><p>Her maçtan sonra soyunma odaları, her gün saha ve duşlar temizlenir. Temizlikte kararlı ve istikrarlıyız.</p></li>
+      </ul>
+      <p class="ust-not" style="margin:18px 0 0;font-size:15px">☕ Abonelerimize dönem dönem ücretsiz çay ikramımız var. <a href="https://wa.me/905555102626" target="_blank" rel="noopener">Abonelik için WhatsApp'tan yazın.</a></p>
+    </div>
+  </section>
+
   <section class="mac-kayit" id="mac-kayitlari" aria-labelledby="mac-kayit-baslik">
     <div class="kap">
       <div class="mac-kutu">
@@ -500,6 +538,8 @@
         <details><summary>Halı saha kaçta açılıyor, kaça kadar açık?</summary><p>Her gün 08:00'den gece 02:00'ye kadar açığız. Gece 00:00–02:00 maçları o günün gecesine sayılır.</p></details>
         <details><summary>Online rezervasyon nasıl yapılır?</summary><p>Rezervasyon sayfasında günü ve boş saati seçin, ad soyad ve cep telefonunuzu yazın. Kaporayı gönderip dekontu yüklediğinizde rezervasyonunuz hemen kesinleşir.</p></details>
         <details><summary>Saha kapalı mı, yağmurda maç iptal olur mu?</summary><p>Sahamız balon çatılı kapalı sahadır; yağmurda, karda maç iptal olmaz.</p></details>
+        <details><summary>VIP hakem ve spiker var mı?</summary><p>Evet. Online rezervasyonda VIP hakem ve VIP spiker seçebilirsiniz; ücreti maç ücretine eklenir. <a href="https://www.kisa.link/tWitL" target="_blank" rel="noopener">Örnek VIP maç videosunu izleyin.</a></p></details>
+        <details><summary>Yazın saha sıcak olur mu?</summary><p>Sahamızda saha içi serinletme sistemi var; sıcak günlerde de rahat oynarsınız.</p></details>
         <details><summary>Duş ve soyunma odası var mı?</summary><p>Evet. Soyunma odaları, duşlar ve maç sonrası oturabileceğiniz televizyonlu bir kafeterya var.</p></details>
         <details><summary>Rezervasyonumu nasıl iptal ederim?</summary><p>Rezervasyon sayfasında kayıt numaranız ve telefonunuzla maçtan en geç 3 saat önce iptal edebilirsiniz. Daha geç iptaller için bizi arayın. Kaporaların iadesi yoktur.</p></details>
         <details><summary>Abonelik veya toplu rezervasyon yapabilir miyim?</summary><p>Evet, haftalık sabit saat (abonelik) ve toplu rezervasyon için WhatsApp'tan 0 555 510 26 26 numarasına yazın.</p></details>

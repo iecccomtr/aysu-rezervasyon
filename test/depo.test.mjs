@@ -678,10 +678,10 @@ test("Personel kantini ücretinden düşülür; stok bitince satış durur", asy
   assert.equal(biskrem.stok, 0);
   const r = await d.kasaKaydet({ ...k.kayit, ikram: { "p:p@aysu.com": { [su.id]: 2 } } }, admin);
   assert.ok(r.basarili, JSON.stringify(r));
-  assert.equal(r.kayit.ozet.personelKantin, 2 * su.satis);
+  assert.equal(r.kayit.ozet.personelKantin, 2 * 20, "%30 indirimli (25 → 20)");
   const ay = await d.puantajAy("2026-10");
-  assert.equal(ay.kisiler[0].brut, 900); assert.equal(ay.kisiler[0].kesinti, 50); assert.equal(ay.kisiler[0].ucret, 850);
-  assert.equal((await d.kasaGetir("2026-10-19", admin)).calisanlar[0].ucret, 850);
+  assert.equal(ay.kisiler[0].brut, 900); assert.equal(ay.kisiler[0].kesinti, 40); assert.equal(ay.kisiler[0].ucret, 860);
+  assert.equal((await d.kasaGetir("2026-10-19", admin)).calisanlar[0].ucret, 860);
   assert.match((await d.kasaKaydet({ ...r.kayit, ikram: { "VIP / ücretsiz ikram": { [biskrem.id]: 1 } } }, admin)).hata, /stokta yok/);
 });
 
@@ -702,6 +702,15 @@ test("Puantaj: süre yarım saate yuvarlanır; çalışmadığı gün aldığı 
   saatiAyarla("2026-10-21T23:20"); await d.puantajCikis(p);
   const kisi = (await d.puantajAy("2026-10")).kisiler[0];
   assert.equal(kisi.saat, 6);
-  assert.equal(kisi.gunler[0].kesinti, 2 * su.satis, "ziyaret günündeki kantin ilk iş gününden düşülür");
-  assert.equal(kisi.ucret, 600 - 2 * su.satis);
+  assert.equal(kisi.gunler[0].kesinti, 40, "ziyaret günündeki kantin ilk iş gününden düşülür");
+  assert.equal(kisi.ucret, 600 - 40);
+});
+
+test("Personel kantin fiyatı %30 indirimli, 5 TL katına yukarı yuvarlanır", async () => {
+  const { personelFiyat } = await import("../src/store.js");
+  assert.equal(personelFiyat(25), 20);  // 17,5 → 20
+  assert.equal(personelFiyat(50), 35);
+  assert.equal(personelFiyat(95), 70);  // 66,5 → 70
+  assert.equal(personelFiyat(10), 10);  // 7 → 10
+  assert.equal(personelFiyat(100), 70);
 });

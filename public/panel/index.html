@@ -1515,6 +1515,8 @@
   // Kantin tedarikçisi (Tespo) WhatsApp numarası: Admin, Fiyatlar bölümünden değiştirir
   const siparisTel = () => String(kasa?.fiyat?.siparisTel || "05434764687");
   const kopya = (o) => JSON.parse(JSON.stringify(o));
+  /** Personel birim fiyatı: %30 indirimli, 5 TL'nin katına yukarı yuvarlı */
+  const personelFiyat = (satis) => (satis > 0 ? Math.ceil((satis * (1 - (kasa?.personelIndirim ?? 0.3))) / 5) * 5 : 0);
   const sayi = (v) => { const n = Math.round(Number(String(v ?? "").replace(/\./g, "").replace(",", ".").replace(/[^\d.]/g, ""))); return Number.isFinite(n) ? Math.max(0, n) : 0; };
   const urunBul = (id) => kasa.urunler.find((u) => u.id === id);
   const birim = (id) => kk.birimler?.[id] || { satis: urunBul(id)?.satis || 0, alis: urunBul(id)?.alis || 0, ad: urunBul(id)?.ad || "?" };
@@ -1543,7 +1545,7 @@
     }
     o.personelKantin = 0;
     for (const [kim, v] of Object.entries(kk.ikram || {})) for (const [id, a] of Object.entries(v)) {
-      if (kim.startsWith("p:")) o.personelKantin += a * birim(id).satis; else o.ikramDeger += a * birim(id).satis;
+      if (kim.startsWith("p:")) o.personelKantin += a * personelFiyat(birim(id).satis); else o.ikramDeger += a * birim(id).satis;
     }
     const top = (l) => l.reduce((t, x) => t + sayi(x.tutar), 0);
     o.ciro = o.mac + o.vip + o.kantin + o.krampon + o.eldiven;
@@ -1792,7 +1794,8 @@
     } else if (b.dataset.ikram) {
       const kim = b.dataset.ikram;
       const kimAd = kim.startsWith("p:") ? ((kasa.personel || []).find((c) => `p:${c.eposta}` === kim)?.ad || kasa.kayit.ikramAdlari?.[kim] || kim.slice(2)) : kim;
-      urunSec(`${kimAd} · ${kim.startsWith("p:") ? "kantin (ücretinden düşülür)" : "ikram"}`, kk.ikram?.[kim] || {}, (yeni) => { kk.ikram = { ...(kk.ikram || {}), [kim]: yeni }; degisti(); kasaCiz(); });
+      urunSec(`${kimAd} · ${kim.startsWith("p:") ? "kantin (ücretinden düşülür)" : "ikram"}`, kk.ikram?.[kim] || {}, (yeni) => { kk.ikram = { ...(kk.ikram || {}), [kim]: yeni }; degisti(); kasaCiz(); },
+        kim.startsWith("p:") ? { personel: true, aciklama: "Personel fiyatı: %30 indirimli, 5 TL'ye yukarı yuvarlı. Tutar ücretinden düşülür." } : null);
     } else if (b.id === "k-mac-ekle") {
       kk.maclar.push({ saat: "", tur: "normal", ad: "", ucret: kasa.fiyat.mac, vip: 0, onOdeme: 0, krampon: 0, eldiven: 0, kantin: {} }); degisti(); kasaCiz();
     } else if (b.id === "k-takvim") {
@@ -1831,7 +1834,7 @@
         ${ek.kim !== undefined ? `<div class="alan"><label for="us-kim">Kim (borçlu)</label><input id="us-kim" value="${kacis(ek.kim)}" placeholder="Ad soyad / takım"></div>` : ""}` : ""}
       <input type="search" id="us-ara" placeholder="Ürün ara" style="width:100%;border:1px solid #b5c3cf;border-radius:10px;padding:9px 12px;font-size:16px;margin-bottom:8px">
       <div class="urun-grid">${aktif.map((u) => `<div class="urun${sec[u.id] ? " var" : ""}${u.stok <= 0 && !sec[u.id] ? " yok" : ""}" data-u="${u.id}" data-ad="${kacis(u.ad.toLocaleLowerCase("tr"))}">
-        <b>${kacis(u.ad)}</b><small class="soluk">${para(birim(u.id).satis)} · stok ${u.stok}</small>
+        <b>${kacis(u.ad)}</b><small class="soluk">${ek?.personel ? `<s>${para(birim(u.id).satis)}</s> <b style="color:#1a7f37">${para(personelFiyat(birim(u.id).satis))}</b>` : para(birim(u.id).satis)} · stok ${u.stok}</small>
         <span class="adim"><button type="button" data-d="-1">−</button><span>${sec[u.id] || 0}</span><button type="button" data-d="1">+</button></span></div>`).join("")}</div>
       ${ek?.odeme ? `<div style="margin-top:12px"><b id="us-top"></b>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
@@ -1839,7 +1842,8 @@
           <button class="dugme ikincil" type="button" id="us-tamam" style="font-size:15px">Maç sonunda alınacak</button>
         </div></div>`
       : `<div style="display:flex;align-items:center;gap:10px;margin-top:12px"><b id="us-top"></b><button class="dugme" type="button" id="us-tamam" style="margin-left:auto">Tamam</button></div>`}`);
-    const topCiz = () => { $("us-top").textContent = `Toplam ${para(Object.entries(sec).reduce((t, [id, a]) => t + a * birim(id).satis, 0))}`; };
+    const fiyatOf = (id) => (ek?.personel ? personelFiyat(birim(id).satis) : birim(id).satis);
+    const topCiz = () => { $("us-top").textContent = `Toplam ${para(Object.entries(sec).reduce((t, [id, a]) => t + a * fiyatOf(id), 0))}${ek?.personel ? " (personel fiyatı)" : ""}`; };
     topCiz();
     ic.querySelectorAll("[data-u]").forEach((el) => el.addEventListener("click", (e) => {
       const d = e.target.closest("button")?.dataset.d; if (!d) return;

@@ -172,12 +172,14 @@ export const kasaTuketim = (k) => {
   for (const o of Object.values(k.ikram || {})) ekle(o);
   return t;
 };
+/** Personel birim fiyatı: %30 indirimli, 5 TL'nin katına yukarı yuvarlanmış (25 → 17,5 → 20) */
+export const personelFiyat = (satis) => (satis > 0 ? Math.ceil((satis * (1 - KURALLAR.personelIndirim)) / 5) * 5 : 0);
 /** Bir kasa gününde personelin kantin tüketimi {eposta: tutar} (maaştan düşülür) */
 export const personelKesintileri = (k) => {
   const b = k?.birimler || {}, r = {};
   for (const [kim, v] of Object.entries(k?.ikram || {})) {
     if (!kim.startsWith("p:")) continue;
-    r[kim.slice(2)] = Object.entries(v).reduce((t, [id, a]) => t + a * (b[id]?.satis || 0), 0);
+    r[kim.slice(2)] = Object.entries(v).reduce((t, [id, a]) => t + a * personelFiyat(b[id]?.satis || 0), 0);
   }
   return r;
 };
@@ -205,7 +207,7 @@ export const kasaOzet = (k) => {
   // Personel tüketimi ("p:<eposta>") maaşından düşülür → kasaya girmiş sayılır; diğer ikramlar kasaya girmez
   o.personelKantin = 0;
   for (const [kim, v] of Object.entries(k.ikram || {})) for (const [id, a] of Object.entries(v)) {
-    if (kim.startsWith("p:")) o.personelKantin += a * (b[id]?.satis || 0); else o.ikramDeger += a * (b[id]?.satis || 0);
+    if (kim.startsWith("p:")) o.personelKantin += a * personelFiyat(b[id]?.satis || 0); else o.ikramDeger += a * (b[id]?.satis || 0);
   }
   o.ciro = o.mac + o.vip + o.kantin + o.krampon + o.eldiven;
   o.giris = top(k.girisler); o.cikis = top(k.cikislar); o.veresiye = top(k.veresiye);
@@ -1226,7 +1228,7 @@ export class RezervasyonDeposu extends DurableObject {
       gun, gunAd: gunAdi(gun), bugun: isletmeGunu(n.tarih, n.saat), kayitli: Boolean(kayit),
       kayit: kayit || { gun, gelenKaporalar: await this.gelenKaporalar(gun), devir: oncekiKasa?.birakilan ?? 0, maclar: takvim.map((x) => ({ ...x, krampon: 0, eldiven: 0, kantin: {} })), girisler: [], cikislar: [], veresiye: [], ikram: {}, birakilan: null, sayilan: null, not: "" },
       oncekiDevir: oncekiKasa ? { gun: oncekiKasa.gun, tutar: oncekiKasa.birakilan ?? 0 } : null,
-      takvim, urunler, fiyat, calisanlar, ikramKimler: IKRAM_KIMLER,
+      takvim, urunler, fiyat, calisanlar, ikramKimler: IKRAM_KIMLER, personelIndirim: KURALLAR.personelIndirim,
       personel: kullanicilar.filter((u) => u.durum === "aktif" && u.rol !== "admin" && ROLLER[u.rol])
         .map((u) => ({ eposta: u.eposta, ad: u.ad, calisiyor: puantaj.has(`p:${gun}:${u.eposta}`) })), acikVeresiyeler: await this.acikVeresiyeler(),
     };

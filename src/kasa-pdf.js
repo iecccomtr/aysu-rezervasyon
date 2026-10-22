@@ -1,7 +1,7 @@
 // Günlük kasa raporu PDF'i (Admin'e e-postayla gider).
 
 import { Pdf } from "./pdf.js";
-import { kasaOzet } from "./store.js";
+import { kasaOzet, personelFiyat } from "./store.js";
 
 const GUNLER = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"];
 const para = (n) => `${Math.round(Number(n) || 0).toLocaleString("tr-TR")} ₺`;
@@ -100,7 +100,11 @@ export function kasaPdf(k) {
   const ikram = Object.entries(k.ikram || {}).filter(([, v]) => Object.keys(v).length);
   if (ikram.length) {
     baslik("Personel kantini ve ücretsiz ikram", `personel ${para(o.personelKantin)} · ikram ${para(o.ikramDeger)}`);
-    for (const [kim, v] of ikram) satir(kim.startsWith("p:") ? `${k.ikramAdlari?.[kim] || kim.slice(2)} (ücretinden düşülür)` : kim, para(Object.entries(v).reduce((t, [id, a]) => t + a * (b[id]?.satis || 0), 0)), { alt: urunListe(v) });
+    for (const [kim, v] of ikram) {
+      const p = kim.startsWith("p:");
+      satir(p ? `${k.ikramAdlari?.[kim] || kim.slice(2)} (%30 indirimli, ücretinden düşülür)` : kim,
+        para(Object.entries(v).reduce((t, [id, a]) => t + a * (p ? personelFiyat(b[id]?.satis || 0) : b[id]?.satis || 0), 0)), { alt: urunListe(v) });
+    }
   }
 
   // ---- Gün sonu ----

@@ -451,3 +451,11 @@ test("PDF dekont: model çalışmasa da düz metindeki IBAN, hesap adı ve tarih
   const d = dekontDegerlendir(o, { iban: "TR70 0015 7000 0000 0154 8342 35", alici: "Ahmet Aysu", kapora: 1200, rezTarihi: "2026-10-21", bugun: "2026-10-22" });
   assert.equal(d.onay, true, d.nedenler.join());
 });
+
+test("Dekont tarih kontrolü kapatılabilir (deneme dönemi)", async () => {
+  const { dekontDegerlendir } = await import("../src/dekont-kontrol.js");
+  const k = { iban: "TR70 0015 7000 0000 0154 8342 35", alici: "Ahmet Aysu", kapora: 1200, rezTarihi: "2026-10-21", bugun: "2026-10-22" };
+  const eski = { alici_iban: "TR700015700000000154834235", alici_ad: "AHMET AYSU", tutar: 1200, tarih: "2025-01-05" };
+  assert.equal(dekontDegerlendir(eski, k).onay, false);
+  assert.equal(dekontDegerlendir(eski, { ...k, tarihKontrol: false }).onay, true);
+});

@@ -334,6 +334,7 @@ async function dekontKontrolEt(env, d, rez, veri) {
   const deger = dekontDegerlendir(okunan, {
     iban: IBAN.no, alici: IBAN.alici, kapora: FIYATLAR.kapora,
     rezTarihi: String(rez.olusturma || "").slice(0, 10) || null, bugun: simdi().tarih,
+    tarihKontrol: KURALLAR.dekontTarihKontrol,
   });
   const k = await d.dekontSonuc(rez.kayitNo, await ozet(veri), deger);
   return { okunan, k };

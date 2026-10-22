@@ -124,7 +124,7 @@ function tarihNorm(v) {
  * Okunan dekontu kurallara göre değerlendirir.
  * @returns {{ onay: boolean, nedenler: string[], tutar: number|null, okunan: object }}
  */
-export function dekontDegerlendir(okunan, { iban, alici, kapora, rezTarihi, bugun }) {
+export function dekontDegerlendir(okunan, { iban, alici, kapora, rezTarihi, bugun, tarihKontrol = true }) {
   const nedenler = [];
   if (!okunan || okunan.hata) return { onay: false, nedenler: [okunan?.hata || "Dekont okunamadı."], tutar: null, okunan };
   // IBAN: modelin okuduğu ya da PDF metninde geçen
@@ -142,7 +142,8 @@ export function dekontDegerlendir(okunan, { iban, alici, kapora, rezTarihi, bugu
   const tutar = tutarSayi(okunan.tutar);
   const eksik = tutar == null || tutar < kapora;
   const tarih = tarihNorm(okunan.tarih);
-  if (!tarih) nedenler.push("Dekont tarihi okunamadı.");
+  if (!tarihKontrol) { /* tarih kontrolü kapalı (config.js → KURALLAR.dekontTarihKontrol) */ }
+  else if (!tarih) nedenler.push("Dekont tarihi okunamadı.");
   else if (rezTarihi && tarih < oncekiGun(rezTarihi)) nedenler.push(`Dekont tarihi (${tarih}) rezervasyondan önce.`);
   else if (bugun && tarih > bugun) nedenler.push(`Dekont tarihi (${tarih}) ileri bir tarih.`);
   return { onay: nedenler.length === 0, nedenler, tutar, eksik, okunan };

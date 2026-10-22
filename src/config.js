@@ -45,6 +45,9 @@ export const EKSTRALAR = {
 
 export const KURALLAR = {
   enFazlaGunSonra: 27,          // en fazla kaç gün sonrasına rezervasyon alınır (bugün + 27 gün = 4 hafta)
+  // Dekont tarihi kontrolü (eski dekontla onay engeli). ŞİMDİLİK KAPALI: denemeler eski dekontla yapılıyor.
+  // Canlı kullanıma geçerken true yapın.
+  dekontTarihKontrol: false,
   opsiyonDakika: 15,            // online rezervasyon: dekont gelmezse yer bu kadar dakika sonra kendiliğinden boşa çıkar
   iptalEnGecSaat: 3,            // maçtan en geç kaç saat önce çevrimiçi iptal edilebilir
 };

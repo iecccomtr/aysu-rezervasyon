@@ -119,7 +119,7 @@ E-postalar işletmenin Gmail hesabından gider:
 Bundan sonra:
 - **Yeni kayıt** olunca Admin'e ve (görev Müdür'den alt ise) Müdür'e **"…kullanıcısını onayla"** düğmeli e-posta gider. Düğme açılan sayfada **Onayla** / **Reddet** sorar (e-posta programları bağlantıyı önceden açsa bile kimse kendiliğinden onaylanmaz). Bağlantı 7 gün geçerli, tek kullanımlıktır; biri onaylayınca diğerlerinin bağlantısı geçersiz olur. Onay İşlem kaydına yazılır.
 - **Şifremi unuttum** e-postası gider.
-- Online rezervasyon / iptal bildirimi `BILDIRIM_EPOSTA` adresine (yoksa aysuhalisaha@gmail.com) gider.
+- Online rezervasyon / iptal bildirimi `BILDIRIM_EPOSTA` adresine (yoksa halisahaaysu@gmail.com) ve Admin / Müdür / Müdür Yardımcısı'na gider.
 
 Gmail şifresi değişirse uygulama şifresi iptal olur; yenisini oluşturup Cloudflare'de güncelleyin. (Alternatif: Resend — `RESEND_API_KEY` + `GONDEREN_EPOSTA`.)
 

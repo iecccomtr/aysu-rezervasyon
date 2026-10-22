@@ -1,14 +1,15 @@
 // E-posta: yeni kayıt onayı, şifre sıfırlama, rezervasyon bildirimi.
 //
 // Gönderim yolu (hangisi tanımlıysa):
-//   1) Gmail:  GMAIL_ADRES (ör. aysuhalisaha@gmail.com) + GMAIL_UYGULAMA_SIFRESI (Secret, 16 haneli uygulama şifresi)
+//   1) Gmail:  GMAIL_ADRES (halisahaaysu@gmail.com) + GMAIL_UYGULAMA_SIFRESI (Secret, 16 haneli uygulama şifresi)
 //   2) Resend: RESEND_API_KEY (Secret) + GONDEREN_EPOSTA (doğrulanmış alan adından)
-// Rezervasyon bildirimlerinin gideceği adres: BILDIRIM_EPOSTA (yoksa aysuhalisaha@gmail.com)
+// Rezervasyon bildirimlerinin gideceği adres: BILDIRIM_EPOSTA (yoksa GMAIL_ADRES = halisahaaysu@gmail.com)
 // Telegram (isteğe bağlı): TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 
 import { smtpGonder } from "./smtp.js";
 
-const VARSAYILAN_ALICI = "aysuhalisaha@gmail.com";
+// İşletmenin kendi Gmail adresi (gönderen adresle aynı). DİKKAT: aysuhalisaha@gmail.com başka bir hesap!
+const VARSAYILAN_ALICI = "halisahaaysu@gmail.com";
 const VARSAYILAN_GONDEREN = "Aysu Halı Saha <onboarding@resend.dev>";
 
 const kacis = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -82,7 +83,7 @@ export async function bildir(env, bildirim) {
   // Telegram'a ek gönderilmez, sadece metin
   const sonuclar = await Promise.allSettled([
     epostaYolla(env, {
-      kime: [...new Set([env.BILDIRIM_EPOSTA || VARSAYILAN_ALICI, ...(bildirim.ekKime || [])])],
+      kime: [...new Set([env.BILDIRIM_EPOSTA || env.GMAIL_ADRES || VARSAYILAN_ALICI, ...(bildirim.ekKime || [])])],
       konu: bildirim.konu, satirlar: bildirim.satirlar, ekler: bildirim.ekler || [], alt: "Ayrıntılar yönetim panelinde: /panel",
     }),
     telegramGonder(env, metin),

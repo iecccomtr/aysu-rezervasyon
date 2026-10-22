@@ -1,6 +1,6 @@
 // Gmail (veya başka bir SMTP sunucusu) ile e-posta gönderimi — Cloudflare Workers TCP soketleri üzerinden.
 // Gmail için: hesapta 2 Adımlı Doğrulama açık olmalı ve bir "Uygulama şifresi" oluşturulmalı.
-//   GMAIL_ADRES             → ör. aysuhalisaha@gmail.com
+//   GMAIL_ADRES             → halisahaaysu@gmail.com
 //   GMAIL_UYGULAMA_SIFRESI  → 16 haneli uygulama şifresi (Secret)
 
 import { connect } from "cloudflare:sockets";

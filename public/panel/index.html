@@ -456,7 +456,7 @@
       <div id="puantaj-alan" hidden>
         <div class="baslik-satir" style="margin-top:22px"><h2>Puantaj</h2>
           <input type="month" id="puantaj-ay" class="sag" style="border:1px solid #b5c3cf;border-radius:10px;padding:7px 10px;font-size:15px;background:var(--kart)"></div>
-        <p class="soluk" style="margin-bottom:10px;font-size:14px">Çalışanlar panele girince GELDİM, çıkarken ÇIKTIM'a basar. Ücret = (çalışılan saat + yarım saat yol) × saatlik ücret − personel kantini. Admin, kişiye dokunup avans / günlük ödeme girer; kalan hakediş görünür.</p>
+        <p class="soluk" style="margin-bottom:10px;font-size:14px">Çalışanlar panele girince GELDİM, çıkarken ÇIKTIM'a basar. Ücret = (çalışılan saat + yarım saat yol) × saatlik ücret − ayın personel kantini (ay sonu kesilir). Admin, kişiye dokunup avans / günlük ödeme girer; kalan hakediş görünür.</p>
         <div class="kutu" id="puantaj-liste"></div>
       </div>
       <div id="fiyat-alan" hidden>
@@ -1606,9 +1606,9 @@
   function puantajDetay(k) {
     const duzeltir = ["admin", "mudur"].includes(ben.rol);
     const ic = ac(`${k.ad} · puantaj`, `
-      <p class="soluk" style="margin-bottom:10px">${saatSayi(k.saat)} saat × ${saatSayi(k.saatlikUcret)} ₺ = ${para(k.brut)}${k.kesinti ? ` − kantin ${para(k.kesinti)}` : ""} = <b>${para(k.ucret)}</b>${k.avans ? `<br>Verilen avans / ödeme: −${para(k.avans)} → <b>Kalan: ${para(k.kalan)}</b>` : ""}${k.bekleyenKesinti ? `<br><small>Çalışmadığı günde aldığı ${para(k.bekleyenKesinti)} kantin, çalıştığı ilk günden düşülecek.</small>` : ""}<br><small>Saatler yarım saate yuvarlanır, her güne yarım saat yol eklenir.</small></p>
-      <table class="stok-t"><thead><tr><th>Gün</th><th>Giriş</th><th>Çıkış</th><th>Saat</th><th>Kantin</th>${ben.rol === "admin" ? "<th></th>" : ""}</tr></thead><tbody>
-      ${k.gunler.map((g, i) => `<tr data-g="${i}"${g.acik ? ' class="az"' : ""}><td>${tarihYazi(g.gun)} ${KISA[gunNo(g.gun)]}${g.duzelten ? ` <small class="soluk">(düzelten: ${kacis(g.duzelten)})</small>` : ""}</td><td>${g.giris || "—"}</td><td>${g.cikis || (g.acik ? "açık" : "—")}</td><td>${saatSayi(g.saat)}</td><td>${g.kesinti ? "−" + para(g.kesinti) : "—"}</td>${ben.rol === "admin" ? `<td><button class="x-sil" type="button" data-p-sil="${i}" aria-label="Bu günü sil">×</button></td>` : ""}</tr>`).join("")}
+      <p class="soluk" style="margin-bottom:10px">${saatSayi(k.saat)} saat × ${saatSayi(k.saatlikUcret)} ₺ = ${para(k.brut)}${k.kesinti ? ` − kantin ${para(k.kesinti)}` : ""} = <b>${para(k.ucret)}</b>${k.avans ? `<br>Verilen avans / ödeme: −${para(k.avans)} → <b>Kalan: ${para(k.kalan)}</b>` : ""}${(k.kantinListe || []).length ? `<br><small>Personel kantini: ${k.kantinListe.map((x) => `${tarihYazi(x.gun)} ${para(x.tutar)}`).join(" · ")}</small>` : ""}<br><small>Saatler yarım saate yuvarlanır, her güne yarım saat yol eklenir.</small></p>
+      <table class="stok-t"><thead><tr><th>Gün</th><th>Giriş</th><th>Çıkış</th><th>Saat</th>${ben.rol === "admin" ? "<th></th>" : ""}</tr></thead><tbody>
+      ${k.gunler.map((g, i) => `<tr data-g="${i}"${g.acik ? ' class="az"' : ""}><td>${tarihYazi(g.gun)} ${KISA[gunNo(g.gun)]}${g.duzelten ? ` <small class="soluk">(düzelten: ${kacis(g.duzelten)})</small>` : ""}</td><td>${g.giris || "—"}</td><td>${g.cikis || (g.acik ? "açık" : "—")}</td><td>${saatSayi(g.saat)}</td>${ben.rol === "admin" ? `<td><button class="x-sil" type="button" data-p-sil="${i}" aria-label="Bu günü sil">×</button></td>` : ""}</tr>`).join("")}
       </tbody></table>
       ${duzeltir ? '<p class="soluk" style="font-size:13px;margin-top:8px">Düzeltmek için güne dokunun.</p>' : ""}
       ${(k.avansListe || []).length || ben.rol === "admin" ? `<h3 style="font-size:20px;margin:16px 0 8px">Avans / ödemeler</h3>
@@ -1695,7 +1695,7 @@
       o.mac += sayi(m.ucret); o.vip += sayi(m.vip); o.kantin += kantin; o.onOdeme += sayi(m.onOdeme);
       o.kramponAdet += m.krampon || 0; o.eldivenAdet += m.eldiven || 0; o.krampon += krampon; o.eldiven += eldiven;
       const toplam = sayi(m.ucret) + sayi(m.vip) + kantin + krampon + eldiven;
-      o.maclar.push({ kantin, odenmemis, veresiye, ikram, toplam, kapora: sayi(m.onOdeme), kalan: toplam - sayi(m.onOdeme) });
+      o.maclar.push({ kantin, odenmemis, veresiye, ikram, toplam, kapora: sayi(m.onOdeme), iban: sayi(m.iban), kalan: toplam - sayi(m.onOdeme) - sayi(m.iban) });
     }
     o.personelKantin = 0;
     for (const [kim, v] of Object.entries(kk.ikram || {})) for (const [id, a] of Object.entries(v)) {
@@ -1705,9 +1705,10 @@
     o.ciro = o.mac + o.vip + o.kantin + o.krampon + o.eldiven;
     o.giris = top(kk.girisler); o.cikis = top(kk.cikislar); o.veresiye = top(kk.veresiye); o.devir = sayi(kk.devir);
     o.gelenKapora = (kk.gelenKaporalar || []).reduce((t, x) => t + (Number(x.tutar) || 0), 0);
-    o.kasaToplam = o.ciro - o.onOdeme + o.giris + o.gelenKapora + o.personelKantin; // kapora geldiği günün kasasına girer, maç günü düşülür
+    o.kasaToplam = o.ciro - o.onOdeme + o.giris + o.gelenKapora; // kapora geldiği günün kasasına girer, maç günü düşülür; personel kantini ay sonu maaştan
     o.avans = (kk.avanslar || []).reduce((t, x) => t + sayi(x.tutar), 0);
-    o.olmasiGereken = o.kasaToplam - o.cikis - o.veresiye - o.avans;
+    o.ibanOdeme = kk.maclar.reduce((t, m) => t + sayi(m.iban), 0);
+    o.olmasiGereken = o.kasaToplam - o.cikis - o.veresiye - o.avans - o.ibanOdeme;
     const bosMu = (v) => v === null || v === undefined || v === "";
     o.fark = bosMu(kk.sayilan) ? null : sayi(kk.sayilan) - o.olmasiGereken;
     o.teslim = bosMu(kk.birakilan) ? null : (bosMu(kk.sayilan) ? o.olmasiGereken : sayi(kk.sayilan)) - sayi(kk.birakilan);
@@ -1794,9 +1795,10 @@
             ${m.kaynak === "takvim" ? "" : `<button class="x-sil" type="button" data-sil="maclar.${i}" aria-label="Satırı sil">×</button>`}
           </div>
           ${m.depozito ? `<small class="depozito" style="margin:-2px 0 6px">Depozito: ${kacis(m.depozito)}</small>` : ""}
-          <div class="k-ic" style="grid-template-columns:1fr 1fr">
+          <div class="k-ic">
             <div><label>Maç ücreti</label><input data-yol="maclar.${i}.ucret" value="${m.ucret || ""}" inputmode="numeric" placeholder="0"></div>
-            <div><label title="Önceden alınan kapora / IBAN ile ödenen">Alınan kapora</label><input data-yol="maclar.${i}.onOdeme" value="${m.onOdeme || ""}" inputmode="numeric" placeholder="0"></div>
+            <div><label title="Önceden alınan kapora">Alınan kapora</label><input data-yol="maclar.${i}.onOdeme" value="${m.onOdeme || ""}" inputmode="numeric" placeholder="0"></div>
+            <div><label title="Maç günü kalan tutarın IBAN'a yatırılan kısmı (kasaya nakit girmez)">IBAN'a ödenen</label><input data-yol="maclar.${i}.iban" value="${m.iban || ""}" inputmode="numeric" placeholder="0"></div>
           </div>
           <div class="vip-sec">${[["spiker", "VIP spiker"], ["hakem", "VIP hakem"]].map(([x, ad]) => `<label><input type="checkbox" data-vip="${i}" value="${x}"${(m.ekstra || []).includes(x) ? " checked" : ""}> ${ad} <small>+${para(kasa.fiyat[x])}</small></label>`).join("")}
             ${m.vip && !(m.ekstra || []).length ? `<small class="soluk">VIP ${para(m.vip)}</small>` : ""}</div>
@@ -1834,7 +1836,7 @@
           <b>${para(v.tutar)}</b><button class="dugme ikincil kucuk" type="button" data-ode="${i}">Ödendi</button></div>`).join("")}</div>` : ""}
 
       <div class="kutu kasa-kart"><h3>Personel kantini<span class="sag soluk" data-top="personel"></span></h3>
-        <p class="soluk" style="font-size:13px;margin-bottom:8px">Çalışanın aldığı ürünler stoktan düşer, tutarı ücretinden otomatik kesilir: o gün çalışıyorsa o günün, çalışmıyorsa (ziyarete geldiyse) çalıştığı ilk günün ücretinden.</p>
+        <p class="soluk" style="font-size:13px;margin-bottom:8px">Çalışanın aldığı ürünler stoktan düşer; tutarı (personel fiyatıyla) ay sonunda maaşından kesilir.</p>
         <div class="k-alt" style="margin:0">${ikramKisiler().map(([kim, ad]) => `<button class="dugme ikincil kucuk" type="button" data-ikram="${kacis(kim)}">${kacis(ad)}${ikramSayi(kim) ? ` · ${ikramSayi(kim)}` : ""}</button>`).join("") || '<span class="soluk">Aktif çalışan yok.</span>'}</div>
       </div>
       <div class="kutu kasa-kart"><h3>Ücretsiz ikram<span class="sag soluk" data-top="ikram"></span></h3>
@@ -1855,7 +1857,7 @@
     const o = kasaOzetHesapla();
     o.maclar.forEach((m, i) => {
       const t = document.querySelector(`[data-mt="${i}"]`);
-      if (t) t.innerHTML = m.kapora ? `<small>Toplam ${para(m.toplam)} − kapora ${para(m.kapora)}</small>Kalan ${para(m.kalan)}` : para(m.toplam);
+      if (t) t.innerHTML = m.kapora || m.iban ? `<small>Toplam ${para(m.toplam)}${m.kapora ? ` − kapora ${para(m.kapora)}` : ""}${m.iban ? ` − IBAN ${para(m.iban)}` : ""}</small>Nakit ${para(m.kalan)}` : para(m.toplam);
       const k = document.querySelector(`[data-mk="${i}"]`); if (k) k.textContent = m.kantin ? `· ${para(m.kantin)}` : "";
       const od = document.querySelector(`[data-mo="${i}"]`);
       if (od) od.innerHTML = m.odenmemis ? `<span class="odenmedi">Ödenmedi ${para(m.odenmemis)}</span><button class="dugme kucuk" type="button" data-tahsil="${i}" style="background:#1a7f37">Tahsil et</button>` : (m.kantin ? '<span class="rozet r-onayli">✓ kantin ödendi</span>' : "");
@@ -1874,10 +1876,12 @@
       sat("Kantin", para(o.kantin)) + sat(`Krampon (${o.kramponAdet} adet)`, para(o.krampon)) + sat(`Eldiven (${o.eldivenAdet} adet)`, para(o.eldiven)) +
       sat("Bugün tahsil edilen", para(o.ciro - o.onOdeme), "buyuk") +
       sat("Bugün gelen kaporalar (ileri tarihli maçlar)", para(o.gelenKapora)) +
-      sat("Diğer kasa girişi", para(o.giris)) + (o.personelKantin ? sat("Personel kantini (maaştan düşülür)", para(o.personelKantin)) : "") + sat("Kasa toplamı", para(o.kasaToplam), "kalin") +
+      sat("Diğer kasa girişi", para(o.giris)) + sat("Kasa toplamı", para(o.kasaToplam), "kalin") +
       sat("Kasa çıkışı", "− " + para(o.cikis), "eksi") + (o.avans ? sat("Çalışan ödeme / avans", "− " + para(o.avans), "eksi") : "") + (o.veresiye ? sat("Veresiye", "− " + para(o.veresiye), "eksi") : "") +
+      (o.personelKantin ? sat('<span class="soluk">Personel kantini (kasaya girmez, ay sonu maaştan düşülür)</span>', `<span class="soluk">${para(o.personelKantin)}</span>`) : "") +
       (o.ikramDeger ? sat('<span class="soluk">İkram (ücretsiz, kasaya girmedi)</span>', `<span class="soluk">${para(o.ikramDeger)}</span>`) : "") +
       (o.veresiyeKantin ? sat('<span class="soluk">Veresiye kantin (kasaya girmedi)</span>', `<span class="soluk">${para(o.veresiyeKantin)}</span>`) : "") +
+      (o.ibanOdeme ? sat("IBAN'a ödenen (maç günü, kasaya nakit girmez)", "− " + para(o.ibanOdeme), "eksi") : "") +
       sat("Kasada olması gereken", para(o.olmasiGereken), "buyuk") +
       sat('<span class="soluk">Günlük ciro (kaporalar dahil)</span>', `<span class="soluk">${para(o.ciro)}</span>`) +
       (o.odenmemis ? sat('<span style="color:#b42318;font-weight:700">Henüz alınmayan kantin (maç sonunda)</span>', `<span style="color:#b42318">${para(o.odenmemis)}</span>`) : "") +
@@ -1975,8 +1979,8 @@
     } else if (b.dataset.ikram) {
       const kim = b.dataset.ikram;
       const kimAd = kim.startsWith("p:") ? ((kasa.personel || []).find((c) => `p:${c.eposta}` === kim)?.ad || kasa.kayit.ikramAdlari?.[kim] || kim.slice(2)) : kim;
-      urunSec(`${kimAd} · ${kim.startsWith("p:") ? "kantin (ücretinden düşülür)" : "ikram"}`, kk.ikram?.[kim] || {}, (yeni) => { kk.ikram = { ...(kk.ikram || {}), [kim]: yeni }; degisti(); kasaCiz(); },
-        kim.startsWith("p:") ? { personel: true, aciklama: `Personel fiyatı: %${Math.round((kasa.personelIndirim ?? 0.4) * 100)} indirimli, 5 TL'ye yukarı yuvarlı. Tutar ücretinden düşülür.` } : null);
+      urunSec(`${kimAd} · ${kim.startsWith("p:") ? "kantin (ay sonu maaştan düşülür)" : "ikram"}`, kk.ikram?.[kim] || {}, (yeni) => { kk.ikram = { ...(kk.ikram || {}), [kim]: yeni }; degisti(); kasaCiz(); },
+        kim.startsWith("p:") ? { personel: true, aciklama: `Personel fiyatı: %${Math.round((kasa.personelIndirim ?? 0.4) * 100)} indirimli, 5 TL'ye yukarı yuvarlı. Tutar ay sonu maaştan düşülür.` } : null);
     } else if (b.id === "k-mac-ekle") {
       kk.maclar.push({ saat: "", tur: "normal", ad: "", ucret: kasa.fiyat.mac, vip: 0, onOdeme: 0, krampon: 0, eldiven: 0, kantin: {} }); degisti(); kasaCiz();
     } else if (b.id === "k-takvim") {

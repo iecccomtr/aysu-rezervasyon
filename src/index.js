@@ -499,9 +499,9 @@ async function puantajOzetGonder(env, d, ben, r) {
     satirlar: [
       ["Geldim", gunK.giris], ["Çıktım", gunK.cikis], ["Çalışılan (yarım saate yuvarlı)", sa(calisilan)], ["Yol", sa(KURALLAR.puantajYolSaat)],
       ["Toplam", sa(gunK.saat)],
-      ...(gunK.kesinti ? [["Kantin (ücretten düşülür)", "−" + tl(gunK.kesinti)]] : []),
-      ...(kisi.saatlikUcret ? [["Ücret", tl(gunK.saat * kisi.saatlikUcret - (gunK.kesinti || 0))]] : []),
-      ["Bu ay toplam", `${sa(kisi.saat)}${kisi.saatlikUcret ? " · " + tl(kisi.ucret) : ""}`],
+      ...(kisi.saatlikUcret ? [["Bugünkü ücret", tl(gunK.saat * kisi.saatlikUcret)]] : []),
+      ["Bu ay toplam", `${sa(kisi.saat)}${kisi.saatlikUcret ? " · " + tl(kisi.brut) : ""}`],
+      ...(kisi.kesinti ? [["Bu ay personel kantini", `${tl(kisi.kesinti)} (ay sonu maaştan düşülür)`]] : []),
     ],
     alt: "Saatlerde hata varsa yöneticinize bildirin. — Aysu Halı Saha",
   });
@@ -791,6 +791,28 @@ export default {
         }
       }
     })().catch((e) => console.error("IBAN kontrolü", e)));
+    // Her ayın 1'inde geçen ayın maaş özeti Admin'e
+    ctx.waitUntil((async () => {
+      const d = depo(env);
+      const ay = await d.maasRaporuZamani();
+      if (!ay) return;
+      const p = await d.puantajAy(ay);
+      const kime = await d.rolEpostalari(["admin"]);
+      if (!kime.length) return;
+      const tl = (n) => `${Math.round(n || 0).toLocaleString("tr-TR")} TL`;
+      const AY = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
+      const ayAd = `${AY[Number(ay.slice(5)) - 1]} ${ay.slice(0, 4)}`;
+      const toplam = p.kisiler.reduce((t, k) => t + k.kalan, 0);
+      await epostaYolla(env, {
+        kime, konu: `${ayAd} maaş ödemeleri — toplam ${tl(toplam)}`,
+        satirlar: [
+          ...p.kisiler.map((k) => [`${k.ad} (${k.rol})`,
+            `${String(k.saat).replace(".", ",")} saat × ${k.saatlikUcret} TL = ${tl(k.brut)}${k.kesinti ? ` − kantin ${tl(k.kesinti)}` : ""}${k.avans ? ` − avans ${tl(k.avans)}` : ""} → ÖDENECEK ${tl(k.kalan)}`]),
+          ["TOPLAM ÖDENECEK", tl(toplam)],
+        ],
+        alt: "Saatlere günlük yarım saat yol dahildir. Ayrıntılar panelde Kullanıcılar → Puantaj bölümünde.",
+      });
+    })().catch((e) => console.error("Maaş raporu", e)));
     // İş başı saati geldi ama hiçbir çalışan GELDİM demedi → Admin, Müdür ve Müdür Yardımcısı'na uyarı
     ctx.waitUntil((async () => {
       const d = depo(env);

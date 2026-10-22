@@ -68,7 +68,7 @@ export function kasaPdf(k) {
     yer(detay ? 30 : 18);
     const kira = k.kira || { krampon: 0, eldiven: 0 };
     const deg = [m.saat, m.tur === "abone" ? "Abone" : m.tur === "bos" ? "Boş" : "Normal", m.ad, para(m.ucret), m.vip ? para(m.vip) : "—",
-      m.krampon ? `${m.krampon}×` : "—", m.eldiven ? `${m.eldiven}×` : "—", mo.kantin ? para(mo.kantin) : "—", m.onOdeme ? "−" + para(m.onOdeme) : "—", para((mo.toplam || 0) - (m.onOdeme || 0))];
+      m.krampon ? `${m.krampon}×` : "—", m.eldiven ? `${m.eldiven}×` : "—", mo.kantin ? para(mo.kantin) : "—", m.onOdeme ? "−" + para(m.onOdeme) : "—", para((mo.toplam || 0) - (m.onOdeme || 0) - (m.iban || 0))];
     kol.forEach(([, x, h], j) => pdf.yazi(SOL + x, y, deg[j], {
       boyut: 9.5, kalin: j === 0 || j === 9, hiza: h, en: j === 2 ? 110 : null,
       renk: j === 0 ? (m.tur === "abone" ? [0.11, 0.31, 0.85] : TURUNCU) : j === 8 && m.onOdeme ? KIRMIZI : undefined,
@@ -103,7 +103,7 @@ export function kasaPdf(k) {
     baslik("Personel kantini ve ücretsiz ikram", `personel ${para(o.personelKantin)} · ikram ${para(o.ikramDeger)}`);
     for (const [kim, v] of ikram) {
       const p = kim.startsWith("p:");
-      satir(p ? `${k.ikramAdlari?.[kim] || kim.slice(2)} (%${Math.round(KURALLAR.personelIndirim * 100)} indirimli, ücretinden düşülür)` : kim,
+      satir(p ? `${k.ikramAdlari?.[kim] || kim.slice(2)} (%${Math.round(KURALLAR.personelIndirim * 100)} indirimli, ay sonu maaştan)` : kim,
         para(Object.entries(v).reduce((t, [id, a]) => t + a * (p ? personelFiyat(b[id]?.satis || 0) : b[id]?.satis || 0), 0)), { alt: urunListe(v) });
     }
   }
@@ -119,11 +119,11 @@ export function kasaPdf(k) {
   if (o.onOdeme) satir("Önceki günlerde alınan kaporalar (bugünkü maçlar)", "−" + para(o.onOdeme), { renk: KIRMIZI });
   satir("Bugün gelen kaporalar (ileri tarihli maçlar)", para(o.gelenKapora));
   satir("Diğer kasa girişi", para(o.giris));
-  if (o.personelKantin) satir("Personel kantini (maaştan düşülür)", para(o.personelKantin));
   satir("Kasa toplamı", para(o.kasaToplam), { kalin: true });
   satir("Kasa çıkışı", "−" + para(o.cikis), { renk: KIRMIZI });
   if (o.veresiye) satir("Veresiye", "−" + para(o.veresiye), { renk: KIRMIZI });
   if (o.avans) satir("Çalışan ödeme / avans", "−" + para(o.avans), { renk: KIRMIZI, alt: (k.avanslar || []).map((x) => `${x.ad} ${para(x.tutar)}`).join(" · ") });
+  if (o.ibanOdeme) satir("IBAN'a ödenen (maç günü, kasaya nakit girmez)", "−" + para(o.ibanOdeme), { renk: KIRMIZI, alt: (k.maclar || []).filter((m) => m.iban).map((m) => `${m.saat} ${m.ad} ${para(m.iban)}`).join(" · ") });
   satir("KASADA OLMASI GEREKEN", para(o.olmasiGereken), { kalin: true, renk: MAVI });
   if (k.sayilan !== null && k.sayilan !== undefined) {
     satir("Sayılan kasa", para(k.sayilan), { kalin: true });
@@ -134,6 +134,7 @@ export function kasaPdf(k) {
     if (o.teslim !== null) satir("Teslim edilen", para(o.teslim));
   }
   satir("Kasa devir (toplama katılmaz)", para(o.devir), { renk: GRI });
+  if (o.personelKantin) satir("Personel kantini (kasaya girmez, ay sonu maaştan)", para(o.personelKantin), { renk: GRI });
   if (o.ikramDeger) satir("İkram (ücretsiz, kasaya girmedi)", para(o.ikramDeger), { renk: GRI });
   if (o.veresiyeKantin) satir("Veresiye kantin (kasaya girmedi)", para(o.veresiyeKantin), { renk: GRI });
   satir("Kantin kârı (alış-satış farkı)", para(o.kantinKar), { renk: GRI });

@@ -169,7 +169,8 @@ Tüm kayıtlar Cloudflare'in **Durable Object** veritabanında tutulur. Cloudfla
 
 **Ödenecek saat ve ücret**
 - Ödenecek saat = GELDİM–ÇIKTIM arası (yarım saate yuvarlanır: 5 sa 10 dk → 5; 5 sa 20 dk → 5,5) + **yarım saat yol**.
-- Personelin kantin tüketimi (Kasa → Personel kantini) ücretinden düşülür: o gün çalışıyorsa o günden, çalışmıyorsa (ziyarette) çalıştığı ilk günden.
+- Personelin kantin tüketimi (Kasa → Personel kantini, %40 indirimli) günlük düşülmez. Ay boyunca toplanır, **ay sonu maaştan** kesilir. Kasaya nakit girmez.
+- Her ayın 1'inde saat 09:00'dan sonra Admin'e geçen ayın **maaş ödemeleri** e-postası gider. İçinde her çalışan için şunlar yazar: saat, brüt, kantin, avans, ödenecek tutar ve toplam.
 - Ücret = ödenecek saat × saatlik ücret.
 - Saatlik ücreti Admin, Kullanıcılar sekmesinde kişiye dokunup girer.
 

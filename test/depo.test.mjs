@@ -662,7 +662,7 @@ test("Abone saatini kalıcı olarak başka gün/saate taşır; dolu saate taşı
   assert.equal(await tur(d, "2026-11-06", "22:00"), "abone", "her hafta");
 });
 
-test("Personel kantini ücretinden düşülür; stok bitince satış durur", async () => {
+test("Personel kantini ay sonu maaştan düşülür (günlük değil, kasaya girmez); stok bitince satış durur", async () => {
   const d = demoDepo({ PANEL_KURULUM_KODU: "k" });
   const admin = await d.oturum((await d.panelKur({ kurulumKodu: "k", eposta: "admin@aysu.com", ad: "Admin", sifre: "aysu-2026!" })).token);
   await d.kayitOl({ eposta: "p@aysu.com", ad: "Personel Bir", sifre: "personel-1", rol: "personel" });
@@ -678,11 +678,11 @@ test("Personel kantini ücretinden düşülür; stok bitince satış durur", asy
   assert.equal(r.kayit.ozet.personelKantin, 2 * 15, "%40 indirimli (25 → 15)");
   const ay = await d.puantajAy("2026-10");
   assert.equal(ay.kisiler[0].brut, 900); assert.equal(ay.kisiler[0].kesinti, 30); assert.equal(ay.kisiler[0].ucret, 870);
-  assert.equal((await d.kasaGetir("2026-10-19", admin)).calisanlar[0].ucret, 870);
+  assert.equal((await d.kasaGetir("2026-10-19", admin)).calisanlar[0].ucret, 900, "günlük hakedişten düşülmez");
   assert.match((await d.kasaKaydet({ ...r.kayit, ikram: { "VIP / ücretsiz ikram": { [biskrem.id]: 1 } } }, admin)).hata, /stokta yok/);
 });
 
-test("Puantaj: süre yarım saate yuvarlanır; çalışmadığı gün aldığı kantin çalıştığı ilk günden düşülür", async () => {
+test("Puantaj: süre yarım saate yuvarlanır; çalışmadığı gün aldığı kantin de ayın maaşından düşülür", async () => {
   const d = demoDepo({ PANEL_KURULUM_KODU: "k" });
   const admin = await d.oturum((await d.panelKur({ kurulumKodu: "k", eposta: "admin@aysu.com", ad: "Admin", sifre: "aysu-2026!" })).token);
   await d.kayitOl({ eposta: "p@aysu.com", ad: "Personel Bir", sifre: "personel-1", rol: "personel" });
@@ -693,13 +693,13 @@ test("Puantaj: süre yarım saate yuvarlanır; çalışmadığı gün aldığı 
   assert.ok(k.personel.some((x) => x.eposta === "p@aysu.com" && !x.calisiyor));
   const su = k.urunler[22];
   assert.ok((await d.kasaKaydet({ ...k.kayit, ikram: { "p:p@aysu.com": { [su.id]: 2 } } }, admin)).basarili);
-  assert.equal((await d.puantajAy("2026-10")).kisiler.length, 0);
+  assert.equal((await d.puantajAy("2026-10")).kisiler[0].kesinti, 30, "çalışmasa da ayın kantini görünür");
   // 21 Ekim çalıştı: 18:00–23:20 → 5 sa 20 dk → 5,5 + 0,5 yol = 6 saat
   saatiAyarla("2026-10-21T18:00"); await d.puantajGiris(p);
   saatiAyarla("2026-10-21T23:20"); await d.puantajCikis(p);
   const kisi = (await d.puantajAy("2026-10")).kisiler[0];
   assert.equal(kisi.saat, 6);
-  assert.equal(kisi.gunler[0].kesinti, 30, "ziyaret günündeki kantin ilk iş gününden düşülür");
+  assert.equal(kisi.kesinti, 30, "ayın toplam personel kantini");
   assert.equal(kisi.ucret, 600 - 30);
 });
 
@@ -872,4 +872,22 @@ test("Dekont tarihi: yıl yanlış okunsa da (2026 → 2022) gün/ay geçerliyse
   assert.ok(d("2022-10-22").onay);
   assert.ok(d("22.10.26").onay);
   assert.equal(d("2026-09-15").onay, false);
+});
+
+test("Kasa: maç günü IBAN'a ödenen tutar ciroda kalır, kasada olması gerekenden düşer", async () => {
+  const d = demoDepo({ PANEL_KURULUM_KODU: "k" });
+  const admin = await d.oturum((await d.panelKur({ kurulumKodu: "k", eposta: "admin@aysu.com", ad: "Admin", sifre: "aysu-2026!" })).token);
+  await d.panelRezEkle({ gunTarihi: "2026-10-19", saat: "20:00", ad: "Yusuf", telefon: "" });
+  const k = await d.kasaGetir("2026-10-19", admin);
+  k.kayit.maclar[0].iban = "2500";
+  const r = await d.kasaKaydet({ ...k.kayit }, admin);
+  assert.equal(r.kayit.ozet.ciro, 3700); assert.equal(r.kayit.ozet.ibanOdeme, 2500);
+  assert.equal(r.kayit.ozet.olmasiGereken, 1200);
+});
+
+test("Ay sonu maaş raporu: ayın 1'inde 09:00'dan sonra geçen ay için bir kez", async () => {
+  const d = demoDepo();
+  saatiAyarla("2026-11-01T08:30"); assert.equal(await d.maasRaporuZamani(), null);
+  saatiAyarla("2026-11-01T09:05"); assert.equal(await d.maasRaporuZamani(), "2026-10");
+  assert.equal(await d.maasRaporuZamani(), null);
 });

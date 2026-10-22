@@ -214,7 +214,7 @@ export function kasaUcYol(guncel, taban, yeni) {
     const t = tabanMac.get(y.saat);
     const g = sonuc.maclar.find((m) => m.saat === y.saat);
     if (!g) { if (!t) sonuc.maclar.push(y); continue; }
-    for (const a of ["ucret", "vip", "ekstra", "onOdeme", "veresiyeKim", "odendi", "odemeZamani", "tur", "ad"]) if (!esit(y[a], t?.[a])) g[a] = y[a];
+    for (const a of ["ucret", "vip", "ekstra", "onOdeme", "iban", "veresiyeKim", "odendi", "odemeZamani", "tur", "ad"]) if (!esit(y[a], t?.[a])) g[a] = y[a];
     for (const a of ["krampon", "eldiven"]) g[a] = Math.max(0, (Number(g[a]) || 0) + ((Number(y[a]) || 0) - (Number(t?.[a]) || 0)));
     for (const a of ["kantin", "kantinOdenen", "veresiyeKantin", "ikramKantin"]) g[a] = sayac(g[a], t?.[a], y[a]);
   }
@@ -257,7 +257,7 @@ export const kasaOzet = (k) => {
     o.kramponAdet += m.krampon || 0; o.eldivenAdet += m.eldiven || 0; o.krampon += krampon; o.eldiven += eldiven;
     return { saat: m.saat, kantin, veresiye, ikram, toplam: (m.ucret || 0) + (m.vip || 0) + kantin + krampon + eldiven };
   });
-  // Personel tüketimi ("p:<eposta>") maaşından düşülür → kasaya girmiş sayılır; diğer ikramlar kasaya girmez
+  // Personel tüketimi ("p:<eposta>") ay sonu maaştan kesilir; kasaya nakit girmez (ikram gibi stoktan düşer)
   o.personelKantin = 0;
   for (const [kim, v] of Object.entries(k.ikram || {})) for (const [id, a] of Object.entries(v)) {
     if (kim.startsWith("p:")) o.personelKantin += a * personelFiyat(b[id]?.satis || 0); else o.ikramDeger += a * (b[id]?.satis || 0);
@@ -268,10 +268,11 @@ export const kasaOzet = (k) => {
   o.gelenKapora = (k.gelenKaporalar || []).reduce((t, x) => t + (Number(x.tutar) || 0), 0);
   // Kapora parası geldiği günün kasasına girer (o gün gelen kaporalar +); maç günü o maçın kaporası düşülür (−).
   // Personel kantini (maaştan kesilir) eklenir; devir katılmaz
-  o.kasaToplam = o.ciro - o.onOdeme + o.giris + o.gelenKapora + o.personelKantin;
+  o.kasaToplam = o.ciro - o.onOdeme + o.giris + o.gelenKapora; // personel kantini kasaya girmez, ay sonu maaştan kesilir
   // Önceden alınan kapora ve veresiye kasaya bugün girmez
   o.avans = (k.avanslar || []).reduce((t, x) => t + (Number(x.tutar) || 0), 0); // çalışana kasadan verilen günlük ödeme / avans
-  o.olmasiGereken = o.kasaToplam - o.cikis - o.veresiye - o.avans;
+  o.ibanOdeme = (k.maclar || []).reduce((t, m) => t + (Number(m.iban) || 0), 0); // maç günü IBAN'a ödenen (kasaya nakit girmez)
+  o.olmasiGereken = o.kasaToplam - o.cikis - o.veresiye - o.avans - o.ibanOdeme;
   o.fark = k.sayilan === null || k.sayilan === undefined ? null : k.sayilan - o.olmasiGereken;
   o.teslim = k.birakilan === null || k.birakilan === undefined ? null : (k.sayilan ?? o.olmasiGereken) - k.birakilan;
   return o;
@@ -1020,43 +1021,21 @@ export class RezervasyonDeposu extends DurableObject {
     });
   }
 
-  /**
-   * Personel kantin kesintileri: çalıştığı gün aldıysa o günün ücretinden; çalışmadığı gün (ziyarette) aldıysa
-   * sonraki ilk çalıştığı günün ücretinden düşülür. Dönüş: { gunluk: Map(eposta → Map(gün → tutar)), bekleyen: Map(eposta → tutar) }
-   */
-  async kesintiDagit(bitis) {
-    const bas = gunEkle(bitis.slice(0, 7) + "-01", -120);
-    const [kasalar, puantaj] = await Promise.all([
-      this.st.list({ start: `kasa:${bas}`, end: `kasa:${bitis}~` }),
-      this.st.list({ start: `p:${bas}`, end: `p:${gunEkle(bitis, 40)}~` }),
-    ]);
-    const isGunleri = new Map();
-    for (const [k, v] of puantaj) {
-      if (!v.giris) continue;
-      const [, gun, ...ep] = k.split(":"); const e = ep.join(":");
-      if (!isGunleri.has(e)) isGunleri.set(e, []);
-      isGunleri.get(e).push(gun);
-    }
-    for (const l of isGunleri.values()) l.sort();
-    const gunluk = new Map(), bekleyen = new Map();
-    for (const k of kasalar.values()) {
-      for (const [e, tutarT] of Object.entries(personelKesintileri(k))) {
-        if (!tutarT) continue;
-        const hedef = (isGunleri.get(e) || []).find((g) => g >= k.gun);
-        if (hedef) {
-          if (!gunluk.has(e)) gunluk.set(e, new Map());
-          gunluk.get(e).set(hedef, (gunluk.get(e).get(hedef) || 0) + Math.round(tutarT));
-        } else bekleyen.set(e, (bekleyen.get(e) || 0) + Math.round(tutarT));
-      }
-    }
-    return { gunluk, bekleyen };
-  }
-
   /** Aylık puantaj: kişi kişi günler, saatler ve ödenecek tutar. eposta verilirse sadece o kişi. */
   async puantajAy(ay, eposta) {
     if (!/^\d{4}-\d{2}$/.test(ay || "")) return { hata: "Geçersiz ay." };
-    const [m, kullanicilar, kd, avM, ayKasa] = await Promise.all([this.st.list({ start: `p:${ay}-01`, end: `p:${ay}-31~` }), this.kullaniciListesi(),
-      this.kesintiDagit(`${ay}-31`), this.st.list({ start: `av:${ay}-01`, end: `av:${ay}-31~` }), this.st.list({ start: `kasa:${ay}-01`, end: `kasa:${ay}-31~` })]);
+    const [m, kullanicilar, avM, ayKasa] = await Promise.all([this.st.list({ start: `p:${ay}-01`, end: `p:${ay}-31~` }), this.kullaniciListesi(),
+      this.st.list({ start: `av:${ay}-01`, end: `av:${ay}-31~` }), this.st.list({ start: `kasa:${ay}-01`, end: `kasa:${ay}-31~` })]);
+    // Personel kantini günlük düşülmez: ay boyunca toplanır, ay sonu maaştan kesilir
+    const kantinAy = new Map();
+    for (const k of ayKasa.values()) {
+      for (const [e, t] of Object.entries(personelKesintileri(k))) {
+        if (!t) continue;
+        const l = kantinAy.get(e) || [];
+        l.push({ gun: k.gun, tutar: Math.round(t), urunler: Object.entries(k.ikram?.[`p:${e}`] || {}).map(([id, a]) => `${k.birimler?.[id]?.ad || id} ×${a}`).join(", ") });
+        kantinAy.set(e, l);
+      }
+    }
     // Avanslar: Admin'in puantajdan girdikleri + kasadan verilen günlük ödemeler
     const avanslar = [...avM.entries()].map(([k, v]) => ({ ...v, anahtar: k }));
     for (const k of ayKasa.values()) for (const a of k.avanslar || []) avanslar.push({ ...a, gun: k.gun, not: "kasadan", kasadan: true });
@@ -1069,10 +1048,8 @@ export class RezervasyonDeposu extends DurableObject {
       if (!kisiler.has(e)) kisiler.set(e, { eposta: e, ad: u?.ad || k.ad || e, rol: ROLLER[u?.rol]?.ad || "", saatlikUcret: u?.saatlikUcret || 0, gunler: [], saat: 0, ucret: 0, brut: 0, kesinti: 0 });
       const kisi = kisiler.get(e);
       const saat = odenecekSaat(k);
-      const ks = kd.gunluk.get(e)?.get(gun) || 0;
-      kisi.gunler.push({ gun, giris: k.giris ? zamanYazi(k.giris) : null, cikis: k.cikis ? zamanYazi(k.cikis) : null, saat, kesinti: ks, acik: Boolean(k.giris && !k.cikis), duzelten: k.duzelten || null });
+      kisi.gunler.push({ gun, giris: k.giris ? zamanYazi(k.giris) : null, cikis: k.cikis ? zamanYazi(k.cikis) : null, saat, acik: Boolean(k.giris && !k.cikis), duzelten: k.duzelten || null });
       kisi.saat = Math.round((kisi.saat + saat) * 100) / 100;
-      kisi.kesinti += ks;
     }
     for (const a of avanslar) {
       if (eposta && a.eposta !== eposta) continue;
@@ -1084,13 +1061,33 @@ export class RezervasyonDeposu extends DurableObject {
       kisi.avans = (kisi.avans || 0) + a.tutar;
       (kisi.avansListe ||= []).push({ gun: a.gun, tutar: a.tutar, not: a.not || "", anahtar: a.anahtar, ekleyen: a.ekleyen || "", kasadan: Boolean(a.kasadan) });
     }
-    // Ödenecek = saat × saatlik ücret − kantin tüketimi; kalan = ödenecek − verilen avanslar
+    for (const [e, l] of kantinAy) {
+      if (eposta && e !== eposta) continue;
+      if (!kisiler.has(e)) {
+        const u = kullanicilar.find((x) => x.eposta === e);
+        kisiler.set(e, { eposta: e, ad: u?.ad || e, rol: ROLLER[u?.rol]?.ad || "", saatlikUcret: u?.saatlikUcret || 0, gunler: [], saat: 0, ucret: 0, brut: 0, kesinti: 0 });
+      }
+      const kisi = kisiler.get(e);
+      kisi.kantinListe = l; kisi.kesinti = l.reduce((t, x) => t + x.tutar, 0);
+    }
+    // Ay sonu ödenecek = saat × saatlik ücret − ayın personel kantini; kalan = ödenecek − verilen avanslar
     for (const kisi of kisiler.values()) {
       kisi.brut = Math.round(kisi.saat * kisi.saatlikUcret); kisi.ucret = kisi.brut - kisi.kesinti;
-      kisi.bekleyenKesinti = kd.bekleyen.get(kisi.eposta) || 0; // henüz çalıştığı gün olmadı
       kisi.avans = kisi.avans || 0; kisi.kalan = kisi.ucret - kisi.avans;
     }
     return { ay, kisiler: [...kisiler.values()].sort((a, b) => a.ad.localeCompare(b.ad, "tr")) };
+  }
+
+  /** Ay sonu maaş e-postası: her ayın 1'inde (09:00 sonrası) geçen ay için bir kez */
+  async maasRaporuZamani() {
+    return this.kilitli(async () => {
+      const n = simdi();
+      if (n.tarih.slice(8) !== "01" || n.saat < "09:00") return null;
+      const gecen = gunEkle(n.tarih, -1).slice(0, 7);
+      if (await this.st.get(`mr:${gecen}`)) return null;
+      await this.st.put(`mr:${gecen}`, { zaman: simdiYazi() });
+      return gecen;
+    });
   }
 
   /** Çalışana verilen avans / ödeme (Admin): av:<gün>:<eposta>:<id>  { eposta, ad, gun, tutar, not } */
@@ -1453,12 +1450,12 @@ export class RezervasyonDeposu extends DurableObject {
     const oncekiKasa = [...onceki.values()][0];
     // Veresiye izni abone ayarından gelir (kaydedilmiş günlerde de güncel olsun)
     if (kayit) for (const m of kayit.maclar || []) { const t = takvim.find((x) => x.saat === m.saat && x.aboneId && x.aboneId === m.aboneId); if (t) m.veresiyeAcik = t.veresiyeAcik; }
-    const [kullanicilar, kd] = await Promise.all([this.kullaniciListesi(), this.kesintiDagit(gun)]);
+    const kullanicilar = await this.kullaniciListesi();
     const calisanlar = [...puantaj].map(([k, v]) => {
       const u = kullanicilar.find((x) => x.eposta === k.split(":").slice(2).join(":"));
       const saat = odenecekSaat(v);
       const e = k.split(":").slice(2).join(":");
-      const kesinti = kd.gunluk.get(e)?.get(gun) || 0;
+      const kesinti = 0; // personel kantini ay sonu maaştan kesilir
       return { eposta: e, ad: u?.ad || v.ad, rol: ROLLER[u?.rol]?.ad || "", saat, kesinti, ucret: Math.round(saat * (u?.saatlikUcret || 0)) - kesinti, acik: Boolean(v.giris && !v.cikis) };
     });
     return {
@@ -1502,7 +1499,7 @@ export class RezervasyonDeposu extends DurableObject {
         gun, devir: tutar(g.devir),
         maclar: (Array.isArray(g.maclar) ? g.maclar : []).slice(0, 30).map((m) => ({
           saat: saatNormalize(m?.saat) || "", tur: ["abone", "normal", "bos"].includes(m?.tur) ? m.tur : "normal",
-          ad: kirp(m?.ad, 40), ucret: tutar(m?.ucret), vip: tutar(m?.vip), onOdeme: tutar(m?.onOdeme),
+          ad: kirp(m?.ad, 40), ucret: tutar(m?.ucret), vip: tutar(m?.vip), onOdeme: tutar(m?.onOdeme), iban: tutar(m?.iban),
           krampon: Math.min(50, Math.max(0, Math.round(Number(m?.krampon)) || 0)),
           eldiven: Math.min(50, Math.max(0, Math.round(Number(m?.eldiven)) || 0)),
           kantin: kantinTemiz(m?.kantin), kantinOdenen: kantinTemiz(m?.kantinOdenen), veresiyeKantin: veresiyeIzin(m) || Object.keys(eski?.maclar?.find((x) => x.saat === m?.saat)?.veresiyeKantin || {}).length ? kantinTemiz(m?.veresiyeKantin) : {},
@@ -1636,7 +1633,7 @@ export class RezervasyonDeposu extends DurableObject {
     const m = await this.st.list({ start: `kasa:${ay}-01`, end: `kasa:${ay}-31~` });
     const gunler = [...m.values()].map((k) => ({ gun: k.gun, gunAd: gunAdi(k.gun), ...k.ozet, guncelleyen: k.guncelleyen }));
     const toplam = {};
-    for (const a of ["mac", "vip", "kantin", "kantinKar", "krampon", "eldiven", "ciro", "giris", "gelenKapora", "cikis", "veresiye", "veresiyeKantin", "onOdeme", "ikramDeger"]) {
+    for (const a of ["mac", "vip", "kantin", "kantinKar", "krampon", "eldiven", "ciro", "giris", "gelenKapora", "ibanOdeme", "cikis", "veresiye", "veresiyeKantin", "onOdeme", "ikramDeger"]) {
       toplam[a] = gunler.reduce((t, x) => t + (x[a] || 0), 0);
     }
     return { ay, gunler, toplam };

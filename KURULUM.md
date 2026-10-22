@@ -220,3 +220,17 @@ Panelde **Kasa** sekmesi var; Admin, Müdür ve Müdür Yardımcısı kullanır.
   - Kod: `public/analitik.js`, yalnızca site sayfalarında; panelde yok.
   - KVKK çerez şeridi var. "Kabul et" denene kadar analitik çerez yazılmaz (Consent Mode v2).
   - Olaylar: `generate_lead` (rezervasyon oluşturuldu), `rezervasyon_kesinlesti` (kapora onaylandı).
+
+## Kapora IBAN'ı ve gizli IBAN kontrolü
+
+- IBAN'ı yalnızca Admin değiştirebilir: Kullanıcılar → **Kapora IBAN'ı** bölümünden, panel şifresiyle.
+  - IBAN'ın sağlama hanesi kontrol edilir.
+  - Her değişiklik işlem kaydına yazılır ve Admin, Müdür ile Müdür Yardımcısı'na e-postayla bildirilir.
+- **Gizli kontrol:** Cloudflare'de Secret olarak `IBAN_PARMAK_IZI` tanımlanır. Değeri, IBAN'ın boşluksuz hâlinin SHA-256 özetidir. Şu anki IBAN için:
+  `b1a57f93e095b4814bf34a0080852393c7b11fcea1a14c24ee4a8f3e03958e45`
+- Sistemdeki IBAN bu özetle tutmazsa (kod ya da veri izinsiz değişmişse) şunlar olur:
+  - Müşteriye IBAN gösterilmez.
+  - Dekont onayı durur.
+  - Yöneticilere "ACİL" e-postası gider (en fazla 6 saatte bir).
+- Her saat sitenin sayfaları da taranır. Onaylı IBAN dışında bir IBAN bulunursa uyarı gider.
+- Admin IBAN'ı değiştirirse panel yeni özeti gösterir. Cloudflare'deki `IBAN_PARMAK_IZI` değeri de güncellenmelidir.

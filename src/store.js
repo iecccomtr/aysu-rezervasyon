@@ -14,7 +14,7 @@
 //   d:<kayitNo>                  müşterinin yüklediği kapora dekontu (fotoğraf/PDF)
 
 import { DurableObject } from "cloudflare:workers";
-import { SAATLER, KURALLAR, DURUM, EKSTRALAR, FIYATLAR } from "./config.js";
+import { SAATLER, KURALLAR, DURUM, EKSTRALAR, FIYATLAR, IBAN } from "./config.js";
 import {
   simdi, gunAdi, gunEkle, macZamani, tarihNormalize, saatNormalize,
   telefonNormalize, telefonGercekci, gecerliSaat, fiyat, isletmeGunu, haftaBasi,
@@ -224,6 +224,17 @@ export function kasaUcYol(guncel, taban, yeni) {
   }
   return sonuc;
 }
+
+/** IBAN doğrulama (TR + 24 hane, mod-97 sağlaması) → boşluksuz büyük harf ya da null */
+export function ibanGecerli(v) {
+  const s = String(v || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (!/^TR\d{24}$/.test(s)) return null;
+  const d = (s.slice(4) + s.slice(0, 4)).replace(/[A-Z]/g, (c) => String(c.charCodeAt(0) - 55));
+  let k = 0;
+  for (const c of d) k = (k * 10 + Number(c)) % 97;
+  return k === 1 ? s : null;
+}
+const ibanYaz = (s) => s.replace(/(.{4})/g, "$1 ").trim();
 
 /** Kasa günü hesapları (sunucu ve panel aynı formülü kullanır) */
 export const kasaOzet = (k) => {
@@ -540,7 +551,9 @@ export class RezervasyonDeposu extends DurableObject {
       const nedenler = [...deger.nedenler];
       const onceki = await this.st.get(`dh:${dosyaOzeti}`);
       // Aynı rezervasyona aynı dekont ikinci kez yüklenirse tutar iki kez sayılmaz
-      const ayniDosya = onceki && onceki.kayitNo === b.kayit.kayitNo && (b.kayit.dekontlar || []).length > 1;
+      // (Önceki yükleme onaylanmadıysa aynı dosya yeniden değerlendirilir: ilk denemede okuma takılmış olabilir)
+      const ayniDosya = onceki && onceki.kayitNo === b.kayit.kayitNo && (b.kayit.dekontlar || []).length > 1
+        && (b.kayit.dekontlar || []).slice(0, -1).some((x) => x.kontrol?.onay);
       if (KURALLAR.dekontTekrarKontrol && onceki && onceki.kayitNo !== b.kayit.kayitNo) nedenler.unshift("Bu dekont daha önce başka bir rezervasyon için kullanılmış.");
       else if (ayniDosya) nedenler.unshift("Bu dekontu zaten yüklediniz.");
       else await this.st.put(`dh:${dosyaOzeti}`, { kayitNo: b.kayit.kayitNo, tarih: simdi().tarih });
@@ -1234,6 +1247,40 @@ export class RezervasyonDeposu extends DurableObject {
         : [`alış ${yeni.alis || 0} · satış ${yeni.satis || 0} · stok ${yeni.stok}`];
       if (fark.length) await this.kayitTut(yapan, eski ? "Kantin ürünü düzenledi" : "Kantin ürünü ekledi", `${yeni.ad} · ${fark.join(" · ")}`);
       return { basarili: true, urun: yeni };
+    });
+  }
+
+  // ---- Kapora IBAN'ı (sadece Admin, şifresiyle değiştirir; her değişiklik yöneticilere e-postayla bildirilir) ----
+  //   ayar:iban  { no, alici, guncelleyen, zaman }
+  async ibanAyar() {
+    const k = await this.st.get("ayar:iban");
+    return k || { no: IBAN.no, alici: IBAN.alici, guncelleyen: "Kurulum", zaman: null };
+  }
+
+  async ibanKaydet({ no, alici, sifre }, yapan) {
+    return this.kilitli(async () => {
+      if (yapan?.rol !== "admin") return { hata: "IBAN'ı sadece Admin değiştirebilir." };
+      const u = await this.st.get(`u:${yapan.eposta}`);
+      if (!u || !esitMi(await sifreHash(String(sifre || ""), u.tuz), u.hash)) return { hata: "Şifreniz hatalı. IBAN değiştirilmedi." };
+      const temiz = ibanGecerli(no);
+      if (!temiz) return { hata: "IBAN geçersiz (TR ile başlayan 26 karakter, sağlama hanesi tutmalı)." };
+      const ad = kirp(alici, 60);
+      if (ad.length < 3) return { hata: "Hesap sahibinin adı gerekli." };
+      const eski = await this.ibanAyar();
+      const yeni = { no: ibanYaz(temiz), alici: ad, guncelleyen: yapan.ad, zaman: simdiYazi() };
+      await this.st.put("ayar:iban", yeni);
+      await this.kayitTut(yapan, "KAPORA IBAN'INI DEĞİŞTİRDİ", `${eski.no} (${eski.alici}) → ${yeni.no} (${yeni.alici})`);
+      return { basarili: true, eski, yeni };
+    });
+  }
+
+  /** Gizli kontrol uyarısı en fazla 6 saatte bir gönderilsin */
+  async ibanUyariZamani() {
+    return this.kilitli(async () => {
+      const son = await this.st.get("ayar:ibanUyari");
+      if (son && Date.now() - son < 6 * 3600_000) return false;
+      await this.st.put("ayar:ibanUyari", Date.now());
+      return true;
     });
   }
 

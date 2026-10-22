@@ -482,6 +482,17 @@
           <button class="dugme" type="submit">Fiyatları kaydet</button>
         </form>
       </div>
+      <div id="iban-alan" hidden>
+        <div class="baslik-satir" style="margin-top:22px"><h2>Kapora IBAN'ı</h2><span class="soluk sag">Sadece Admin</span></div>
+        <form class="kutu" id="iban-form" style="padding:14px" novalidate>
+          <p class="soluk" style="font-size:14px;margin-bottom:10px" id="iban-durum"></p>
+          <div class="alan"><label for="i-no">IBAN</label><input id="i-no" autocomplete="off" placeholder="TR00 0000 0000 0000 0000 0000 00"></div>
+          <div class="alan"><label for="i-alici">Hesap sahibi</label><input id="i-alici" autocomplete="off"></div>
+          <div class="alan"><label for="i-sifre">Panel şifreniz (onay için)</label><input id="i-sifre" type="password" autocomplete="off" readonly onfocus="this.readOnly=false"></div>
+          <button class="dugme" type="submit">IBAN'ı değiştir</button>
+          <div id="iban-ozet"></div>
+        </form>
+      </div>
       <div id="rehber-alan" hidden>
         <div class="baslik-satir" style="margin-top:22px"><h2>Tedarikçiler ve ustalar</h2><span class="soluk sag">Sadece Admin</span></div>
         <form class="kutu" id="rehber-form" style="padding:14px" novalidate>
@@ -1384,6 +1395,7 @@
     $("kullanici-liste").querySelectorAll("[data-i]").forEach((el) => el.addEventListener("click", () => kullaniciDetay(kullanicilar[el.dataset.i])));
     islemYukle();
     fiyatYukle();
+    ibanYukle();
     puantajYukle();
   }
 
@@ -1447,6 +1459,26 @@
     const r = await api("fiyat", g);
     if (r.hata) return bildir(r.hata);
     bildir("Fiyatlar kaydedildi"); islemYukle();
+  });
+
+  async function ibanYukle() {
+    $("iban-alan").hidden = ben.rol !== "admin";
+    if (ben.rol !== "admin") return;
+    const v = await api("iban").catch(() => null);
+    if (!v || v.hata) return;
+    $("i-no").value = v.no; $("i-alici").value = v.alici; $("i-sifre").value = "";
+    $("iban-durum").innerHTML = `Müşteriye gösterilen ve dekontta aranan IBAN. Son değiştiren: ${kacis(v.guncelleyen || "-")} ${kacis(v.zaman || "")}<br>
+      Gizli kontrol: ${v.gizliKontrol ? '<b style="color:#1a7f37">açık</b>' : '<b style="color:#b42318">kapalı</b> (Cloudflare\'de IBAN_PARMAK_IZI tanımlanınca açılır)'}`;
+  }
+  $("iban-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (!confirm(`Kapora IBAN'ı "${$("i-no").value}" (${$("i-alici").value}) olarak değiştirilsin mi? Bütün yöneticilere e-posta gidecek.`)) return;
+    const r = await api("iban", { no: $("i-no").value, alici: $("i-alici").value, sifre: $("i-sifre").value });
+    $("i-sifre").value = "";
+    if (r.hata) return bildir(r.hata);
+    bildir("IBAN değiştirildi");
+    $("iban-ozet").innerHTML = `<p class="bilgi" style="margin-top:12px;font-size:14px">${r.gizliKontrol ? "Gizli kontrol açık: " : ""}Cloudflare → aysu-rezervasyon → Ayarlar → Değişkenler'de <b>IBAN_PARMAK_IZI</b> (Secret) değerini şununla güncelleyin, yoksa site IBAN'ı göstermez:<br><code style="word-break:break-all">${kacis(r.ozet)}</code></p>`;
+    ibanYukle(); islemYukle();
   });
 
   let rehberListe = [];

@@ -684,6 +684,7 @@
 
   // ================= Dekont yükleme =================
   let sonRez = null; // { kayitNo, telefon }
+  let sonIban = null; // sunucunun verdiği kapora IBAN'ı
   /** Ekran görüntüsünü küçültüp JPEG yapar (uzun kenar en fazla 2000 px). */
   async function dosyaHazirla(dosya) {
     if (dosya.type === "application/pdf" || /\.pdf$/i.test(dosya.name)) {
@@ -721,7 +722,7 @@
         else { sonucEl.classList.add("iyi"); sonucEl.textContent = "✓ Dekontunuz doğrulandı, rezervasyonunuz kesinleşti. İyi maçlar!"; }
       } else {
         sonucEl.classList.add("kotu");
-        sonucEl.textContent = `Dekont doğrulanamadı${v.nedenler && v.nedenler.length ? ": " + v.nedenler.join(" ") : "."} IBAN'ı (TR70 0015 7000 0000 0154 8342 35) ve hesap adını (Ahmet Aysu) kontrol edip dekontu yeniden yükleyin. Opsiyon süresi içinde doğrulanmazsa yer boşa çıkar.`;
+        sonucEl.textContent = `Dekont doğrulanamadı${v.nedenler && v.nedenler.length ? ": " + v.nedenler.join(" ") : "."} IBAN'ı${sonIban ? ` (${sonIban.no})` : ""} ve hesap adını${sonIban ? ` (${sonIban.alici})` : ""} kontrol edip dekontu yeniden yükleyin. Opsiyon süresi içinde doğrulanmazsa yer boşa çıkar.`;
       }
     } catch (e) {
       sonucEl.classList.add("kotu"); sonucEl.textContent = e.message || "Dekont yüklenemedi.";
@@ -881,6 +882,7 @@
     $("t-zaman").textContent = zaman;
     $("t-kayit").textContent = v.kayitNo;
     const k = $("t-kapora");
+    if (v.iban) sonIban = { no: v.iban, alici: v.alici };
     if (v.iban) {
       k.innerHTML = `
         <h3>${tl(v.kapora)} kapora gönderin</h3>

@@ -5,7 +5,7 @@ import { simdi, isletmeGunu, gunEkle, haftaBasi } from "./time.js";
 import { KURALLAR, FIYATLAR, IBAN, ISLETME, EKSTRALAR } from "./config.js";
 import { bildir, epostaYolla, epostaKurulu } from "./bildirim.js";
 import { dekontOku, dekontDegerlendir, ozet } from "./dekont-kontrol.js";
-import { ROLLER } from "./store.js";
+import { ROLLER, ibanGecerli } from "./store.js";
 import { kasaPdf } from "./kasa-pdf.js";
 export { RezervasyonDeposu } from "./store.js";
 
@@ -345,6 +345,20 @@ async function panel(request, env, ctx, yol) {
     }
     case "POST kasa/kapora-sil": { const r = await d.gelenKaporaSil(g, ben); return json(r, r.hata ? 400 : 200); }
     case "POST veresiye-ode": return sonuc(await d.veresiyeOde(g, ben));
+    case "GET iban":
+      if (ben.rol !== "admin") return json({ hata: "Sadece Admin." }, 403);
+      return json({ ...(await d.ibanAyar()), gizliKontrol: Boolean(env.IBAN_PARMAK_IZI) });
+    case "POST iban": {
+      const r = await d.ibanKaydet(g, ben);
+      if (!r.basarili) return json(r, 400);
+      ctx.waitUntil((async () => epostaYolla(env, {
+        kime: await d.rolEpostalari(["admin", "mudur", "mudur_yrd"]),
+        konu: "Kapora IBAN'ı değiştirildi",
+        satirlar: [["Değiştiren", `${ben.ad} (Admin)`], ["Eski IBAN", `${r.eski.no} (${r.eski.alici})`], ["Yeni IBAN", `${r.yeni.no} (${r.yeni.alici})`], ["Zaman", r.yeni.zaman]],
+        alt: "Bu değişikliği siz yapmadıysanız hemen Admin'e haber verin.",
+      }))().catch((e) => console.error("IBAN e-postası", e)));
+      return json({ basarili: true, iban: r.yeni, ozet: await ibanOzeti(r.yeni.no), gizliKontrol: Boolean(env.IBAN_PARMAK_IZI) });
+    }
     case "GET rehber": return json(await d.rehber());
     case "POST rehber": { const r = await d.rehberKaydet(g.liste, ben); return json(r, r.hata ? 400 : 200); }
     case "GET temizlik": return json(await d.temizlikUrunleri());
@@ -408,18 +422,46 @@ async function iptalBildir(env, d, r) {
 }
 
 /** Müşteriye dönen rezervasyon özeti (onay ekranı). */
-const rezCevap = (r) => ({
+/**
+ * Gizli IBAN kontrolü: Cloudflare'de Secret olarak tanımlı IBAN_PARMAK_IZI (IBAN'ın SHA-256 özeti) ile
+ * sistemdeki IBAN karşılaştırılır. Tutmazsa (kod ya da veri izinsiz değişmişse) müşteriye IBAN GÖSTERİLMEZ
+ * ve Admin, Müdür, Müdür Yardımcısı'na acil e-posta gider.
+ */
+async function ibanOzeti(no) {
+  const s = ibanGecerli(no) || "";
+  return [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)))].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+async function guvenliIban(env, d, ctx, nereden = "") {
+  const ib = await d.ibanAyar();
+  if (!env.IBAN_PARMAK_IZI) return ib;
+  if ((await ibanOzeti(ib.no)) === String(env.IBAN_PARMAK_IZI).trim().toLowerCase()) return ib;
+  const is = (async () => {
+    if (!(await d.ibanUyariZamani())) return;
+    await d.kayitTut(null, "IBAN GÜVENLİK UYARISI", `Sistemdeki IBAN onaylı IBAN ile tutmuyor: ${ib.no} (${ib.alici}) · ${nereden}`);
+    const kime = await d.rolEpostalari(["admin", "mudur", "mudur_yrd"]);
+    await epostaYolla(env, {
+      kime, konu: "ACİL: Sitedeki kapora IBAN'ı değişmiş görünüyor",
+      satirlar: [["Sistemdeki IBAN", ib.no], ["Hesap adı", ib.alici], ["Son değiştiren", `${ib.guncelleyen || "-"} ${ib.zaman || ""}`], ["Nerede fark edildi", nereden || "-"]],
+      alt: "Bu IBAN onayladığınız IBAN değil. Güvenlik için müşterilere IBAN gösterilmiyor ve dekont onayı durdu. Panelden ve Cloudflare'den kontrol edin; değişikliği siz yapmadıysanız şifreleri değiştirin.",
+    });
+  })().catch((e) => console.error("IBAN uyarısı", e));
+  if (ctx) ctx.waitUntil(is); else await is;
+  return null;
+}
+
+const rezCevap = (r, ib) => ({
   basarili: true, kayitNo: r.kayitNo, tarih: r.tarih, gun: r.gun, saat: r.saat, durum: r.durum,
   ucret: r.ucret, kapora: r.kaporaTutar ?? FIYATLAR.kapora, kalan: r.ucret - (r.kaporaTutar ?? FIYATLAR.kapora),
-  iban: IBAN.no || null, alici: IBAN.alici || null, opsiyonBitis: r.opsiyonBitis || null, dekont: Boolean(r.dekont),
+  iban: ib?.no || null, alici: ib?.alici || null, opsiyonBitis: r.opsiyonBitis || null, dekont: Boolean(r.dekont),
   // Telefon saati yanlış olabilir: kalan süre sunucudan milisaniye olarak
   opsiyonKalan: r.opsiyonBitis ? Math.max(0, r.opsiyonBitis - Date.now()) : null,
 });
 
 /** Dekontu okur, kurallara göre değerlendirir ve sonucu rezervasyona yazar. */
 async function dekontKontrolEt(env, d, rez, veri) {
+  const ib = await guvenliIban(env, d, null, "dekont kontrolü");
   const kurallar = {
-    iban: IBAN.no, alici: IBAN.alici, kapora: rez.kaporaTutar ?? FIYATLAR.kapora,
+    iban: ib?.no || "IBAN-ONAYSIZ", alici: ib?.alici || "-", kapora: rez.kaporaTutar ?? FIYATLAR.kapora,
     rezTarihi: String(rez.olusturma || "").slice(0, 10) || null, bugun: simdi().tarih,
     tarihKontrol: KURALLAR.dekontTarihKontrol, enAzTutar: KURALLAR.dekontEnAzTutar || 0,
   };
@@ -575,7 +617,7 @@ export default {
         if (!r.basarili) return json(r, 409);
         onbellegiTemizle(request, ctx);
         // E-posta gönderilmez: kapora (dekont) doğrulanınca "Yeni rezervasyon" e-postası gider
-        return json(rezCevap(r));
+        return json(rezCevap(r, await guvenliIban(env, depo(env), ctx, "rezervasyon")));
       } catch (e) {
         console.error(e);
         return json({ hata: `Rezervasyon şu an kaydedilemedi. Lütfen ${ISLETME.telefon} numarasını arayın.` }, 502);
@@ -638,7 +680,7 @@ export default {
       if (!g) return json({ hata: "Geçersiz istek." }, 400);
       const r = await depo(env).rezSorgula(g);
       if (!r.basarili) return json(r, 404);
-      return json({ ...rezCevap(r), ad: r.ad, kaporaOdenen: r.kapora || null, ekstra: (r.ekstra || []).map((x) => EKSTRALAR[x]?.ad || x),
+      return json({ ...rezCevap(r, await guvenliIban(env, depo(env), ctx, "rezervasyon kontrol")), ad: r.ad, kaporaOdenen: r.kapora || null, ekstra: (r.ekstra || []).map((x) => EKSTRALAR[x]?.ad || x),
         opsiyonKalan: r.durum === "Kapora bekleniyor" && r.opsiyonBitis ? Math.max(0, r.opsiyonBitis - Date.now()) : null });
     }
 
@@ -649,7 +691,7 @@ export default {
       const g = await govdeOku(request);
       if (!g) return json({ hata: "Geçersiz istek." }, 400);
       const r = await depo(env).opsiyonDevam(g);
-      return r.basarili ? json(rezCevap(r)) : json(r, 400);
+      return r.basarili ? json(rezCevap(r, await guvenliIban(env, depo(env), ctx, "opsiyon devam"))) : json(r, 400);
     }
 
     // Onay ekranı açıkken birkaç saniyede bir güncel durum (opsiyon süresi, onay, düşme)
@@ -728,6 +770,27 @@ export default {
     }
     // 5 dakikada bir: dekontu gelmeyen online opsiyonları düşür, işletmeye haber ver
     ctx.waitUntil(depo(env).opsiyonlariDusur());
+    // Gizli IBAN kontrolü: sistemdeki IBAN + sitenin sayfalarında yazan IBAN'lar onaylı IBAN mı?
+    if (new Date().getUTCMinutes() < 5) ctx.waitUntil((async () => {
+      const d = depo(env);
+      const ib = await guvenliIban(env, d, null, "saatlik kontrol");
+      if (!ib) return;
+      const onayli = ibanGecerli(ib.no);
+      for (const sayfa of ["/rezervasyon/", "/", "/kvkk.html"]) {
+        const html = await (await env.ASSETS.fetch(new Request("https://aysuhalisaha.com" + sayfa))).text().catch(() => "");
+        const bulunan = [...html.toUpperCase().matchAll(/TR\s?\d{2}(?:\s?\d{4}){5}\s?\d{2}/g)].map((m) => m[0].replace(/\s/g, ""));
+        const yabanci = bulunan.filter((x) => x !== onayli);
+        if (yabanci.length && (await d.ibanUyariZamani())) {
+          await d.kayitTut(null, "IBAN GÜVENLİK UYARISI", `${sayfa} sayfasında onaysız IBAN: ${yabanci.join(", ")}`);
+          await epostaYolla(env, {
+            kime: await d.rolEpostalari(["admin", "mudur", "mudur_yrd"]),
+            konu: "ACİL: Site sayfasında farklı bir IBAN var",
+            satirlar: [["Sayfa", `aysuhalisaha.com${sayfa}`], ["Bulunan IBAN", yabanci.join(", ")], ["Onaylı IBAN", ib.no]],
+            alt: "Sitenin dosyaları izinsiz değiştirilmiş olabilir. GitHub ve Cloudflare'de son değişiklikleri kontrol edin.",
+          });
+        }
+      }
+    })().catch((e) => console.error("IBAN kontrolü", e)));
     // İş başı saati geldi ama hiçbir çalışan GELDİM demedi → Admin, Müdür ve Müdür Yardımcısı'na uyarı
     ctx.waitUntil((async () => {
       const d = depo(env);

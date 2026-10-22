@@ -849,3 +849,18 @@ test("Açılış uyarısı: iş başı saatinde GELDİM diyen yoksa bir kez uyar
   saatiAyarla("2026-10-20T18:50"); await d.puantajGiris(p);
   saatiAyarla("2026-10-20T19:05"); assert.equal(await d.acilisKontrol(), null);
 });
+
+test("IBAN: sadece Admin şifresiyle değiştirir; geçersiz IBAN reddedilir", async () => {
+  const { ibanGecerli } = await import("../src/store.js");
+  assert.equal(ibanGecerli("TR70 0015 7000 0000 0154 8342 35"), "TR700015700000000154834235");
+  assert.equal(ibanGecerli("TR70 0015 7000 0000 0154 8342 36"), null, "sağlama tutmaz");
+  const d = demoDepo({ PANEL_KURULUM_KODU: "k" });
+  const admin = await d.oturum((await d.panelKur({ kurulumKodu: "k", eposta: "admin@aysu.com", ad: "Admin", sifre: "aysu-2026!" })).token);
+  assert.equal((await d.ibanAyar()).no, "TR70 0015 7000 0000 0154 8342 35");
+  assert.match((await d.ibanKaydet({ no: "TR33 0006 1005 1978 6457 8413 26", alici: "Ahmet Aysu", sifre: "yanlis" }, admin)).hata, /Şifre/);
+  assert.match((await d.ibanKaydet({ no: "TR33 0006 1005 1978 6457 8413 26", alici: "X", sifre: "aysu-2026!" }, { ...admin, rol: "mudur" })).hata, /Admin/);
+  const r = await d.ibanKaydet({ no: "TR330006100519786457841326", alici: "Ahmet Aysu", sifre: "aysu-2026!" }, admin);
+  assert.ok(r.basarili, JSON.stringify(r));
+  assert.equal((await d.ibanAyar()).no, "TR33 0006 1005 1978 6457 8413 26");
+  assert.ok((await d.islemler()).some((x) => x.islem === "KAPORA IBAN'INI DEĞİŞTİRDİ"));
+});

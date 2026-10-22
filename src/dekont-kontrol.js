@@ -238,7 +238,7 @@ export function dekontDegerlendir(okunan, { iban, alici, kapora, rezTarihi, bugu
   }
   const tarih = tarihNorm(okunan.tarih);
   if (!tarihKontrol) { /* tarih kontrolü kapalı (config.js → KURALLAR.dekontTarihKontrol) */ }
-  else if (!tarih) nedenler.push("Dekont tarihi okunamadı.");
+  else if (!tarih) { /* tarih okunamadıysa engellemez (okuma hatası); okunduysa eski / ileri tarih kontrol edilir */ }
   else if (rezTarihi && tarih < oncekiGun(rezTarihi)) nedenler.push(`Dekont tarihi (${tarih}) rezervasyondan önce.`);
   else if (bugun && tarih > bugun) nedenler.push(`Dekont tarihi (${tarih}) ileri bir tarih.`);
   return { onay: nedenler.length === 0, nedenler, tutar, eksik, tutarOkunamadi: tutar == null, okunan };

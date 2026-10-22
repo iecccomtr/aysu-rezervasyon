@@ -168,7 +168,8 @@ Tüm kayıtlar Cloudflare'in **Durable Object** veritabanında tutulur. Cloudfla
 - Beklenen çıkış: son maç bitişinden 30 dk sonra.
 
 **Ödenecek saat ve ücret**
-- Ödenecek saat = GELDİM–ÇIKTIM arası + **yarım saat yol**.
+- Ödenecek saat = GELDİM–ÇIKTIM arası (yarım saate yuvarlanır: 5 sa 10 dk → 5; 5 sa 20 dk → 5,5) + **yarım saat yol**.
+- Personelin kantin tüketimi (Kasa → Personel kantini) ücretinden düşülür: o gün çalışıyorsa o günden, çalışmıyorsa (ziyarette) çalıştığı ilk günden.
 - Ücret = ödenecek saat × saatlik ücret.
 - Saatlik ücreti Admin, Kullanıcılar sekmesinde kişiye dokunup girer.
 

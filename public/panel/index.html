@@ -1433,7 +1433,7 @@
     let durum, dugme = "";
     if (!k.giris) { durum = "Henüz GELDİM demediniz"; dugme = `<button class="dugme" type="button" id="p-giris" style="background:#1a7f37;font-size:20px;font-weight:800">GELDİM</button>`; }
     else if (!k.cikis) { durum = `Geldim: <b>${saatYaz(k.giris)}</b>`; dugme = `<button class="dugme" type="button" id="p-cikis" style="background:#b42318;font-size:20px;font-weight:800">ÇIKTIM</button>`; }
-    else { const sa = (k.cikis - k.giris) / 3600000; durum = `Geldim ${saatYaz(k.giris)} · Çıktım ${saatYaz(k.cikis)} · <b>${saatSayi(sa)} + ${saatSayi(p.yolSaat)} yol = ${saatSayi(Math.round((sa + p.yolSaat) * 100) / 100)} saat</b>`; }
+    else { const sa = Math.round(((k.cikis - k.giris) / 3600000) * 2) / 2; durum = `Geldim ${saatYaz(k.giris)} · Çıktım ${saatYaz(k.cikis)} · <b>${saatSayi(sa)} + ${saatSayi(p.yolSaat)} yol = ${saatSayi(Math.round((sa + p.yolSaat) * 100) / 100)} saat</b>`; }
     el.className = `kutu puantaj${k.giris && !k.cikis ? " acik" : ""}`;
     el.innerHTML = `<div class="bilgi-k">${plan}<br>${durum}<br><small class="soluk">Bu ay: ${saatSayi(p.buAy.saat)} saat${p.saatlikUcret ? ` · ${para(p.buAy.ucret)}` : ""}</small></div>${dugme}`;
     el.hidden = false;
@@ -1480,7 +1480,7 @@
   function puantajDetay(k) {
     const duzeltir = ["admin", "mudur"].includes(ben.rol);
     const ic = ac(`${k.ad} · puantaj`, `
-      <p class="soluk" style="margin-bottom:10px">${saatSayi(k.saat)} saat × ${saatSayi(k.saatlikUcret)} ₺ = ${para(k.brut)}${k.kesinti ? ` − kantin ${para(k.kesinti)}` : ""} = <b>${para(k.ucret)}</b></p>
+      <p class="soluk" style="margin-bottom:10px">${saatSayi(k.saat)} saat × ${saatSayi(k.saatlikUcret)} ₺ = ${para(k.brut)}${k.kesinti ? ` − kantin ${para(k.kesinti)}` : ""} = <b>${para(k.ucret)}</b>${k.bekleyenKesinti ? `<br><small>Çalışmadığı günde aldığı ${para(k.bekleyenKesinti)} kantin, çalıştığı ilk günden düşülecek.</small>` : ""}<br><small>Saatler yarım saate yuvarlanır, her güne yarım saat yol eklenir.</small></p>
       <table class="stok-t"><thead><tr><th>Gün</th><th>Giriş</th><th>Çıkış</th><th>Saat</th><th>Kantin</th></tr></thead><tbody>
       ${k.gunler.map((g, i) => `<tr data-g="${i}"${g.acik ? ' class="az"' : ""}><td>${tarihYazi(g.gun)} ${KISA[gunNo(g.gun)]}${g.duzelten ? ` <small class="soluk">(düzelten: ${kacis(g.duzelten)})</small>` : ""}</td><td>${g.giris || "—"}</td><td>${g.cikis || (g.acik ? "açık" : "—")}</td><td>${saatSayi(g.saat)}</td><td>${g.kesinti ? "−" + para(g.kesinti) : "—"}</td></tr>`).join("")}
       </tbody></table>
@@ -1613,7 +1613,7 @@
     const kr = kira();
     const ikramSayi = (kim) => Object.values(kk.ikram?.[kim] || {}).reduce((t, a) => t + a, 0);
     const ikramKisiler = () => {
-      const l = new Map(kasa.calisanlar.map((c) => [`p:${c.eposta}`, c.ad]));
+      const l = new Map((kasa.personel || []).sort((a, c) => Number(c.calisiyor) - Number(a.calisiyor)).map((c) => [`p:${c.eposta}`, c.calisiyor ? c.ad : `${c.ad} (bugün çalışmıyor)`]));
       for (const k of Object.keys(kk.ikram || {})) if (k.startsWith("p:") && !l.has(k)) l.set(k, kasa.kayit.ikramAdlari?.[k] || k.slice(2));
       return [...l];
     };
@@ -1662,8 +1662,8 @@
           <b>${para(v.tutar)}</b><button class="dugme ikincil kucuk" type="button" data-ode="${i}">Ödendi</button></div>`).join("")}</div>` : ""}
 
       <div class="kutu kasa-kart"><h3>Personel kantini<span class="sag soluk" data-top="personel"></span></h3>
-        <p class="soluk" style="font-size:13px;margin-bottom:8px">Bugün GELDİM diyen çalışanlar. Aldıkları ürünler stoktan düşer, tutarı o günkü ücretinden otomatik kesilir.</p>
-        <div class="k-alt" style="margin:0">${ikramKisiler().map(([kim, ad]) => `<button class="dugme ikincil kucuk" type="button" data-ikram="${kacis(kim)}">${kacis(ad)}${ikramSayi(kim) ? ` · ${ikramSayi(kim)}` : ""}</button>`).join("") || '<span class="soluk">Bugün henüz GELDİM diyen yok.</span>'}</div>
+        <p class="soluk" style="font-size:13px;margin-bottom:8px">Çalışanın aldığı ürünler stoktan düşer, tutarı ücretinden otomatik kesilir: o gün çalışıyorsa o günün, çalışmıyorsa (ziyarete geldiyse) çalıştığı ilk günün ücretinden.</p>
+        <div class="k-alt" style="margin:0">${ikramKisiler().map(([kim, ad]) => `<button class="dugme ikincil kucuk" type="button" data-ikram="${kacis(kim)}">${kacis(ad)}${ikramSayi(kim) ? ` · ${ikramSayi(kim)}` : ""}</button>`).join("") || '<span class="soluk">Aktif çalışan yok.</span>'}</div>
       </div>
       <div class="kutu kasa-kart"><h3>Ücretsiz ikram<span class="sag soluk" data-top="ikram"></span></h3>
         <p class="soluk" style="font-size:13px;margin-bottom:8px">Kasaya para girmez, stoktan düşer. Maça özel ikram için maç kutusundaki İkram düğmesini kullanın.</p>
@@ -1791,7 +1791,7 @@
         { kim: m.veresiyeKim || m.ad || "", aciklama: "Veresiye: stoktan düşer, fiyat / ciro etkilenmez." });
     } else if (b.dataset.ikram) {
       const kim = b.dataset.ikram;
-      const kimAd = kim.startsWith("p:") ? (kasa.calisanlar.find((c) => `p:${c.eposta}` === kim)?.ad || kasa.kayit.ikramAdlari?.[kim] || kim.slice(2)) : kim;
+      const kimAd = kim.startsWith("p:") ? ((kasa.personel || []).find((c) => `p:${c.eposta}` === kim)?.ad || kasa.kayit.ikramAdlari?.[kim] || kim.slice(2)) : kim;
       urunSec(`${kimAd} · ${kim.startsWith("p:") ? "kantin (ücretinden düşülür)" : "ikram"}`, kk.ikram?.[kim] || {}, (yeni) => { kk.ikram = { ...(kk.ikram || {}), [kim]: yeni }; degisti(); kasaCiz(); });
     } else if (b.id === "k-mac-ekle") {
       kk.maclar.push({ saat: "", tur: "normal", ad: "", ucret: kasa.fiyat.mac, vip: 0, onOdeme: 0, krampon: 0, eldiven: 0, kantin: {} }); degisti(); kasaCiz();

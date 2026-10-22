@@ -684,3 +684,24 @@ test("Personel kantini ücretinden düşülür; stok bitince satış durur", asy
   assert.equal((await d.kasaGetir("2026-10-19", admin)).calisanlar[0].ucret, 850);
   assert.match((await d.kasaKaydet({ ...r.kayit, ikram: { "VIP / ücretsiz ikram": { [biskrem.id]: 1 } } }, admin)).hata, /stokta yok/);
 });
+
+test("Puantaj: süre yarım saate yuvarlanır; çalışmadığı gün aldığı kantin çalıştığı ilk günden düşülür", async () => {
+  const d = demoDepo({ PANEL_KURULUM_KODU: "k" });
+  const admin = await d.oturum((await d.panelKur({ kurulumKodu: "k", eposta: "admin@aysu.com", ad: "Admin", sifre: "aysu-2026!" })).token);
+  await d.kayitOl({ eposta: "p@aysu.com", ad: "Personel Bir", sifre: "personel-1", rol: "personel" });
+  await d.kullaniciGuncelle({ eposta: "p@aysu.com", rol: "personel", durum: "aktif", saatlikUcret: "100" }, admin);
+  const p = await d.oturum((await d.panelGiris({ eposta: "p@aysu.com", sifre: "personel-1" })).token);
+  // 19 Ekim: çalışmıyor, ziyarete gelip kantinden aldı
+  const k = await d.kasaGetir("2026-10-19", admin);
+  assert.ok(k.personel.some((x) => x.eposta === "p@aysu.com" && !x.calisiyor));
+  const su = k.urunler[22];
+  assert.ok((await d.kasaKaydet({ ...k.kayit, ikram: { "p:p@aysu.com": { [su.id]: 2 } } }, admin)).basarili);
+  assert.equal((await d.puantajAy("2026-10")).kisiler.length, 0);
+  // 21 Ekim çalıştı: 18:00–23:20 → 5 sa 20 dk → 5,5 + 0,5 yol = 6 saat
+  saatiAyarla("2026-10-21T18:00"); await d.puantajGiris(p);
+  saatiAyarla("2026-10-21T23:20"); await d.puantajCikis(p);
+  const kisi = (await d.puantajAy("2026-10")).kisiler[0];
+  assert.equal(kisi.saat, 6);
+  assert.equal(kisi.gunler[0].kesinti, 2 * su.satis, "ziyaret günündeki kantin ilk iş gününden düşülür");
+  assert.equal(kisi.ucret, 600 - 2 * su.satis);
+});

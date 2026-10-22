@@ -438,11 +438,11 @@ async function puantajOzetGonder(env, d, ben, r) {
   if (!gunK) return;
   const sa = (n) => `${String(n).replace(".", ",")} saat`;
   const tl = (n) => `${Math.round(n).toLocaleString("tr-TR")} TL`;
-  const calisilan = Math.round((gunK.saat - KURALLAR.puantajYolSaat) * 100) / 100;
+  const calisilan = gunK.saat - KURALLAR.puantajYolSaat; // yarım saate yuvarlanmış
   await epostaYolla(env, {
     kime: [ben.eposta], konu: `Çalışma özeti ${r.gun.split("-").reverse().join(".")}: ${sa(gunK.saat)}`,
     satirlar: [
-      ["Geldim", gunK.giris], ["Çıktım", gunK.cikis], ["Çalışılan", sa(calisilan)], ["Yol", sa(KURALLAR.puantajYolSaat)],
+      ["Geldim", gunK.giris], ["Çıktım", gunK.cikis], ["Çalışılan (yarım saate yuvarlı)", sa(calisilan)], ["Yol", sa(KURALLAR.puantajYolSaat)],
       ["Toplam", sa(gunK.saat)],
       ...(gunK.kesinti ? [["Kantin (ücretten düşülür)", "−" + tl(gunK.kesinti)]] : []),
       ...(kisi.saatlikUcret ? [["Ücret", tl(gunK.saat * kisi.saatlikUcret - (gunK.kesinti || 0))]] : []),

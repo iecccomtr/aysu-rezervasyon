@@ -601,13 +601,15 @@ export default {
         const uzanti = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "application/pdf": "pdf" }[r.dekont.tur];
         // Sadece bu dekontla kesinleşen rezervasyon için "Yeni rezervasyon" e-postası
         // (doğrulanamayan dekont ya da kaporanın ikinci parçası için e-posta yok; eksik kapora 15 dk sonra bildirilir)
-        if (k.onay && r.durum !== "Onaylı") ctx.waitUntil(bildir(env, {
+        if (k.onay && r.durum !== "Onaylı") ctx.waitUntil((async () => bildir(env, {
+          // İşletme adresi + Admin, Müdür ve Müdür Yardımcısı (rolü o an olan herkes)
+          ekKime: await d.rolEpostalari(["admin", "mudur", "mudur_yrd"]),
           konu: `Yeni rezervasyon: ${r.gun} ${r.saat} (${r.kayitNo})`,
           satirlar: [["Maç", `${r.gun}, ${r.tarih} saat ${r.saat}`], ["Ad soyad", r.ad], ["Telefon", r.telefon], ["Kayıt no", r.kayitNo],
             ["VIP", r.ekstra?.length ? r.ekstra.map((x) => EKSTRALAR[x].ad).join(", ") : "-"], ["Toplam ücret", `${r.ucret} TL`],
             ["Kapora", `${k.rez.kapora || "?"} TL (dekont ekte)`], ["Durum", "Onaylı — kapora dekontla doğrulandı"]],
           ekler: [{ ad: `dekont-${r.kayitNo}.${uzanti}`, tur: r.dekont.tur, veri }],
-        }));
+        }))());
         return json({ basarili: true, kayitNo: r.kayitNo, onay: k.onay, nedenler: k.onay ? [] : k.nedenler,
           toplam: k.toplam, gereken: k.gereken, eksik: k.onay && k.eksik, durum: k.rez.durum });
       } catch (e) {

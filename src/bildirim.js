@@ -81,7 +81,10 @@ export async function bildir(env, bildirim) {
   const metin = `${bildirim.konu}\n${bildirim.satirlar.map(([k, v]) => `${k}: ${v}`).join("\n")}`;
   // Telegram'a ek gönderilmez, sadece metin
   const sonuclar = await Promise.allSettled([
-    epostaYolla(env, { kime: [env.BILDIRIM_EPOSTA || VARSAYILAN_ALICI], ...bildirim, alt: "Ayrıntılar yönetim panelinde: /panel" }),
+    epostaYolla(env, {
+      kime: [...new Set([env.BILDIRIM_EPOSTA || VARSAYILAN_ALICI, ...(bildirim.ekKime || [])])],
+      konu: bildirim.konu, satirlar: bildirim.satirlar, ekler: bildirim.ekler || [], alt: "Ayrıntılar yönetim panelinde: /panel",
+    }),
     telegramGonder(env, metin),
   ]);
   for (const s of sonuclar) if (s.status === "rejected") console.error("Bildirim hatası", s.reason);

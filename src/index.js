@@ -250,7 +250,20 @@ async function panel(request, env, ctx, yol) {
   }
   // Puantaj: her çalışan kendi giriş / çıkışını onaylar
   if (yol === "puantaj/bugun" && request.method === "GET") return json(await d.puantajBugun(ben));
-  if (yol === "puantaj/giris" && post) { const r = await d.puantajGiris(ben); return json(r, r.hata ? 400 : 200); }
+  if (yol === "puantaj/giris" && post) {
+    const r = await d.puantajGiris(ben);
+    // GELDİM: Admin ve Müdür'e bilgi
+    if (r.basarili) ctx.waitUntil((async () => {
+      const kime = (await d.rolEpostalari(["admin", "mudur"])).filter((e) => e !== ben.eposta);
+      const saat = new Date(Date.now() + 3 * 3600_000).toISOString().slice(11, 16);
+      await epostaYolla(env, {
+        kime, konu: `${ben.ad} işe geldi (${saat})`,
+        satirlar: [["Çalışan", `${ben.ad} (${ben.rolAd || ""})`], ["Geldim saati", saat]],
+        dugme: { yazi: "Paneli aç", link: `${url.origin}/panel/` }, alt: "Aysu Halı Saha puantaj",
+      });
+    })().catch((e) => console.error("Geldim e-postası", e)));
+    return json(r, r.hata ? 400 : 200);
+  }
   if (yol === "puantaj/cikis" && post) {
     const r = await d.puantajCikis(ben);
     // Gün sonu: çalışana o günün özeti (yarım saat yol dahil) e-postayla
@@ -267,7 +280,7 @@ async function panel(request, env, ctx, yol) {
     if (r.hata) return json(r, 400);
     const kime = (await d.rolEpostalari(["admin", "mudur", "mudur_yrd"])).filter((e) => e !== ben.eposta);
     ctx.waitUntil(epostaYolla(env, {
-      kime, konu: `✓ ${r.gorev.ad} yapıldı — ${r.kayit.ad}`,
+      kime, konu: `Görev yapıldı: ${r.gorev.ad} — ${r.kayit.ad}`,
       satirlar: [["Görev", r.gorev.ad], ["Yapan", `${r.kayit.ad}${r.kayit.rol ? " (" + r.kayit.rol + ")" : ""}`],
         ["Zaman", `${r.gun.split("-").reverse().join(".")} ${r.kayit.saat}`], ...(r.kayit.not ? [["Not", r.kayit.not]] : [])],
       dugme: { yazi: "Görevler sayfası", link: `${url.origin}/panel/#gorevler` },
@@ -342,7 +355,7 @@ async function panel(request, env, ctx, yol) {
       const r = await d.aboneAtla(g);
       if (r.basarili && r.tarihler?.length) {
         const ad = `${r.no ? "Abone " + r.no + " · " : ""}${r.ad}`;
-        aboneBildir(g.gelmiyor ? `${ad} bu hafta GELMİYOR` : `${ad} yine geliyor (gelmiyor işareti kaldırıldı)`, [
+        aboneBildir(g.gelmiyor ? `${ad} bu hafta gelmiyor` : `${ad} yine geliyor (gelmiyor işareti kaldırıldı)`, [
           ["Abone", ad], [g.gelmiyor ? "Gelmeyeceği maç" : "Geleceği maç", r.tarihler.map((t) => `${trTarih(t.slice(0, 10))} ${t.slice(11)}`).join(", ")],
           ["Durum", g.gelmiyor ? "Saat boşa çıktı, rezervasyona açık" : "Saat yeniden aboneye ayrıldı"]]);
       }
@@ -558,7 +571,7 @@ async function guvenliIban(env, d, ctx, nereden = "") {
     await d.kayitTut(null, "IBAN GÜVENLİK UYARISI", `Sistemdeki IBAN onaylı IBAN ile tutmuyor: ${ib.no} (${ib.alici}) · ${nereden}`);
     const kime = await d.rolEpostalari(["admin", "mudur", "mudur_yrd"]);
     await epostaYolla(env, {
-      kime, konu: "ACİL: Sitedeki kapora IBAN'ı değişmiş görünüyor",
+      kime, konu: "Önemli: Sitedeki kapora IBAN'ı değişmiş görünüyor",
       satirlar: [["Sistemdeki IBAN", ib.no], ["Hesap adı", ib.alici], ["Son değiştiren", `${ib.guncelleyen || "-"} ${ib.zaman || ""}`], ["Nerede fark edildi", nereden || "-"]],
       alt: "Bu IBAN onayladığınız IBAN değil. Güvenlik için müşterilere IBAN gösterilmiyor ve dekont onayı durdu. Panelden ve Cloudflare'den kontrol edin; değişikliği siz yapmadıysanız şifreleri değiştirin.",
     });
@@ -774,7 +787,7 @@ export default {
         // Ücretsiz kodla yapılan rezervasyon hemen kesinleşir: yöneticilere bilgi
         if (r.ucretsiz) ctx.waitUntil((async () => { const d2 = depo(env); await bildir(env, {
           ekKime: await d2.rolEpostalari(["admin", "mudur", "mudur_yrd"]),
-          konu: `Yeni rezervasyon (ÜCRETSİZ MAÇ): ${r.gun} ${r.saat}`,
+          konu: `Yeni rezervasyon (ücretsiz maç): ${r.gun} ${r.saat}`,
           satirlar: [["Maç", `${r.gun}, ${r.tarih} saat ${r.saat}`], ["Ad soyad", r.ad], ["Telefon", r.telefon], ["Kayıt no", r.kayitNo],
             ["Ücretsiz", r.ucretsiz.neden], ["Ücret", r.ucret ? `${r.ucret} TL (VIP)` : "Ücretsiz"]],
         }); })().catch((e) => console.error("Kod e-postası", e)));
@@ -958,7 +971,7 @@ export default {
           await d.kayitTut(null, "IBAN GÜVENLİK UYARISI", `${sayfa} sayfasında onaysız IBAN: ${yabanci.join(", ")}`);
           await epostaYolla(env, {
             kime: await d.rolEpostalari(["admin", "mudur", "mudur_yrd"]),
-            konu: "ACİL: Site sayfasında farklı bir IBAN var",
+            konu: "Önemli: Site sayfasında farklı bir IBAN var",
             satirlar: [["Sayfa", `aysuhalisaha.com${sayfa}`], ["Bulunan IBAN", yabanci.join(", ")], ["Onaylı IBAN", ib.no]],
             alt: "Sitenin dosyaları izinsiz değiştirilmiş olabilir. GitHub ve Cloudflare'de son değişiklikleri kontrol edin.",
           });
@@ -995,7 +1008,7 @@ export default {
       const kime = await d.rolEpostalari(["admin", "mudur", "mudur_yrd"]);
       if (!kime.length) return;
       await epostaYolla(env, {
-        kime, konu: `UYARI: İşyeri açılmadı — çalışan görünmüyor (${u.gunAd} ilk maç ${u.ilkMac})`,
+        kime, konu: `Uyarı: İşyeri açılmadı — çalışan görünmüyor (${u.gunAd} ilk maç ${u.ilkMac})`,
         satirlar: [["Gün", `${u.gunAd} ${u.gun.split("-").reverse().join(".")}`], ["İş başı", u.baslama], ["İlk maç", u.ilkMac], ["Son maç", u.sonMac || "-"],
           ["Durum", "Henüz hiçbir çalışan panelden GELDİM demedi"]],
         alt: "Sahayı açacak çalışanı arayın. Çalışan geldiyse panelden GELDİM'e basmasını hatırlatın.",

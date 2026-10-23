@@ -63,12 +63,16 @@ export async function smtpGonder(p) {
   const o = new Oturum(soket);
   try {
     await o.komut(null, [220]);
-    await o.komut("EHLO localhost", [250]);
+    await o.komut("EHLO aysuhalisaha.com", [250]);
     await o.komut("AUTH LOGIN", [334]);
     await o.komut(b64(p.kullanici), [334]);
     await o.komut(b64(p.sifre), [235]);
+    // Her alıcıya ayrı e-posta (toplu gönderim gibi görünmesin, spam puanı düşsün); aynı oturumda
+    let basarili = 0, sonHata = null;
+    for (const alici of [...new Set(p.kime)]) {
+    try {
     await o.komut(`MAIL FROM:<${p.kimden}>`, [250]);
-    for (const k of p.kime) await o.komut(`RCPT TO:<${k}>`, [250, 251]);
+    await o.komut(`RCPT TO:<${alici}>`, [250, 251]);
     await o.komut("DATA", [354]);
     const sinir = "aysu-" + crypto.randomUUID();
     const ekSinir = "aysu-ek-" + crypto.randomUUID();
@@ -105,16 +109,21 @@ export async function smtpGonder(p) {
     ] : [`Content-Type: multipart/alternative; boundary="${sinir}"`, "", ...govde];
     const mesaj = [
       `From: ${baslik(p.kimdenAd || "Aysu Halı Saha")} <${p.kimden}>`,
-      `To: ${p.kime.join(", ")}`,
+      `To: <${alici}>`,
       `Subject: ${baslik(p.konu)}`,
-      `Date: ${new Date().toUTCString()}`,
+      `Date: ${new Date().toUTCString().replace("GMT", "+0000")}`,
       // Message-ID'yi Gmail kendisi ekler (gönderen alan adıyla uyumlu olsun diye, aksi spam puanını artırır)
       `Reply-To: ${p.kimden}`,
       "MIME-Version: 1.0",
+      "Content-Language: tr",
       ...icerik,
       ".",
     ].join("\r\n");
     await o.komut(mesaj, [250]);
+    basarili++;
+    } catch (e) { sonHata = e; await o.komut("RSET", [250]).catch(() => {}); } // bir alıcı hatalıysa diğerlerine yine gönder
+    }
+    if (!basarili && sonHata) throw sonHata;
     await o.komut("QUIT", [221]).catch(() => {});
   } finally {
     try { await soket.close(); } catch {}

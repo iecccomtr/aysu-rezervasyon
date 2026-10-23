@@ -8,7 +8,7 @@ import * as bildirimModulu from "./bildirim.js";
 import { TESIS_KURALLARI } from "./tesis-kurallari.js";
 import { dekontOku, dekontDegerlendir, ozet } from "./dekont-kontrol.js";
 import { ROLLER, ibanGecerli } from "./store.js";
-import { kasaPdf } from "./kasa-pdf.js";
+import { kasaPdf, kasaPdfDetayli } from "./kasa-pdf.js";
 export { RezervasyonDeposu } from "./store.js";
 
 const OTURUM_CEREZ = "aysu_panel";
@@ -525,6 +525,20 @@ async function panel(request, env, ctx, yol) {
       }).catch(() => {}));
       return json(r, 200, { "set-cookie": `${OTURUM_CEREZ}=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0` });
     }
+    case "POST kasa/detayli": {
+      // Admin: seçili günün detaylı kasa raporu (PDF) e-postasına
+      if (ben.rol !== "admin") return json({ hata: "Sadece Admin." }, 403);
+      const k = (await d.kasaGetir(g.gun, ben))?.kayit;
+      if (!k || !k.ozet) return json({ hata: "Bu günün kasası henüz kaydedilmedi." }, 400);
+      const tarih = k.gun.split("-").reverse().join(".");
+      const ok = await epostaYolla(env, {
+        kime: [ben.eposta], konu: `Detaylı kasa raporu ${tarih}`,
+        satirlar: [["Gün", tarih], ["Kaydeden", `${k.guncelleyen || ""} · ${k.guncelleme || ""}`]],
+        alt: "Maç maç tablo, kantin ürünleri ve kâr, ikramlar, veresiye ve tam gün sonu ekteki PDF'te.",
+        ekler: [{ ad: `aysu-kasa-detayli-${k.gun}.pdf`, tur: "application/pdf", veri: kasaPdfDetayli(k) }],
+      });
+      return ok ? json({ basarili: true }) : json({ hata: "E-posta gönderilemedi." }, 500);
+    }
     case "POST yedek": {
       if (ben.rol !== "admin") return json({ hata: "Sadece Admin." }, 403);
       const ok = await yedekGonder(env, d, [ben.eposta], "İsteğiniz üzerine alındı.");
@@ -653,12 +667,26 @@ async function kasaRaporuGonder(env, d, k, ilk) {
   const o = k.ozet;
   const para = (n) => `${Math.round(Number(n) || 0).toLocaleString("tr-TR")} TL`;
   const tarih = k.gun.split("-").reverse().join(".");
+  // O gün çalışanlar: saat ve ücret (puantajdan)
+  const ay = await d.puantajAy(k.gun.slice(0, 7)).catch(() => null);
+  const calisanlar = (ay?.kisiler || []).map((p) => {
+    const g = p.gunler.find((x) => x.gun === k.gun);
+    return g ? { ad: p.ad, rol: p.rol, giris: g.giris, cikis: g.cikis, saat: g.saat, ucret: Math.round(g.saat * (p.saatlikUcret || 0)) } : null;
+  }).filter(Boolean);
+  const maclar = (k.maclar || []).filter((m) => m.tur !== "bos");
   await epostaYolla(env, {
-    kime, konu: `Kasa raporu ${tarih}${ilk ? "" : " (güncellendi)"} — ciro ${para(o.ciro)}`,
-    satirlar: [["Gün", tarih], ["Kaydeden", `${k.guncelleyen} · ${k.guncelleme}`], ["Günlük ciro", para(o.ciro)],
-      ["Kasada olması gereken", para(o.olmasiGereken)], ...(k.sayilan !== null ? [["Sayılan / fark", `${para(k.sayilan)} / ${para(o.fark)}`]] : [])],
-    alt: "Ayrıntılı rapor ekteki PDF'te.",
-    ekler: [{ ad: `aysu-kasa-${k.gun}.pdf`, tur: "application/pdf", veri: kasaPdf(k) }],
+    kime, konu: `Kasa raporu ${tarih}${ilk ? "" : " (güncellendi)"}`,
+    satirlar: [
+      [`Oynanan maçlar (${maclar.length})`, para(o.mac + o.vip)],
+      ["Kantin", para(o.kantin)],
+      [`Krampon / eldiven (${o.kramponAdet} / ${o.eldivenAdet})`, para(o.krampon + o.eldiven)],
+      ["Kasa girişi (kapora + diğer)", `${para(o.gelenKapora + o.giris)}${o.gelenKapora ? ` (kapora ${para(o.gelenKapora)})` : ""}`],
+      ["Kasa çıkışı (harcama)", o.cikis || o.avans ? para(o.cikis + o.avans) : "harcama yok"],
+      ["Çalışanlar", calisanlar.length ? calisanlar.map((c) => `${c.ad} ${String(c.saat).replace(".", ",")} sa · ${para(c.ucret)}`).join(", ") : "—"],
+      ["Kasa devri (ertesi gün)", k.birakilan !== null && k.birakilan !== undefined ? para(k.birakilan) : "girilmedi"],
+    ],
+    alt: `Kaydeden: ${k.guncelleyen} · ${k.guncelleme}. Ayrıntı ekteki PDF'te.`,
+    ekler: [{ ad: `aysu-kasa-${k.gun}.pdf`, tur: "application/pdf", veri: kasaPdf(k, { calisanlar }) }],
   });
 }
 

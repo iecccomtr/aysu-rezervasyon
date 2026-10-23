@@ -633,8 +633,10 @@ test("Kasa PDF: Türkçe karakterli geçerli PDF üretir", async () => {
   await d.panelRezEkle({ gunTarihi: "2026-10-19", saat: "20:00", ad: "Şükrü Işık", telefon: "" });
   const k = await d.kasaGetir("2026-10-19", admin);
   const r = await d.kasaKaydet({ ...k.kayit, not: "ğüşıöç" }, admin);
-  const b = kasaPdf(r.kayit);
+  const b = kasaPdf(r.kayit, { calisanlar: [{ ad: "Ayşe", rol: "Personel", giris: "19:00", cikis: "23:30", saat: 5, ucret: 750 }] });
   assert.equal(new TextDecoder().decode(b.slice(0, 8)), "%PDF-1.4");
+  const { kasaPdfDetayli } = await import("../src/kasa-pdf.js");
+  assert.equal(new TextDecoder().decode(kasaPdfDetayli(r.kayit).slice(0, 8)), "%PDF-1.4");
   assert.match(new TextDecoder("latin1").decode(b.slice(-40)), /%%EOF/);
   assert.ok(r.ilkKayit);
 });

@@ -11,7 +11,71 @@ const gunAd = (g) => GUNLER[(new Date(g + "T00:00:00Z").getUTCDay() + 6) % 7];
 
 const MAVI = [0, 0.4, 0.64], GRI = [0.36, 0.42, 0.47], KIRMIZI = [0.7, 0.14, 0.09], TURUNCU = [0.94, 0.5, 0.1];
 
-export function kasaPdf(k) {
+export function kasaPdf(k, ek = {}) {
+  const o = k.ozet || kasaOzet(k);
+  const pdf = new Pdf();
+  const SOL = 36, SAG = pdf.genislik - 36, EN = SAG - SOL, ALT = pdf.yukseklik - 50;
+  let y = 0;
+  let sayfa = 1;
+
+  const ust = () => {
+    pdf.kutu(0, 0, pdf.genislik, 64, [0.02, 0.16, 0.27]);
+    pdf.yazi(SOL, 30, "AYSU HALI SAHA", { boyut: 16, kalin: true, renk: [1, 1, 1] });
+    pdf.yazi(SOL, 49, "Günlük kasa raporu", { boyut: 11, renk: [0.72, 0.83, 0.91] });
+    pdf.yazi(SAG, 30, `${tarihYaz(k.gun)} ${gunAd(k.gun)}`, { boyut: 14, kalin: true, renk: [1, 1, 1], hiza: "sag" });
+    pdf.yazi(SAG, 49, `Kaydeden: ${k.guncelleyen || "—"} · ${k.guncelleme || ""}`, { boyut: 9, renk: [0.72, 0.83, 0.91], hiza: "sag" });
+    pdf.yazi(pdf.genislik / 2, pdf.yukseklik - 22, `Sayfa ${sayfa}`, { boyut: 8, renk: GRI, hiza: "orta" });
+    y = 88;
+  };
+  const yer = (h) => { if (y + h > ALT) { pdf.yeniSayfa(); sayfa++; ust(); } };
+  const baslik = (metin, sag = "") => {
+    yer(40);
+    y += 10;
+    pdf.yazi(SOL, y, metin, { boyut: 13, kalin: true, renk: MAVI });
+    if (sag) pdf.yazi(SAG, y, sag, { boyut: 11, kalin: true, renk: MAVI, hiza: "sag" });
+    y += 6; pdf.cizgi(SOL, y, SAG, y, { kalinlik: 1.2, renk: MAVI }); y += 14;
+  };
+  const satir = (sol, sag, { kalin = false, renk, kucuk = false, alt = "" } = {}) => {
+    yer(alt ? 28 : 17);
+    const boyut = kucuk ? 9 : 10;
+    pdf.yazi(SOL, y, sol, { boyut, kalin, renk, en: EN - 120 });
+    pdf.yazi(SAG, y, sag, { boyut, kalin, renk, hiza: "sag" });
+    if (alt) { y += 11; pdf.yazi(SOL + 8, y, alt, { boyut: 8, renk: GRI, en: EN - 8 }); }
+    y += 6; pdf.cizgi(SOL, y, SAG, y, { kalinlik: 0.3 }); y += 11;
+  };
+  ust();
+
+  // Sade gün sonu raporu: maçlar, kantin, krampon / eldiven, kasa girişi, kasa çıkışı, çalışanlar, kasa devri
+  const maclar = (k.maclar || []).filter((m) => m.tur !== "bos");
+  baslik(`Oynanan maçlar (${maclar.length} maç)`, para(o.mac + o.vip));
+  for (const m of maclar) satir(`${m.saat}  ${m.ad || "—"}${m.tur === "abone" ? "  (abone)" : ""}${m.ucretsiz ? "  (ücretsiz)" : ""}`, para((m.ucret || 0) + (m.vip || 0)), { kucuk: true });
+  if (!maclar.length) satir("Bu gün maç yok.", "", { renk: GRI });
+
+  baslik("Kantin", para(o.kantin));
+  baslik(`Krampon ve eldiven (${o.kramponAdet} krampon, ${o.eldivenAdet} eldiven)`, para(o.krampon + o.eldiven));
+
+  baslik("Kasa girişi", para(o.gelenKapora + o.giris));
+  for (const x of k.gelenKaporalar || []) satir(`Kapora: ${x.ad} — ${x.mac} maçı (IBAN)`, para(x.tutar), { kucuk: true });
+  for (const x of k.girisler || []) satir(x.aciklama || "Diğer giriş", para(x.tutar), { kucuk: true });
+  if (!(k.gelenKaporalar || []).length && !(k.girisler || []).length) satir("Kapora ya da başka giriş yok.", "", { renk: GRI, kucuk: true });
+
+  baslik("Kasa çıkışı (harcamalar)", o.cikis ? "−" + para(o.cikis) : para(0));
+  for (const x of k.cikislar || []) satir(x.aciklama || "Harcama", "−" + para(x.tutar), { renk: KIRMIZI, kucuk: true });
+  for (const x of k.avanslar || []) satir(`Çalışan ödemesi: ${x.ad}`, "−" + para(x.tutar), { renk: KIRMIZI, kucuk: true });
+  if (!(k.cikislar || []).length && !(k.avanslar || []).length) satir("Harcama yapılmadı.", "", { renk: GRI, kucuk: true });
+
+  const cal = ek.calisanlar || [];
+  baslik("Çalışanlar", cal.length ? para(cal.reduce((t, c) => t + c.ucret, 0)) : "");
+  for (const c of cal) satir(`${c.ad}${c.rol ? " (" + c.rol + ")" : ""}  ${c.giris || "—"} – ${c.cikis || "açık"}`, `${String(c.saat).replace(".", ",")} saat · ${para(c.ucret)}`, { kucuk: true });
+  if (!cal.length) satir("Bu gün GELDİM diyen çalışan yok.", "", { renk: GRI, kucuk: true });
+
+  baslik("Kasa devri");
+  satir("Ertesi güne devir (kasada bırakılan)", k.birakilan !== null && k.birakilan !== undefined ? para(k.birakilan) : "girilmedi", { kalin: true });
+  return pdf.bayt();
+}
+
+/** Detaylı kasa raporu (Admin isteyince): maç maç tablo, kantin ürünleri, kâr, ikramlar, tam gün sonu */
+export function kasaPdfDetayli(k) {
   const o = k.ozet || kasaOzet(k);
   const b = k.birimler || {};
   const urunAd = (id) => b[id]?.ad || id;
@@ -23,7 +87,7 @@ export function kasaPdf(k) {
   const ust = () => {
     pdf.kutu(0, 0, pdf.genislik, 64, [0.02, 0.16, 0.27]);
     pdf.yazi(SOL, 30, "AYSU HALI SAHA", { boyut: 16, kalin: true, renk: [1, 1, 1] });
-    pdf.yazi(SOL, 49, "Günlük kasa raporu", { boyut: 11, renk: [0.72, 0.83, 0.91] });
+    pdf.yazi(SOL, 49, "Detaylı kasa raporu", { boyut: 11, renk: [0.72, 0.83, 0.91] });
     pdf.yazi(SAG, 30, `${tarihYaz(k.gun)} ${gunAd(k.gun)}`, { boyut: 14, kalin: true, renk: [1, 1, 1], hiza: "sag" });
     pdf.yazi(SAG, 49, `Kaydeden: ${k.guncelleyen || "—"} · ${k.guncelleme || ""}`, { boyut: 9, renk: [0.72, 0.83, 0.91], hiza: "sag" });
     pdf.yazi(pdf.genislik / 2, pdf.yukseklik - 22, `Sayfa ${sayfa}`, { boyut: 8, renk: GRI, hiza: "orta" });

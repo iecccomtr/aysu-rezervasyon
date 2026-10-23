@@ -2104,11 +2104,19 @@
 
       <div class="kutu kasa-kart"><h3>Gün sonu</h3><table class="ozet-t" id="k-ozet"></table>
         <div class="alan" style="margin-top:12px"><label for="k-not">Not</label><textarea id="k-not" data-yol="not" placeholder="Kasa ile ilgili not">${kacis(kk.not)}</textarea></div>
+        ${ben.rol === "admin" ? '<button class="dugme ikincil kucuk" type="button" id="k-detayli" style="margin-top:4px">📄 Detaylı kasa raporunu e-postama gönder</button>' : ""}
       </div>
 
       <div class="kasa-kaydet"><span id="kasa-degisti" class="soluk">${kasa.kayitli ? "Kaydedildi" : "Henüz kaydedilmedi"}</span>
         <button class="dugme" type="button" id="k-kaydet" style="margin-left:auto">Kasayı gönder</button></div>`;
     kasaOzetCiz();
+    $("k-detayli")?.addEventListener("click", async (e) => {
+      if (kasaDegisti || !kasa.kayitli) return bildir("Önce kasayı kaydedin (değişiklikler birkaç saniyede kendiliğinden kaydedilir).");
+      e.target.disabled = true;
+      const r = await api("kasa/detayli", { gun: kasaGun });
+      e.target.disabled = false;
+      bildir(r.hata || "Detaylı kasa raporu e-postanıza gönderildi");
+    });
   }
 
   function kasaOzetCiz() {

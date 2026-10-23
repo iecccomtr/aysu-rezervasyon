@@ -839,6 +839,13 @@
     girisGoster("giris");
   });
 
+  // iPhone'da ana ekrana eklenmiş panelde klavye kapanınca sayfa kayık kalıyor (alt menü ortada, üst çubuk kayboluyor):
+  // klavye kapanınca / ekran boyutu değişince görünümü yerine oturt
+  const gorunumuOturt = () => setTimeout(() => window.scrollTo(window.scrollX, window.scrollY), 60);
+  document.addEventListener("focusout", (e) => { if (e.target.matches?.("input, textarea, select")) gorunumuOturt(); });
+  window.visualViewport?.addEventListener("resize", gorunumuOturt);
+  addEventListener("orientationchange", gorunumuOturt);
+
   // ================= Sekmeler =================
   let sekme = "takvim";
   document.querySelectorAll("[data-sekme]").forEach((b) => b.addEventListener("click", () => sekmeAc(b.dataset.sekme)));

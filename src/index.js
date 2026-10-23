@@ -746,8 +746,11 @@ export default {
       try {
         return await panel(request, env, ctx, yol.slice("/api/panel/".length));
       } catch (e) {
-        console.error(e);
-        return json({ hata: "Sunucu hatası. Tekrar deneyin." }, 500);
+        console.error("Panel hatası", yol, e);
+        // Nedeni görünsün (sorunu bulmak için): hangi işlem, hangi hata
+        const neden = String(e?.message || e).slice(0, 160);
+        ctx.waitUntil(depo(env).kayitTut(null, "SUNUCU HATASI", `${request.method} ${yol} · ${neden}`).catch(() => {}));
+        return json({ hata: `Sunucu hatası (${yol.slice("/api/panel/".length)}): ${neden}` }, 500);
       }
     }
 

@@ -1032,3 +1032,15 @@ test("Abone gelmiyor işareti abone adı ve tarihleri döndürür (e-posta için
   const r = await d.aboneAtla({ id: a.abone.id, gun: "2026-10-22", saat: "20:00", gelmiyor: true });
   assert.ok(r.basarili); assert.equal(r.ad, "Ekip"); assert.equal(r.no, 7); assert.deepEqual(r.tarihler, ["2026-10-22 20:00"]);
 });
+
+test("Sonlandırılan abonenin ücretsiz son maçı olan günün kasası açılır ve kaydedilir", async () => {
+  const d = demoDepo();
+  saatiAyarla("2026-10-21T12:00");
+  const admin = { eposta: "a@a.com", ad: "Admin", rol: "admin" };
+  const a = await d.aboneKaydet({ ad: "Ekip", telefon: "0545 123 01 23", gun: 3, saat: "20:00", no: 7 });
+  const r = await d.aboneSil(a.abone.id, { sonMacUcretsiz: true });
+  saatiAyarla(`${r.sonMac.g}T21:00`);
+  const k = await d.kasaGetir(r.sonMac.g, admin);
+  assert.ok(k.kayit.maclar.some((m) => m.saat === "20:00"));
+  assert.ok((await d.kasaKaydet({ ...k.kayit }, admin)).basarili);
+});

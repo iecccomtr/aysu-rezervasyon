@@ -79,9 +79,10 @@ const gunNo = (tarih) => (new Date(tarih + "T00:00:00Z").getUTCDay() + 6) % 7;
 /** Abonenin haftalık saatleri: [{gun: 0-6 (0=pazartesi, işletme günü), saat: "HH:MM"}] (eski kayıtlarla uyumlu) */
 const slotlarOf = (a) => (Array.isArray(a.slotlar) ? a.slotlar : (a.gun != null && a.saat ? [{ gun: a.gun, saat: a.saat }] : []));
 /** Abone numarası: kayıtlı "no" ya da eski kayıtlarda nottaki "Abone 3" ifadesi. */
-const aboneNo = (a) => (Number.isInteger(a.no) && a.no > 0 ? a.no : Number(String(a.not || "").match(/abone\s*(\d+)/i)?.[1]) || null);
+const aboneNo = (a) => (!a ? null : Number.isInteger(a.no) && a.no > 0 ? a.no : Number(String(a.not || "").match(/abone\s*(\d+)/i)?.[1]) || null);
 /** Veresiye izni: abonede "veresiye" işaretliyse (varsayılan: Abone 1 ve 2) */
-const veresiyeAcik = (a) => (a?.veresiye !== undefined ? Boolean(a.veresiye) : [1, 2].includes(aboneNo(a)));
+// Abonelik sonlandırılmışsa (son maç kaydı aboneId taşır ama abone silinmiştir) veresiye yok
+const veresiyeAcik = (a) => (!a ? false : a.veresiye !== undefined ? Boolean(a.veresiye) : [1, 2].includes(aboneNo(a)));
 const SAAT_SIRA = (saat) => (Number(saat.slice(0, 2)) < 6 ? 24 : 0) + Number(saat.slice(0, 2));
 const slotSirala = (l) => [...l].sort((x, y) => x.gun - y.gun || SAAT_SIRA(x.saat) - SAAT_SIRA(y.saat));
 /** ms → Türkiye saatiyle "HH:MM" */

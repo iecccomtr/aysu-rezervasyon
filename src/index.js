@@ -675,18 +675,16 @@ async function kasaRaporuGonder(env, d, k, ilk) {
   }).filter(Boolean);
   const maclar = (k.maclar || []).filter((m) => m.tur !== "bos");
   await epostaYolla(env, {
-    kime, konu: `Kasa raporu ${tarih}${ilk ? "" : " (güncellendi)"} — kasa toplamı ${para(o.kasaToplam)}`,
+    kime, konu: `Kasa raporu ${tarih}${ilk ? "" : " (güncellendi)"} — kasa toplamı ${para(o.kasaToplam - o.cikis - o.avans)}`,
     satirlar: [
-      [`Oynanan maçlar (${maclar.length})`, para(o.mac + o.vip)],
+      [`Oynanan maçlar (${maclar.length})`, `${para(o.mac + o.vip - o.onOdeme)}${o.onOdeme ? " (önceden alınan kapora düşülmüş)" : ""}`],
       ["Kantin", para(o.kantin)],
       [`Krampon / eldiven (${o.kramponAdet} / ${o.eldivenAdet})`, para(o.krampon + o.eldiven)],
       ["Kasa girişi (kapora + diğer)", `${para(o.gelenKapora + o.giris)}${o.gelenKapora ? ` (kapora ${para(o.gelenKapora)})` : ""}`],
       ["Kasa çıkışı (harcama)", o.cikis || o.avans ? para(o.cikis + o.avans) : "harcama yok"],
       ["Çalışanlar", calisanlar.length ? calisanlar.map((c) => `${c.ad} ${String(c.saat).replace(".", ",")} sa · ${para(c.ucret)}`).join(", ") : "—"],
-      ["KASA TOPLAMI", para(o.kasaToplam)],
-      ["Kasada olması gereken (nakit)", para(o.olmasiGereken)],
-      ...(k.sayilan !== null && k.sayilan !== undefined ? [["Sayılan kasa", `${para(k.sayilan)}${o.fark ? (o.fark > 0 ? " · fazla " : " · eksik ") + para(Math.abs(o.fark)) : ""}`]] : []),
       ["Kasa devri (ertesi gün)", k.birakilan !== null && k.birakilan !== undefined ? para(k.birakilan) : "girilmedi"],
+      ["KASA TOPLAMI (harcamalar çıkmış)", para(o.kasaToplam - o.cikis - o.avans)],
     ],
     alt: `Kaydeden: ${k.guncelleyen} · ${k.guncelleme}. Ayrıntı ekteki PDF'te.`,
     ekler: [{ ad: `aysu-kasa-${k.gun}.pdf`, tur: "application/pdf", veri: kasaPdf(k, { calisanlar }) }],

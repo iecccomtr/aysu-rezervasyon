@@ -47,8 +47,9 @@ export function kasaPdf(k, ek = {}) {
 
   // Sade gün sonu raporu: maçlar, kantin, krampon / eldiven, kasa girişi, kasa çıkışı, çalışanlar, kasa devri
   const maclar = (k.maclar || []).filter((m) => m.tur !== "bos");
-  baslik(`Oynanan maçlar (${maclar.length} maç)`, para(o.mac + o.vip));
-  for (const m of maclar) satir(`${m.saat}  ${m.ad || "—"}${m.tur === "abone" ? "  (abone)" : ""}${m.ucretsiz ? "  (ücretsiz)" : ""}`, para((m.ucret || 0) + (m.vip || 0)), { kucuk: true });
+  // Önceki günlerde alınan kapora maçın tutarından düşülmüş gösterilir (o para o gün kasaya girmişti); toplamlar böylece tutar
+  baslik(`Oynanan maçlar (${maclar.length} maç)`, para(o.mac + o.vip - o.onOdeme));
+  for (const m of maclar) satir(`${m.saat}  ${m.ad || "—"}${m.tur === "abone" ? "  (abone)" : ""}${m.ucretsiz ? "  (ücretsiz)" : ""}${m.onOdeme ? `  · ${para(m.onOdeme)} kapora önceden alındı` : ""}`, para((m.ucret || 0) + (m.vip || 0) - (m.onOdeme || 0)), { kucuk: true });
   if (!maclar.length) satir("Bu gün maç yok.", "", { renk: GRI });
 
   baslik("Kantin", para(o.kantin));
@@ -69,16 +70,16 @@ export function kasaPdf(k, ek = {}) {
   for (const c of cal) satir(`${c.ad}${c.rol ? " (" + c.rol + ")" : ""}  ${c.giris || "—"} – ${c.cikis || "açık"}`, `${String(c.saat).replace(".", ",")} saat · ${para(c.ucret)}`, { kucuk: true });
   if (!cal.length) satir("Bu gün GELDİM diyen çalışan yok.", "", { renk: GRI, kucuk: true });
 
-  baslik("Kasa toplamı", para(o.kasaToplam));
-  satir("Maç + kantin + krampon/eldiven + kasa girişi", para(o.kasaToplam), { kucuk: true, alt: o.onOdeme ? `Bugünkü maçların önceden alınan kaporası (${para(o.onOdeme)}) düşülmüştür.` : "" });
-  if (o.cikis + o.avans) satir("Kasa çıkışı", "−" + para(o.cikis + o.avans), { renk: KIRMIZI, kucuk: true });
-  if (o.gelenKapora + o.ibanOdeme) satir("IBAN'a gelen (nakit değil)", "−" + para(o.gelenKapora + o.ibanOdeme), { renk: KIRMIZI, kucuk: true });
-  if (o.veresiye) satir("Veresiye", "−" + para(o.veresiye), { renk: KIRMIZI, kucuk: true });
-  satir("Kasada olması gereken (nakit)", para(o.olmasiGereken), { kalin: true, renk: MAVI });
-  if (k.sayilan !== null && k.sayilan !== undefined) satir(`Sayılan kasa${o.fark ? (o.fark > 0 ? " · fazla " : " · eksik ") + para(Math.abs(o.fark)) : ""}`, para(k.sayilan), { kalin: true, renk: o.fark < 0 ? KIRMIZI : undefined });
-
   baslik("Kasa devri");
   satir("Ertesi güne devir (kasada bırakılan)", k.birakilan !== null && k.birakilan !== undefined ? para(k.birakilan) : "girilmedi", { kalin: true });
+
+  // En altta tek satır: kasa toplamı, harcamalar çıkmış hâli
+  const net = o.kasaToplam - o.cikis - o.avans;
+  yer(46); y += 14;
+  pdf.kutu(SOL - 6, y - 18, EN + 12, 30, [0.02, 0.16, 0.27]);
+  pdf.yazi(SOL + 4, y + 2, "KASA TOPLAMI (harcamalar çıkmış)", { boyut: 12, kalin: true, renk: [1, 1, 1] });
+  pdf.yazi(SAG - 4, y + 2, para(net), { boyut: 14, kalin: true, renk: [1, 1, 1], hiza: "sag" });
+  y += 24;
   return pdf.bayt();
 }
 

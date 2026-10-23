@@ -58,6 +58,11 @@
   .ozel-saat-alt { margin: 14px 0 4px; text-align: center; }
   .salt-okur .arti { display: none; }
   .ben { color: #b8d3e8; font-size: 13px; text-align: right; line-height: 1.2; }
+  .ust .sag { min-width: 0; }
+  .ben { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 150px; }
+  #cikis { flex-shrink: 0; }
+  .ust .logo, .ust h1 { flex-shrink: 0; }
+  @media (max-width: 420px) { .ust .sag a[href="/rezervasyon/"] { display: none; } .ben { max-width: 110px; } }
   @media (max-width: 360px) {
     .ust .ic { gap: 8px; }
     .ust h1 { font-size: 20px; }
@@ -84,6 +89,8 @@
   .sekmeler .ic { max-width: 900px; margin: 0 auto; display: grid; grid-template-columns: repeat(var(--sekme-sayi, 4), 1fr); }
   .sekmeler button { background: none; border: 0; padding: 10px 2px 12px; cursor: pointer; font-weight: 600; color: var(--gri); display: grid; justify-items: center; gap: 2px; font-size: 13px; min-width: 0; }
   .sekmeler svg { width: 24px; height: 24px; }
+  .sekmeler .kisa { display: none; }
+  @media (max-width: 440px) { .sekmeler .uzun { display: none; } .sekmeler .kisa { display: inline; } }
   @media (max-width: 420px) { .sekmeler button { font-size: 10.5px; letter-spacing: -.2px; overflow: hidden; text-overflow: ellipsis; } .sekmeler svg { width: 22px; height: 22px; } }
   .sekmeler button[aria-current="page"] { color: var(--cim); }
   .sekmeler button[aria-current="page"] svg { stroke-width: 2.4; }
@@ -129,7 +136,7 @@
   /* ---------- Kasa ---------- */
   .kasa-kart { padding: 12px 14px; margin-bottom: 12px; }
   .kasa-kart h3 { font-size: 20px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
-  .kasa-kart h3 .sag { margin-left: auto; font-size: 16px; }
+  .kasa-kart h3 .sag { margin-left: auto; font-size: 16px; white-space: nowrap; }
   .mac { border: 2px solid #f1d2b3; border-left: 6px solid #ef7f1a; border-radius: 12px; padding: 10px; margin-bottom: 12px; background: #fff8f1; }
   .mac.t-abone { border-color: #c9d6f5; }
   .mac.t-abone { border-left-color: var(--mavi, #2b5fb3); background: #f3f6fd; }
@@ -226,6 +233,7 @@
   .hafta-nav .ay { font: 700 22px/1 "Barlow Condensed", sans-serif; flex: 1; text-align: center; }
   .ok { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--cizgi); background: var(--kart); cursor: pointer; font-size: 20px; line-height: 1; }
   .ok:disabled { opacity: .3; cursor: default; }
+  .uyg-yukle-alt { background: var(--kart); border: 1px solid var(--cizgi); color: var(--cim); border-radius: 999px; padding: 10px 16px; font-weight: 600; font-size: 15px; cursor: pointer; }
   .uyg-yukle { background: none; border: 1px solid rgba(255,255,255,.5); color: #fff; border-radius: 999px; padding: 4px 10px; cursor: pointer; font-size: 16px; }
   .dugme.wp { background: #25d366; color: #073b1c; border-color: #25d366; text-decoration: none; text-align: center; display: block; }
   .gunler { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; margin-bottom: 12px; }
@@ -395,7 +403,6 @@
     <div class="ic">
       <a class="logo" href="/panel/" aria-label="Aysu Panel"><img src="/img/aysu-logo.svg" alt="Aysu Halı Saha" width="80" height="34"></a><h1>Panel</h1>
       <div class="sag">
-        <button type="button" class="uyg-yukle" data-uygulama-yukle hidden title="Paneli telefona uygulama olarak yükle">📱</button>
         <span class="ben" id="ben"></span>
         <a href="/rezervasyon/" target="_blank" style="color:#b8d3e8;font-size:14px" data-yonetici>Site</a>
         <button type="button" id="cikis">Çıkış</button>
@@ -438,6 +445,7 @@
         <div class="kutu saatler" id="saatler"></div>
       </div>
       <div class="ozel-saat-alt"><button class="dugme ikincil kucuk" type="button" id="ozel-saat" data-yonetici>+ Özel saat ekle</button></div>
+      <p style="text-align:center;margin:18px 0 0"><button type="button" class="uyg-yukle-alt" data-uygulama-yukle hidden>📱 Paneli telefona uygulama olarak yükle</button></p>
     </section>
 
 
@@ -589,13 +597,13 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3"/><path d="M18 3v4h-4M6 21v-4h4"/></svg>Aboneler
       </button>
       <button type="button" data-sekme="musteriler" data-yonetici>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14.8c2 .7 3.2 2.4 3.6 5.2"/></svg>Müşteriler
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14.8c2 .7 3.2 2.4 3.6 5.2"/></svg><span class="uzun">Müşteriler</span><span class="kisa">Müşteri</span>
       </button>
       <button type="button" data-sekme="gorevler">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="4" y="4" width="16" height="17" rx="2"/><path d="M9 3h6v3H9zM8 11l2 2 4-4M8 17h8"/></svg>Görevler
       </button>
       <button type="button" data-sekme="kullanicilar" data-yonetici>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/></svg>Kullanıcılar
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/></svg><span class="uzun">Kullanıcılar</span><span class="kisa">Ekip</span>
       </button>
     </div>
   </nav>

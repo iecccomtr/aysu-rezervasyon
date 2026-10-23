@@ -308,21 +308,30 @@ async function panel(request, env, ctx, yol) {
   };
   const sonuc = async (r) => { await kaydet(r); return json(r, r && r.hata ? 400 : 200); };
   // Abone hareketleri (gelmiyor, son maç, taşıma, yeni abone): Admin + Müdür + Müdür Yardımcısı'na e-posta
-  const aboneBildir = (konu, satirlar) => ctx.waitUntil((async () => {
+  const aboneBildir = (konu, satirlar) => yoneticiBildir(konu, satirlar, "Abone e-postası");
+  function yoneticiBildir(konu, satirlar, tur) { ctx.waitUntil((async () => {
     const kime = await d.rolEpostalari(["admin", "mudur", "mudur_yrd"]);
     const ok = await epostaYolla(env, {
       kime, konu,
       satirlar: [...satirlar, ["İşlemi yapan", `${ben.ad} (${ben.rolAd || ""})`]],
-      dugme: { yazi: "Paneli aç", link: `${url.origin}/panel/` }, alt: "Aysu Halı Saha · abone bildirimi",
+      dugme: { yazi: "Paneli aç", link: `${url.origin}/panel/` }, alt: "Aysu Halı Saha · yönetici bildirimi",
     });
     // Gönderilemezse Admin işlem kaydında nedenini görsün
-    await d.kayitTut(null, ok ? "Abone e-postası gönderildi" : "ABONE E-POSTASI GÖNDERİLEMEDİ", `${konu} → ${kime.join(", ") || "alıcı yok"}${ok ? "" : " · " + bildirimModulu.sonEpostaHatasi}`);
-  })().catch((e) => console.error("Abone e-postası", e)));
+    await d.kayitTut(null, ok ? `${tur} gönderildi` : `${tur.toLocaleUpperCase("tr")} GÖNDERİLEMEDİ`, `${konu} → ${kime.join(", ") || "alıcı yok"}${ok ? "" : " · " + bildirimModulu.sonEpostaHatasi}`);
+  })().catch((e) => console.error(tur, e))); }
 
   switch (`${request.method} ${yol}`) {
-    case "POST rez": return degisti(await d.panelRezEkle({
-      gunTarihi: g.gun, saat: g.saat, ad: g.ad, telefon: g.telefon, not: g.not, durum: g.durum, kapora: g.kapora, ekstra: g.ekstra, kod: g.kod,
-    }));
+    case "POST rez": {
+      const r = await d.panelRezEkle({
+        gunTarihi: g.gun, saat: g.saat, ad: g.ad, telefon: g.telefon, not: g.not, durum: g.durum, kapora: g.kapora, ekstra: g.ekstra, kod: g.kod,
+      });
+      // Panelden (telefonla) alınan maç: Admin + Müdür + Müdür Yardımcısı'na bilgi
+      if (r.basarili) yoneticiBildir(`Yeni maç kaydı: ${r.gun} ${trTarih(r.tarih)} ${r.saat} — ${r.ad}`, [
+        ["Maç", `${r.gun}, ${trTarih(r.tarih)} saat ${r.saat}`], ["Ad soyad", r.ad], ["Telefon", r.telefon || "—"],
+        ["Durum", r.durum], ["Kapora", r.kapora || "—"], ["Ücret", `${r.ucret} TL${(r.ekstra || []).length ? " (VIP dahil)" : ""}`],
+        ...(r.not ? [["Not", r.not]] : []), ["Kayıt no", r.kayitNo], ["Kaynak", "Panel (telefon)"]], "Yeni maç e-postası");
+      return degisti(r);
+    }
     case "POST rez-kod": // ücretsiz maç kodları Admin'e özel
       if (ben.rol !== "admin") return json({ hata: "Sadece Admin." }, 403);
       return degisti(await d.rezKodUygula(g, ben));

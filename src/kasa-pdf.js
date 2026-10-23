@@ -69,6 +69,14 @@ export function kasaPdf(k, ek = {}) {
   for (const c of cal) satir(`${c.ad}${c.rol ? " (" + c.rol + ")" : ""}  ${c.giris || "—"} – ${c.cikis || "açık"}`, `${String(c.saat).replace(".", ",")} saat · ${para(c.ucret)}`, { kucuk: true });
   if (!cal.length) satir("Bu gün GELDİM diyen çalışan yok.", "", { renk: GRI, kucuk: true });
 
+  baslik("Kasa toplamı", para(o.kasaToplam));
+  satir("Maç + kantin + krampon/eldiven + kasa girişi", para(o.kasaToplam), { kucuk: true, alt: o.onOdeme ? `Bugünkü maçların önceden alınan kaporası (${para(o.onOdeme)}) düşülmüştür.` : "" });
+  if (o.cikis + o.avans) satir("Kasa çıkışı", "−" + para(o.cikis + o.avans), { renk: KIRMIZI, kucuk: true });
+  if (o.gelenKapora + o.ibanOdeme) satir("IBAN'a gelen (nakit değil)", "−" + para(o.gelenKapora + o.ibanOdeme), { renk: KIRMIZI, kucuk: true });
+  if (o.veresiye) satir("Veresiye", "−" + para(o.veresiye), { renk: KIRMIZI, kucuk: true });
+  satir("Kasada olması gereken (nakit)", para(o.olmasiGereken), { kalin: true, renk: MAVI });
+  if (k.sayilan !== null && k.sayilan !== undefined) satir(`Sayılan kasa${o.fark ? (o.fark > 0 ? " · fazla " : " · eksik ") + para(Math.abs(o.fark)) : ""}`, para(k.sayilan), { kalin: true, renk: o.fark < 0 ? KIRMIZI : undefined });
+
   baslik("Kasa devri");
   satir("Ertesi güne devir (kasada bırakılan)", k.birakilan !== null && k.birakilan !== undefined ? para(k.birakilan) : "girilmedi", { kalin: true });
   return pdf.bayt();

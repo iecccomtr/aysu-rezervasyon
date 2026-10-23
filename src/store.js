@@ -1125,6 +1125,23 @@ export class RezervasyonDeposu extends DurableObject {
     });
   }
 
+  /** Kasa gönderilince: o günün açık girişlerinin hepsine şimdiki saatle ÇIKTIM yazılır */
+  async puantajHepsiCikis(gun, yapan) {
+    return this.kilitli(async () => {
+      const m = await this.st.list({ prefix: `p:${gun}:` });
+      const simdiMs = Date.now(), yaz = {}, kapanan = [];
+      for (const [anahtar, k] of m) {
+        if (!k?.giris || k.cikis || simdiMs - k.giris > 20 * 3600_000) continue;
+        yaz[anahtar] = { ...k, cikis: simdiMs, otomatikCikis: `Kasa gönderildi (${yapan?.ad || ""})` };
+        kapanan.push({ eposta: anahtar.split(":").slice(2).join(":"), ad: k.ad || "" });
+      }
+      if (!kapanan.length) return { kapanan };
+      await this.st.put(yaz);
+      await this.kayitTut(yapan, "Kasa gönderildi: çalışanlara ÇIKTIM yazıldı", `${gun} · ${zamanYazi(simdiMs)} · ${kapanan.map((x) => x.ad || x.eposta).join(", ")}`);
+      return { kapanan, gun };
+    });
+  }
+
   /** Aylık puantaj: kişi kişi günler, saatler ve ödenecek tutar. eposta verilirse sadece o kişi. */
   async puantajAy(ay, eposta) {
     if (!/^\d{4}-\d{2}$/.test(ay || "")) return { hata: "Geçersiz ay." };

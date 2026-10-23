@@ -402,7 +402,12 @@ async function panel(request, env, ctx, yol) {
     case "POST kasa": {
       const r = await d.kasaKaydet(g, ben);
       // Her kayıtta günlük kasa raporu PDF olarak sadece Admin'e gider
-      if (r.basarili && !r.otomatik) ctx.waitUntil(kasaRaporuGonder(env, d, r.kayit, r.ilkKayit).catch((e) => console.error("Kasa PDF", e)));
+      // "Kasayı gönder": önce o gün açık kalan çalışanlara ÇIKTIM yazılır (rapordaki saatler tamam olsun), sonra rapor
+      if (r.basarili && !r.otomatik) ctx.waitUntil((async () => {
+        const c = await d.puantajHepsiCikis(r.kayit.gun, ben).catch(() => ({ kapanan: [] }));
+        for (const x of c.kapanan) await puantajOzetGonder(env, d, x, { gun: r.kayit.gun }).catch((e) => console.error("Puantaj e-postası", e));
+        await kasaRaporuGonder(env, d, r.kayit, r.ilkKayit);
+      })().catch((e) => console.error("Kasa PDF", e)));
       return json(alisGizle(r, ben), r.hata ? 400 : 200);
     }
     case "GET kasa/ay":

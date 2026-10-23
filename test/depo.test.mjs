@@ -1046,3 +1046,16 @@ test("Sonlandırılan abonenin ücretsiz son maçı olan günün kasası açıl�
   assert.ok(k.kayit.maclar.some((m) => m.saat === "20:00"));
   assert.ok((await d.kasaKaydet({ ...k.kayit }, admin)).basarili);
 });
+
+test("Kasa gönderilince o günün açık girişlerine ÇIKTIM yazılır", async () => {
+  const d = demoDepo();
+  saatiAyarla("2026-10-21T19:00");
+  const p1 = { eposta: "p1@a.com", ad: "Ayşe", rol: "personel" }, p2 = { eposta: "p2@a.com", ad: "Veli", rol: "temizlik" };
+  await d.puantajGiris(p1); await d.puantajGiris(p2);
+  saatiAyarla("2026-10-21T23:30");
+  await d.puantajCikis(p2);
+  const r = await d.puantajHepsiCikis("2026-10-21", { ad: "Admin", rol: "admin" });
+  assert.deepEqual(r.kapanan.map((x) => x.eposta), ["p1@a.com"]);
+  const k = (await d.puantajAy("2026-10")).kisiler.find((x) => x.eposta === "p1@a.com").gunler[0];
+  assert.equal(k.cikis, "23:30"); assert.equal(k.acik, false);
+});

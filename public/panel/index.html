@@ -2297,7 +2297,7 @@
 
   async function kasaKaydet() {
     const o = kasaOzetHesapla();
-    if (!confirm(`${tarihYazi(kasaGun)} kasası gönderilsin mi?\n\nGünlük ciro: ${para(o.ciro)}\nKasada olması gereken: ${para(o.olmasiGereken)}${kk.sayilan !== null && kk.sayilan !== undefined && kk.sayilan !== "" ? `\nSayılan kasa: ${para(sayi(kk.sayilan))}` : "\nSayılan kasa girilmedi!"}${o.odenmemis ? `\n\nDİKKAT: ${para(o.odenmemis)} kantin henüz tahsil edilmedi.` : ""}\n\nRapor PDF olarak Admin'e gidecek.`)) return;
+    if (!confirm(`${tarihYazi(kasaGun)} kasası gönderilsin mi?\n\nGünlük ciro: ${para(o.ciro)}\nKasada olması gereken: ${para(o.olmasiGereken)}${kk.sayilan !== null && kk.sayilan !== undefined && kk.sayilan !== "" ? `\nSayılan kasa: ${para(sayi(kk.sayilan))}` : "\nSayılan kasa girilmedi!"}${o.odenmemis ? `\n\nDİKKAT: ${para(o.odenmemis)} kantin henüz tahsil edilmedi.` : ""}\n\nRapor PDF olarak Admin'e gidecek. Bugün GELDİM deyip ÇIKTIM demeyen çalışanlara şimdiki saatle ÇIKTIM yazılacak.`)) return;
     clearTimeout(otoZaman);
     const b = $("k-kaydet"); b.disabled = true;
     const r = await api("kasa", { ...kk, gun: kasaGun, taban: kasa.kayitli ? kasa.kayit : null }).catch(() => ({ hata: "Kaydedilemedi" }));

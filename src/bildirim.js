@@ -26,8 +26,11 @@ export const epostaKurulu = (env) => Boolean((env.GMAIL_ADRES && env.GMAIL_UYGUL
  * Herhangi bir alıcıya e-posta. E-posta kurulu değilse sessizce atlar (false döner).
  * dugme: { yazi, link } verilirse e-postada büyük bir düğme olarak gösterilir.
  */
+/** Son e-posta hatası (işlem kaydına yazmak için) */
+export let sonEpostaHatasi = "";
 export async function epostaYolla(env, { kime, konu, satirlar = [], alt = "", dugme = null, ekler = [], giris = "", bolumler = [] }) {
-  if (!epostaKurulu(env) || !kime?.length) return false;
+  if (!epostaKurulu(env)) { sonEpostaHatasi = "E-posta ayarı yok"; return false; }
+  if (!kime?.length) { sonEpostaHatasi = "Alıcı yok (aktif Admin / Müdür e-postası bulunamadı)"; return false; }
   const dugmeler = (Array.isArray(dugme) ? dugme : dugme ? [dugme] : []);
   const html = `<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.5;color:#13261b;max-width:560px">
     <h2 style="margin:0 0 12px;color:#0067a4">${kacis(konu)}</h2>
@@ -59,9 +62,10 @@ export async function epostaYolla(env, { kime, konu, satirlar = [], alt = "", du
         ...(ekler.length ? { attachments: ekler.map((e) => ({ filename: e.ad, content: ikiliB64(e.veri) })) } : {}),
       }),
     });
-    if (!res.ok) { console.error("E-posta gönderilemedi", res.status, await res.text()); return false; }
+    if (!res.ok) { sonEpostaHatasi = `HTTP ${res.status}`; console.error("E-posta gönderilemedi", res.status, await res.text()); return false; }
     return true;
   } catch (e) {
+    sonEpostaHatasi = String(e?.message || e).slice(0, 200);
     console.error("E-posta hatası", e);
     return false;
   }

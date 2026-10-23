@@ -4,6 +4,7 @@
 import { simdi, isletmeGunu, gunEkle, haftaBasi } from "./time.js";
 import { KURALLAR, FIYATLAR, IBAN, ISLETME, EKSTRALAR } from "./config.js";
 import { bildir, epostaYolla, epostaKurulu } from "./bildirim.js";
+import * as bildirimModulu from "./bildirim.js";
 import { TESIS_KURALLARI } from "./tesis-kurallari.js";
 import { dekontOku, dekontDegerlendir, ozet } from "./dekont-kontrol.js";
 import { ROLLER, ibanGecerli } from "./store.js";
@@ -294,11 +295,16 @@ async function panel(request, env, ctx, yol) {
   };
   const sonuc = async (r) => { await kaydet(r); return json(r, r && r.hata ? 400 : 200); };
   // Abone hareketleri (gelmiyor, son maç, taşıma, yeni abone): Admin + Müdür + Müdür Yardımcısı'na e-posta
-  const aboneBildir = (konu, satirlar) => ctx.waitUntil((async () => epostaYolla(env, {
-    kime: await d.rolEpostalari(["admin", "mudur", "mudur_yrd"]), konu,
-    satirlar: [...satirlar, ["İşlemi yapan", `${ben.ad} (${ben.rolAd || ""})`]],
-    dugme: { yazi: "Paneli aç", link: `${url.origin}/panel/` }, alt: "Aysu Halı Saha · abone bildirimi",
-  }))().catch((e) => console.error("Abone e-postası", e)));
+  const aboneBildir = (konu, satirlar) => ctx.waitUntil((async () => {
+    const kime = await d.rolEpostalari(["admin", "mudur", "mudur_yrd"]);
+    const ok = await epostaYolla(env, {
+      kime, konu,
+      satirlar: [...satirlar, ["İşlemi yapan", `${ben.ad} (${ben.rolAd || ""})`]],
+      dugme: { yazi: "Paneli aç", link: `${url.origin}/panel/` }, alt: "Aysu Halı Saha · abone bildirimi",
+    });
+    // Gönderilemezse Admin işlem kaydında nedenini görsün
+    await d.kayitTut(null, ok ? "Abone e-postası gönderildi" : "ABONE E-POSTASI GÖNDERİLEMEDİ", `${konu} → ${kime.join(", ") || "alıcı yok"}${ok ? "" : " · " + bildirimModulu.sonEpostaHatasi}`);
+  })().catch((e) => console.error("Abone e-postası", e)));
 
   switch (`${request.method} ${yol}`) {
     case "POST rez": return degisti(await d.panelRezEkle({

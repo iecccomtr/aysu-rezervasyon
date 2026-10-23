@@ -60,9 +60,9 @@ export function kasaPdf(k, ek = {}) {
   for (const x of k.girisler || []) satir(x.aciklama || "Diğer giriş", para(x.tutar), { kucuk: true });
   if (!(k.gelenKaporalar || []).length && !(k.girisler || []).length) satir("Kapora ya da başka giriş yok.", "", { renk: GRI, kucuk: true });
 
-  baslik("Kasa çıkışı (harcamalar)", o.cikis ? "−" + para(o.cikis) : para(0));
+  baslik("Kasa çıkışı (harcamalar + çalışan ödemeleri)", o.cikis + o.avans ? "−" + para(o.cikis + o.avans) : para(0));
   for (const x of k.cikislar || []) satir(x.aciklama || "Harcama", "−" + para(x.tutar), { renk: KIRMIZI, kucuk: true });
-  for (const x of k.avanslar || []) satir(`Çalışan ödemesi: ${x.ad}`, "−" + para(x.tutar), { renk: KIRMIZI, kucuk: true });
+  for (const x of k.avanslar || []) satir(`Avans / çalışan ödemesi: ${x.ad}`, "−" + para(x.tutar), { renk: KIRMIZI, kucuk: true });
   if (!(k.cikislar || []).length && !(k.avanslar || []).length) satir("Harcama yapılmadı.", "", { renk: GRI, kucuk: true });
 
   const cal = ek.calisanlar || [];

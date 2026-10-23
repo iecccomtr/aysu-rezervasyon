@@ -681,7 +681,7 @@ async function kasaRaporuGonder(env, d, k, ilk) {
       ["Kantin", para(o.kantin)],
       [`Krampon / eldiven (${o.kramponAdet} / ${o.eldivenAdet})`, para(o.krampon + o.eldiven)],
       ["Kasa girişi (kapora + diğer)", `${para(o.gelenKapora + o.giris)}${o.gelenKapora ? ` (kapora ${para(o.gelenKapora)})` : ""}`],
-      ["Kasa çıkışı (harcama)", o.cikis || o.avans ? para(o.cikis + o.avans) : "harcama yok"],
+      ["Kasa çıkışı (harcama + avans)", o.cikis || o.avans ? `${para(o.cikis + o.avans)}${o.avans ? ` (avans ${para(o.avans)})` : ""}` : "harcama yok"],
       ["Çalışanlar", calisanlar.length ? calisanlar.map((c) => `${c.ad} ${String(c.saat).replace(".", ",")} sa · ${para(c.ucret)}`).join(", ") : "—"],
       ["Kasa devri (ertesi gün)", k.birakilan !== null && k.birakilan !== undefined ? para(k.birakilan) : "girilmedi"],
       ["KASA TOPLAMI (harcamalar çıkmış)", para(o.kasaToplam - o.cikis - o.avans)],

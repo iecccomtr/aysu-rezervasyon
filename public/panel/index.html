@@ -51,8 +51,13 @@
   .rozet.r-pasif { background: #eee; color: #666; }
   .salt-okur .arti, .salt-okur .h-bos { pointer-events: none; }
   /* Temizlik Şefi / Personel: metin seçilemez, kopyalanamaz, yazdırılamaz */
-  body.salt-okur #uygulama { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
-  @media print { body.salt-okur #uygulama { display: none !important; } body.salt-okur::after { content: "Bu sayfa yazdırılamaz."; } }
+  body.kopya-yok #uygulama, body.kopya-yok dialog { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  body.kopya-yok input, body.kopya-yok textarea { -webkit-user-select: text; user-select: text; }
+  @media print { body.kopya-yok #uygulama, body.kopya-yok dialog { display: none !important; } body.kopya-yok::after { content: "Bu sayfa yazdırılamaz."; } }
+  /* Ekran görüntüsü caydırıcı: kişinin adıyla soluk filigran; uygulamadan çıkınca / pencere değişince içerik bulanır */
+  .filigran { position: fixed; inset: 0; z-index: 40; pointer-events: none; opacity: .07; overflow: hidden;
+    background-repeat: repeat; background-size: 260px 140px; }
+  body.gizle #uygulama, body.gizle dialog { filter: blur(14px); }
   .ozel-satir th.saat-b { color: var(--turuncu, #ef7f1a); }
   .ozel-satir th.saat-b small { display: block; font-size: 10px; font-weight: 600; }
   .ozel-saat-alt { margin: 14px 0 4px; text-align: center; }
@@ -755,6 +760,7 @@
   function girisTamam(metin) { $("giris-tamam").textContent = metin; $("giris-tamam").hidden = !metin; }
 
   function girisGoster(yeniMod) {
+    document.body.classList.remove("kopya-yok", "gizle"); document.getElementById("filigran")?.remove();
     // Mod değişince (ör. Giriş → Kayıt ol) tarayıcının doldurduğu e-posta / şifre temizlenir
     if (yeniMod && yeniMod !== mod) ["g-sifre", "g-sifre2", "g-ad", "g-tel", "g-kod"].concat(yeniMod === "unuttum" ? [] : ["g-eposta"]).forEach((id) => { if ($(id)) $(id).value = ""; });
     if (yeniMod) mod = yeniMod;
@@ -863,18 +869,45 @@
     window.scrollTo({ top: 0 });
   }
 
-  // Salt-okur rollerde sağ tık, kopyalama, sürükleme ve kısayollar (Ctrl+C/A/S/P/U) kapalı
-  const saltOkurMu = () => document.body.classList.contains("salt-okur") && !$("uygulama").hidden;
+  // Admin dışındaki herkes: sağ tık, kopyalama, sürükleme, yazdırma ve kısayollar (Ctrl+C/A/S/P/U) kapalı.
+  // Yazı kutularına yazmak / yapıştırmak serbest.
+  const kopyaYok = () => document.body.classList.contains("kopya-yok") && !$("uygulama").hidden;
+  const yaziAlani = (el) => el?.closest?.("input, textarea, select, [contenteditable]");
   ["contextmenu", "copy", "cut", "dragstart", "selectstart"].forEach((t) =>
-    document.addEventListener(t, (e) => { if (saltOkurMu()) e.preventDefault(); }));
+    document.addEventListener(t, (e) => { if (kopyaYok() && !yaziAlani(e.target)) e.preventDefault(); }));
   document.addEventListener("keydown", (e) => {
-    if (saltOkurMu() && (e.ctrlKey || e.metaKey) && ["c", "x", "a", "s", "p", "u"].includes(e.key.toLowerCase())) e.preventDefault();
+    if (!kopyaYok()) return;
+    if ((e.ctrlKey || e.metaKey) && ["c", "x", "a", "s", "p", "u"].includes(e.key.toLowerCase()) && !yaziAlani(e.target)) e.preventDefault();
   });
+  // Bilgisayarda Print Screen: panoyu boşalt, içeriği kısa süre gizle
+  document.addEventListener("keyup", (e) => {
+    if (!kopyaYok() || e.key !== "PrintScreen") return;
+    navigator.clipboard?.writeText("").catch(() => {});
+    document.body.classList.add("gizle"); setTimeout(() => document.body.classList.remove("gizle"), 1500);
+    bildir("Ekran görüntüsü alınamaz.");
+  });
+  // Uygulamalar arası geçişte (telefonun son uygulamalar ekranı) ve pencere odağı gidince içerik bulanık görünür
+  const gizleAyarla = (g) => { if (kopyaYok()) document.body.classList.toggle("gizle", g); else document.body.classList.remove("gizle"); };
+  document.addEventListener("visibilitychange", () => gizleAyarla(document.hidden));
+  addEventListener("blur", () => gizleAyarla(true));
+  addEventListener("focus", () => gizleAyarla(false));
+  function filigranKur() {
+    $("filigran")?.remove();
+    if (!kopyaYok() || !ben) return;
+    const yazi = `${ben.ad} · ${new Date().toLocaleDateString("tr-TR")}`;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="260" height="140"><text x="10" y="80" transform="rotate(-22 130 70)" font-family="sans-serif" font-size="16" fill="#000">${yazi.replace(/[<&>]/g, "")}</text></svg>`;
+    const d = document.createElement("div");
+    d.id = "filigran"; d.className = "filigran";
+    d.style.backgroundImage = `url("data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}")`;
+    document.body.appendChild(d);
+  }
 
   function uygulamaGoster() {
     $("giris").hidden = true; $("uygulama").hidden = false;
     const y = yonetici();
     document.body.classList.toggle("salt-okur", !y);
+    document.body.classList.toggle("kopya-yok", ben.rol !== "admin");
+    filigranKur();
     document.querySelectorAll("[data-yonetici]").forEach((el) => { el.hidden = !y; });
     document.documentElement.style.setProperty("--sekme-sayi", y ? 6 : 2);
     $("ben").innerHTML = `${kacis(ben.ad)}<br><small>${kacis(ben.rolAd)}</small>`;

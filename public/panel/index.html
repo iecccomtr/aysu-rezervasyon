@@ -498,6 +498,7 @@
       <div class="kutu" id="kullanici-liste"></div>
       <button type="button" class="dugme ikincil kucuk" id="kurallar-ornek" hidden style="margin-top:10px">📋 Tesis kuralları e-postasını bana gönder (yeni çalışana giden)</button>
       <button type="button" class="dugme ikincil kucuk" id="yedek-al" hidden style="margin-top:10px">💾 Verilerin yedeğini e-postama gönder</button>
+      <button type="button" class="dugme ikincil kucuk" id="admin-devret" hidden style="margin-top:10px;color:#b42318;border-color:#e8b4ae">👑 Admin yetkisini devret</button>
       <div id="puantaj-alan" hidden>
         <div class="baslik-satir" style="margin-top:22px"><h2>Puantaj</h2>
           <input type="month" id="puantaj-ay" class="sag" style="border:1px solid #b5c3cf;border-radius:10px;padding:7px 10px;font-size:15px;background:var(--kart)"></div>
@@ -1639,7 +1640,7 @@
   let islemler = [];
   async function islemYukle() {
     $("islem-alan").hidden = ben.rol !== "admin";
-    $("kurallar-ornek").hidden = $("yedek-al").hidden = ben.rol !== "admin";
+    $("kurallar-ornek").hidden = $("yedek-al").hidden = $("admin-devret").hidden = ben.rol !== "admin";
     if (ben.rol !== "admin") return;
     const v = await api("islemler").catch(() => null);
     if (!Array.isArray(v)) return;
@@ -1656,6 +1657,23 @@
       </div>`).join("") || '<p class="soluk" style="padding:14px">Kayıt yok.</p>';
   }
   $("islem-ara").addEventListener("input", islemCiz);
+  $("admin-devret").addEventListener("click", () => {
+    const adaylar = kullanicilar.filter((u) => u.durum === "aktif" && u.rol !== "admin");
+    if (!adaylar.length) return bildir("Devredilecek aktif kullanıcı yok.");
+    ac("Admin yetkisini devret", `
+      <p class="bilgi" style="background:#fff1f1;border-color:#f2c4c4;color:#7a1a12">Seçtiğiniz kişi Admin olur, siz <b>Müdür</b> olursunuz. IBAN, fiyatlar, kodlar, puantaj ve yedek gibi Admin yetkileri ona geçer. İkiniz de yeniden giriş yaparsınız.</p>
+      <div class="alan"><label for="dv-kim">Yeni Admin</label><select id="dv-kim" style="width:100%;border:1px solid #b5c3cf;border-radius:10px;padding:10px;font-size:16px">${adaylar.map((u) => `<option value="${kacis(u.eposta)}">${kacis(u.ad)} · ${kacis(u.rolAd || "")}</option>`).join("")}</select></div>
+      <div class="alan"><label for="dv-sifre">Şifreniz (onay için)</label><input id="dv-sifre" type="password" autocomplete="current-password"></div>
+      <button class="dugme tam tehlike" type="button" id="dv-tamam">Admin yetkisini devret</button>`);
+    $("dv-tamam").addEventListener("click", async () => {
+      const sec = $("dv-kim").selectedOptions[0];
+      if (!confirm(`Admin yetkisi ${sec.textContent} kişisine devredilsin mi? Bu işlemi geri almak için yeni Admin'in size geri devretmesi gerekir.`)) return;
+      const r = await api("admin-devret", { eposta: sec.value, sifre: $("dv-sifre").value });
+      if (r.hata) return dlgUyari(r.hata);
+      dlg.close(); alert(`Admin yetkisi ${r.yeniAdmin.ad} kişisine devredildi. Artık Müdür'sünüz; lütfen yeniden giriş yapın.`);
+      location.reload();
+    });
+  });
   $("yedek-al").addEventListener("click", async (e) => {
     e.target.disabled = true;
     const r = await api("yedek", {});

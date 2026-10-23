@@ -1011,3 +1011,24 @@ test("Yedek: kayıtlar gelir, oturum / şifre / dekont dosyası gelmez", async (
   assert.equal(y.veri["u:admin@aysu.com"].hash, undefined);
   assert.equal(y.veri["u:admin@aysu.com"].ad, "Admin");
 });
+
+test("Admin yetkisini devretme: şifre ister, hedef Admin, devreden Müdür olur", async () => {
+  const d = demoDepo({ PANEL_KURULUM_KODU: "k" });
+  const admin = await d.oturum((await d.panelKur({ kurulumKodu: "k", eposta: "admin@aysu.com", ad: "Admin", sifre: "aysu-2026!" })).token);
+  await d.kayitOl({ eposta: "mudur@aysu.com", ad: "Müdür Bey", sifre: "mudur-2026!", rol: "mudur" });
+  await d.kullaniciGuncelle({ eposta: "mudur@aysu.com", rol: "mudur", durum: "aktif" }, admin);
+  assert.match((await d.adminDevret({ eposta: "mudur@aysu.com", sifre: "yanlis" }, admin)).hata, /hatalı/);
+  assert.match((await d.adminDevret({ eposta: "yok@aysu.com", sifre: "aysu-2026!" }, admin)).hata, /aktif/);
+  const r = await d.adminDevret({ eposta: "mudur@aysu.com", sifre: "aysu-2026!" }, admin);
+  assert.ok(r.basarili);
+  const l = await d.kullaniciListesi();
+  assert.equal(l.find((u) => u.eposta === "mudur@aysu.com").rol, "admin");
+  assert.equal(l.find((u) => u.eposta === "admin@aysu.com").rol, "mudur");
+});
+
+test("Abone gelmiyor işareti abone adı ve tarihleri döndürür (e-posta için)", async () => {
+  const d = demoDepo();
+  const a = await d.aboneKaydet({ ad: "Ekip", telefon: "0545 123 01 23", gun: 3, saat: "20:00", no: 7 });
+  const r = await d.aboneAtla({ id: a.abone.id, gun: "2026-10-22", saat: "20:00", gelmiyor: true });
+  assert.ok(r.basarili); assert.equal(r.ad, "Ekip"); assert.equal(r.no, 7); assert.deepEqual(r.tarihler, ["2026-10-22 20:00"]);
+});

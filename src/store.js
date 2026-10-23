@@ -1455,6 +1455,26 @@ export class RezervasyonDeposu extends DurableObject {
     return k || { no: IBAN.no, alici: IBAN.alici, guncelleyen: "Kurulum", zaman: null };
   }
 
+  /** Admin yetkisini başka bir aktif kullanıcıya devreder; devreden Müdür olur. Şifre ister. */
+  async adminDevret({ eposta, sifre }, yapan) {
+    return this.kilitli(async () => {
+      if (yapan?.rol !== "admin") return { hata: "Sadece Admin devredebilir." };
+      const ben = await this.st.get(`u:${yapan.eposta}`);
+      if (!ben || !esitMi(await sifreHash(String(sifre || ""), ben.tuz), ben.hash)) return { hata: "Şifreniz hatalı. Devir yapılmadı." };
+      const e = epostaNormalize(eposta);
+      const hedef = e && (await this.st.get(`u:${e}`));
+      if (!hedef || hedef.durum !== "aktif") return { hata: "Devredilecek kişi aktif bir kullanıcı olmalı." };
+      if (hedef.eposta === ben.eposta) return { hata: "Kendinize devredemezsiniz." };
+      if (hedef.rol === "admin") return { hata: `${hedef.ad} zaten Admin.` };
+      const eskiRol = ROLLER[hedef.rol]?.ad || "";
+      await this.st.put({ [`u:${hedef.eposta}`]: { ...hedef, rol: "admin" }, [`u:${ben.eposta}`]: { ...ben, rol: "mudur" } });
+      await this.oturumlariKapat(ben.eposta);
+      await this.oturumlariKapat(hedef.eposta);
+      await this.kayitTut(yapan, "ADMİN YETKİSİNİ DEVRETTİ", `${ben.ad} → ${hedef.ad} (${hedef.eposta}, önceki görevi ${eskiRol}); ${ben.ad} artık Müdür`);
+      return { basarili: true, yeniAdmin: { eposta: hedef.eposta, ad: hedef.ad }, eskiAdmin: { eposta: ben.eposta, ad: ben.ad } };
+    });
+  }
+
   async ibanKaydet({ no, alici, sifre }, yapan) {
     return this.kilitli(async () => {
       if (yapan?.rol !== "admin") return { hata: "IBAN'ı sadece Admin değiştirebilir." };
@@ -2169,7 +2189,7 @@ export class RezervasyonDeposu extends DurableObject {
         const kayit = {};
         for (const h of hedef) kayit[`x:${h.t}:${h.saat}:${a.id}`] = { olusturma: simdiYazi() };
         await this.st.put(kayit);
-        return { basarili: true, sayi: hedef.length };
+        return { basarili: true, sayi: hedef.length, ad: a.ad, no: aboneNo(a), tarihler: hedef.map((h) => `${h.t} ${h.saat}`) };
       }
       // Geri alırken bu arada rezervasyon alınmış saatleri atla
       const ilk = hedef.reduce((m, h) => (h.t < m ? h.t : m), hedef[0].t);
@@ -2179,7 +2199,8 @@ export class RezervasyonDeposu extends DurableObject {
       const sil = hedef.filter((h) => !dolu.includes(h)).map((h) => `x:${h.t}:${h.saat}:${a.id}`);
       if (sil.length) await this.st.delete(sil);
       if (!sil.length && dolu.length) return { hata: "Bu saate bu hafta başka rezervasyon alınmış. Önce onu iptal edin." };
-      return { basarili: true, sayi: sil.length, atlanan: dolu.length };
+      return { basarili: true, sayi: sil.length, atlanan: dolu.length, ad: a.ad, no: aboneNo(a),
+        tarihler: hedef.filter((h) => !dolu.includes(h)).map((h) => `${h.t} ${h.saat}`) };
     });
   }
 

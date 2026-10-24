@@ -274,6 +274,7 @@ async function panel(request, env, ctx, yol) {
 
   // Görevler: herkes görür, bugünün görevini "yaptım" diye onaylar → yöneticilere e-posta
   // Liste her hafta sıfırlanır: geçmiş haftaları sadece Admin görür
+  if (yol === "videolar" && request.method === "GET") return json(await d.videolar());
   if (yol === "gorevler" && request.method === "GET") return json(await d.gorevHafta(ben.rol === "admin" ? url.searchParams.get("bas") : null));
   if (yol === "gorev" && post) {
     const g = (await govdeOku(request)) || {};
@@ -528,6 +529,7 @@ async function panel(request, env, ctx, yol) {
       if (ben.rol !== "admin") return json({ hata: "Sadece Admin." }, 403);
       return json(await d.kodlar());
     case "POST kod": { const r = await d.kodKaydet(g, ben); return json(r, r.hata ? 400 : 200); }
+    case "POST videolar": { const r = await d.videolarKaydet(g.liste, ben); return json(r, r.hata ? 400 : 200); }
     case "POST gorevler": { const r = await d.gorevlerKaydet(g.liste, ben); return json(r, r.hata ? 400 : 200); }
     case "POST gorev/geri": // sadece Admin (depo kontrol eder)
       { const r = await d.gorevGeriAl(g.gun, g.id, ben); return json(r, r.hata ? 400 : 200); }

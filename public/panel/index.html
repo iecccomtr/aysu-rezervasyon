@@ -188,6 +188,10 @@
   .urun { border: 1px solid var(--cizgi); border-radius: 10px; padding: 6px 8px; font-size: 13px; line-height: 1.2; }
   .urun.var { border-color: var(--cim); background: var(--cim-acik); }
   .urun.yok { opacity: .45; }
+  .video { margin-bottom: 12px; }
+  .video .cerceve { position: relative; padding-top: 56.25%; background: #000; border-radius: 12px; overflow: hidden; }
+  .video iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+  .video b { display: block; margin: 6px 0 2px; }
   .gv-sat { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--cizgi); }
   .gv-sat:last-child { border-bottom: 0; }
   .gv-sat > span { flex: 1; min-width: 0; }
@@ -497,6 +501,17 @@
       <div class="kutu" id="gv-bugun"></div>
       <h3 style="margin:20px 0 8px">Haftalık tablo</h3>
       <div class="kutu gv-tablo-kap"><table class="gv-tablo" id="gv-tablo"></table></div>
+      <div class="baslik-satir" style="margin-top:22px"><h2>Videolar</h2></div>
+      <div id="vd-liste"></div>
+      <div id="vd-duzen-alan" hidden>
+        <form class="kutu" id="vd-form" style="padding:14px;margin-top:10px" novalidate>
+          <b style="display:block;margin-bottom:4px">Videoları düzenle</b>
+          <small class="soluk" style="display:block;margin-bottom:8px">Videoyu YouTube'a <b>"Liste dışı"</b> olarak (ya da Google Drive'a "bağlantıya sahip herkes" ile) yükleyin, bağlantısını buraya yapıştırın.</small>
+          <div id="vd-satirlar"></div>
+          <button type="button" class="dugme ikincil kucuk" id="vd-ekle">+ Video ekle</button>
+          <button type="submit" class="dugme" style="width:100%;margin-top:12px">Videoları kaydet</button>
+        </form>
+      </div>
       <div id="gv-duzen-alan" hidden>
         <div class="baslik-satir" style="margin-top:22px"><h2>Görev listesi</h2><span class="soluk sag">Sadece Admin</span></div>
         <form class="kutu" id="gv-form" style="padding:14px" novalidate>
@@ -1888,7 +1903,46 @@
   let gvBas = null, gv = null, gvListe = [];
   const gvYapabilir = () => ["admin", "temizlik", "personel"].includes(ben.rol);
   const GV_ROL = { hepsi: "Herkes", temizlik: "Temizlik Şefi", personel: "Personel" };
+  // Tesis videoları: YouTube / Google Drive bağlantısından oynatıcı
+  let vdListe = [];
+  const videoGom = (link) => {
+    const yt = link.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|shorts\/|embed\/|live\/))([\w-]{11})/);
+    if (yt) return `https://www.youtube-nocookie.com/embed/${yt[1]}?rel=0`;
+    const dr = link.match(/drive\.google\.com\/file\/d\/([\w-]+)/);
+    if (dr) return `https://drive.google.com/file/d/${dr[1]}/preview`;
+    return null;
+  };
+  async function videoYukle() {
+    const v = await api("videolar").catch(() => []);
+    vdListe = Array.isArray(v) ? v : [];
+    const KAT = [["acil", "🚨 Acil durum", "#b42318"], ["tesis", "Tesis kullanımı", "var(--murekkep)"], ["diger", "Diğer", "var(--murekkep)"]];
+    const kart = (x) => { const g = videoGom(x.link); return `<div class="kutu video" style="padding:10px${x.kategori === "acil" ? ";border-color:#f2c4c4;background:#fff8f8" : ""}">
+      ${g ? `<div class="cerceve"><iframe src="${kacis(g)}" title="${kacis(x.baslik)}" loading="lazy" allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe></div>` : ""}
+      <b>${kacis(x.baslik)}</b>${x.aciklama ? `<small class="soluk">${kacis(x.aciklama)}</small>` : ""}
+      ${g ? "" : `<a class="dugme ikincil kucuk" href="${kacis(x.link)}" target="_blank" rel="noopener">Videoyu aç</a>`}</div>`; };
+    $("vd-liste").innerHTML = KAT.map(([k, ad, renk]) => { const l = vdListe.filter((x) => (x.kategori || "tesis") === k); return l.length ? `<h3 style="font-size:20px;margin:12px 0 8px;color:${renk}">${ad}</h3>${l.map(kart).join("")}` : ""; }).join("")
+      || '<p class="soluk">Henüz video eklenmedi.</p>';
+    $("vd-duzen-alan").hidden = !["admin", "mudur"].includes(ben.rol);
+    vdSatirCiz();
+  }
+  function vdSatirCiz() {
+    $("vd-satirlar").innerHTML = vdListe.map((x, i) => `<div class="kutu" style="padding:8px;margin-bottom:8px"><div class="k-sat" style="grid-template-columns:1fr 28px">
+      <input data-vd-baslik="${i}" value="${kacis(x.baslik)}" placeholder="Başlık (ör. Projektör nasıl açılır)"><button class="x-sil" type="button" data-vd-sil="${i}" aria-label="Sil">×</button></div>
+      <select data-vd-kat="${i}" style="width:100%;border:1px solid #b5c3cf;border-radius:8px;padding:8px;font-size:15px;margin-bottom:6px">${[["acil", "🚨 Acil durum (yangın, elektrik kesintisi, yaralanma…)"], ["tesis", "Tesis kullanımı"], ["diger", "Diğer"]].map(([k, a]) => `<option value="${k}"${(x.kategori || "tesis") === k ? " selected" : ""}>${a}</option>`).join("")}</select>
+      <input data-vd-link="${i}" value="${kacis(x.link)}" placeholder="https://youtu.be/…" style="width:100%;border:1px solid #b5c3cf;border-radius:8px;padding:8px;font-size:15px;margin-bottom:6px">
+      <input data-vd-ac="${i}" value="${kacis(x.aciklama || "")}" placeholder="Açıklama (isteğe bağlı)" style="width:100%;border:1px solid #b5c3cf;border-radius:8px;padding:8px;font-size:15px"></div>`).join("");
+    $("vd-satirlar").querySelectorAll("[data-vd-sil]").forEach((b) => b.addEventListener("click", () => { vdOku(); vdListe.splice(Number(b.dataset.vdSil), 1); vdSatirCiz(); }));
+  }
+  const vdOku = () => { vdListe = vdListe.map((_, i) => ({ baslik: document.querySelector(`[data-vd-baslik="${i}"]`).value, link: document.querySelector(`[data-vd-link="${i}"]`).value.trim(), aciklama: document.querySelector(`[data-vd-ac="${i}"]`).value, kategori: document.querySelector(`[data-vd-kat="${i}"]`).value })); };
+  $("vd-ekle").addEventListener("click", () => { vdOku(); vdListe.push({ baslik: "", link: "", aciklama: "", kategori: "tesis" }); vdSatirCiz(); });
+  $("vd-form").addEventListener("submit", async (e) => {
+    e.preventDefault(); vdOku();
+    const r = await api("videolar", { liste: vdListe });
+    if (r.hata) return bildir(r.hata);
+    bildir("Videolar kaydedildi"); videoYukle();
+  });
   async function gorevYukle(bas) {
+    videoYukle();
     const v = await api("gorevler" + (bas ? `?bas=${bas}` : "")).catch(() => null);
     if (!v || v.hata) return bildir(v?.hata || "Görevler yüklenemedi");
     gv = v; gvBas = v.bas;

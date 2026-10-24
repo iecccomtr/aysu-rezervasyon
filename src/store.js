@@ -1841,6 +1841,24 @@ export class RezervasyonDeposu extends DurableObject {
     });
   }
 
+  // ---- Tesis kullanım videoları (YouTube "liste dışı" / Google Drive bağlantıları) ----
+  async videolar() { return (await this.st.get("ayar:videolar")) || []; }
+  async videolarKaydet(liste, yapan) {
+    return this.kilitli(async () => {
+      if (!["admin", "mudur"].includes(yapan?.rol)) return { hata: "Videoları Admin ve Müdür düzenler." };
+      const l = [];
+      for (const x of Array.isArray(liste) ? liste.slice(0, 50) : []) {
+        const baslik = kirp(x?.baslik, 80), link = kirp(x?.link, 300);
+        if (!baslik && !link) continue;
+        if (!/^https:\/\/[^\s]+$/.test(link)) return { hata: `Geçersiz bağlantı: ${baslik || link || "(boş)"}` };
+        l.push({ baslik: baslik || "Video", link, aciklama: kirp(x?.aciklama, 200), kategori: ["acil", "tesis", "diger"].includes(x?.kategori) ? x.kategori : "tesis" });
+      }
+      await this.st.put("ayar:videolar", l);
+      await this.kayitTut(yapan, "Tesis videolarını güncelledi", l.map((x) => x.baslik).join(", "));
+      return { basarili: true, videolar: l };
+    });
+  }
+
   // ---- Görevler (temizlik şefi / personel iş takibi) ----
   //   ayar:gorevler  [{ id, ad, aciklama, rol: "hepsi"|"temizlik"|"personel" }]
   //   gv:<işletme günü>:<id>  { eposta, ad, rol, zaman, not }

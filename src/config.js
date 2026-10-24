@@ -10,7 +10,7 @@ export const ISLETME = {
   telefon: "0 555 510 26 26",
   sabitHat: "0 222 335 35 55",
   harita: "https://maps.google.com/?q=Aysu+Halısaha+Eskişehir",
-  instagram: "https://www.instagram.com/aysuhalisahacom",
+  instagram: "https://www.instagram.com/aysuhalisaha/",
   whatsapp: "905555102626", // sitedeki WhatsApp düğmesinin numarası (başında + olmadan)
 };
 

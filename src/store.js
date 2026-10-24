@@ -1443,8 +1443,8 @@ export class RezervasyonDeposu extends DurableObject {
       if (!kisiler.has(e)) kisiler.set(e, { eposta: e, ad: u?.ad || k.ad || e, rol: ROLLER[u?.rol]?.ad || "", saatlikUcret: u?.saatlikUcret || 0, gunler: [], saat: 0, ucret: 0, brut: 0, kesinti: 0 });
       const kisi = kisiler.get(e);
       const saat = odenecekSaat(k);
-      // Yol yarım saati hariç 8 saat (ve üzeri) çalışılan güne +300 TL
-      const ek = k.cikis && saat - KURALLAR.puantajYolSaat >= KURALLAR.uzunMesaiSaat ? KURALLAR.uzunMesaiEk : 0;
+      // Yol yarım saati hariç 8 saat (ve üzeri) çalışılan güne +300 TL yemek ücreti
+      const ek = k.cikis && gun >= KURALLAR.uzunMesaiBaslangic && saat - KURALLAR.puantajYolSaat >= KURALLAR.uzunMesaiSaat ? KURALLAR.uzunMesaiEk : 0; // yemek ücreti
       kisi.ekOdeme = (kisi.ekOdeme || 0) + ek;
       kisi.gunler.push({ gun, giris: k.giris ? zamanYazi(k.giris) : null, cikis: k.cikis ? zamanYazi(k.cikis) : null, saat, ek, acik: Boolean(k.giris && !k.cikis), duzelten: k.duzelten || null });
       kisi.saat = Math.round((kisi.saat + saat) * 100) / 100;
@@ -2121,7 +2121,7 @@ export class RezervasyonDeposu extends DurableObject {
       const saat = odenecekSaat(v);
       const e = k.split(":").slice(2).join(":");
       const kesinti = 0; // personel kantini ay sonu maaştan kesilir
-      const ek = v.cikis && saat - KURALLAR.puantajYolSaat >= KURALLAR.uzunMesaiSaat ? KURALLAR.uzunMesaiEk : 0;
+      const ek = v.cikis && gun >= KURALLAR.uzunMesaiBaslangic && saat - KURALLAR.puantajYolSaat >= KURALLAR.uzunMesaiSaat ? KURALLAR.uzunMesaiEk : 0;
       return { eposta: e, ad: u?.ad || v.ad, rol: ROLLER[u?.rol]?.ad || "", saat, kesinti, ek, ucret: Math.round(saat * (u?.saatlikUcret || 0)) + ek - kesinti, acik: Boolean(v.giris && !v.cikis) };
     });
     const tahsil = await this.veresiyeTahsilleri(gun);

@@ -515,7 +515,7 @@ async function panel(request, env, ctx, yol) {
         satirlar: [
           ["Çalışan", `${k.ad} (${k.rol})`], ["Saatlik ücret", tl(k.saatlikUcret)],
           ["Çalışılan", `${sa(k.saat)} (${k.gunler.length} gün, yarım saat yol dahil)`],
-          ...(k.ekOdeme ? [[`${KURALLAR.uzunMesaiSaat} saat ve üzeri gün eki`, `+${tl(k.ekOdeme)} (${k.gunler.filter((x) => x.ek).length} gün)`]] : []), ["Brüt", tl(k.brut)],
+          ...(k.ekOdeme ? [["Yemek ücreti", `+${tl(k.ekOdeme)} (${k.gunler.filter((x) => x.ek).length} gün, ${KURALLAR.uzunMesaiSaat} saat ve üzeri)`]] : []), ["Brüt", tl(k.brut)],
           ...(k.kesinti ? [["Personel kantini", `−${tl(k.kesinti)}`]] : []),
           ...(k.avans ? [["Avans / ödemeler", `−${tl(k.avans)}`]] : []),
           ["ÖDENECEK", tl(k.kalan)],
@@ -777,7 +777,7 @@ async function puantajOzetGonder(env, d, ben, r) {
     satirlar: [
       ["Geldim", gunK.giris], ["Çıktım", gunK.cikis], ["Çalışılan (yarım saate yuvarlı)", sa(calisilan)], ["Yol", sa(KURALLAR.puantajYolSaat)],
       ["Toplam", sa(gunK.saat)],
-      ...(gunK.ek ? [[`${KURALLAR.uzunMesaiSaat} saat ve üzeri çalışma`, `+${tl(gunK.ek)}`]] : []),
+      ...(gunK.ek ? [["Yemek ücreti", `+${tl(gunK.ek)} (${KURALLAR.uzunMesaiSaat} saat ve üzeri)`]] : []),
       ...(kisi.saatlikUcret ? [["Bugünkü ücret", tl(gunK.saat * kisi.saatlikUcret + (gunK.ek || 0))]] : []),
       ["Bu ay toplam", `${sa(kisi.saat)}${kisi.saatlikUcret ? " · " + tl(kisi.brut) : ""}`],
       ...(kisi.kesinti ? [["Bu ay personel kantini", `${tl(kisi.kesinti)} (ay sonu maaştan düşülür)`]] : []),

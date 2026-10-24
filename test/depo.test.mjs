@@ -1262,11 +1262,13 @@ test("Müdür ÇIKTIM dedikten sonra aynı iş günü panele giremez; ertesi gü
 test("Yol hariç 8 saat ve üzeri çalışılan güne maaşa +300 TL", async () => {
   const d = demoDepo();
   const p = { eposta: "p@a.com", ad: "Metin", rol: "personel" };
-  saatiAyarla("2026-10-20T14:00"); await d.puantajGiris(p);
-  saatiAyarla("2026-10-20T22:00"); await d.puantajCikis(p); // 8 saat
-  saatiAyarla("2026-10-21T18:00"); await d.puantajGiris(p);
-  saatiAyarla("2026-10-21T23:00"); await d.puantajCikis(p); // 5 saat
+  saatiAyarla("2026-10-24T14:00"); await d.puantajGiris(p);
+  saatiAyarla("2026-10-24T22:00"); await d.puantajCikis(p); // 8 saat ama başlangıçtan önce
+  saatiAyarla("2026-10-25T14:00"); await d.puantajGiris(p);
+  saatiAyarla("2026-10-25T22:00"); await d.puantajCikis(p); // 8 saat
+  saatiAyarla("2026-10-26T18:00"); await d.puantajGiris(p);
+  saatiAyarla("2026-10-26T23:00"); await d.puantajCikis(p); // 5 saat
   const k = (await d.puantajAy("2026-10")).kisiler.find((x) => x.eposta === "p@a.com");
   assert.equal(k.ekOdeme, 300);
-  assert.deepEqual(k.gunler.map((g) => g.ek), [300, 0]);
+  assert.deepEqual(k.gunler.map((g) => g.ek), [0, 300, 0]);
 });

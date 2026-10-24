@@ -364,7 +364,9 @@ async function panel(request, env, ctx, yol) {
       const ab = (await d.aboneListe()).find((x) => x.id === g.id);
       const r = await d.aboneSil(g.id, { sonMacUcretsiz: Boolean(g.sonMacUcretsiz) });
       const ad = ab ? `${ab.no ? "Abone " + ab.no + " · " : ""}${ab.ad}` : g.id;
-      if (r && r.basarili) aboneBildir(`Abonelik sonlandırıldı: ${ad}`, [["Abone", ad], ["Açıklama", String(g.neden).slice(0, 300)],
+      const saatleri = ab ? (ab.slotlar || []).map((x) => `${GUN_ADLARI[x.gun]} ${x.saat}`).join(", ") : "";
+      if (r && r.basarili) aboneBildir(`Abonelik sonlandırıldı: ${ad}${saatleri ? " — " + saatleri : ""}`, [["Abone", ad], ...(saatleri ? [["Boşalan gün / saat", `${saatleri} (her hafta)`]] : []),
+        ["Sonlandırma", new Date(Date.now() + 3 * 3600_000).toISOString().slice(0, 16).replace("T", " ").split(" ").map((x, i) => (i ? x : x.split("-").reverse().join("."))).join(" ")], ["Açıklama", String(g.neden).slice(0, 300)],
         ["Son maç", r.sonMac?.kayitNo ? `${trTarih(r.sonMac.g)} ${r.sonMac.saat} — depozito karşılığı ücretsiz` : r.sonMac?.hata ? `yazılamadı: ${r.sonMac.hata}` : "yok (saatleri boşa çıktı)"],
         ...(ab?.depozito ? [["Depozito", `${ab.depozito}${r.depozitoYandi ? " — ilk 3 ay dolmadığı için YANDI" : ""}`]] : r.depozitoYandi ? [["Depozito", "İlk 3 ay dolmadığı için yandı"]] : [])]);
       return degisti(r && r.basarili ? { ...r, ad } : r);

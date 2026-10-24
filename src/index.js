@@ -152,7 +152,7 @@ function haftaSaltOkur(h) {
       ...g,
       saatler: g.saatler.map((s) => ({
         saat: s.saat, tarih: s.tarih, gecmis: s.gecmis, tur: s.tur, ...(s.ozel ? { ozel: true } : {}),
-        ...(s.rez ? { rez: { ad: s.rez.ad, durum: s.rez.durum, kaynak: s.rez.kaynak, ekstra: s.rez.ekstra || [] } } : {}),
+        ...(s.rez ? { rez: { ad: s.rez.ad, durum: s.rez.durum, kaynak: s.rez.kaynak, ekstra: s.rez.ekstra || [], ...(s.rez.aboneNo ? { aboneNo: s.rez.aboneNo } : {}) } } : {}),
         ...(s.abone ? { abone: { no: s.abone.no } } : {}),
       })),
     })),

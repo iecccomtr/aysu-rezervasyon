@@ -971,7 +971,7 @@
       if (s.tur === "rez") {
         const r = s.rez;
         sinif += ` t-rez${r.durum === "Kapora bekleniyor" ? " bekliyor" : ""}`;
-        ic = `<span class="i"><b>${kacis(r.ad)}</b><small>${yonetici() ? (telYazi(r.telefon) || "telefonsuz") + " · " : ""}${r.kaynak === "Online" ? "Online" : "Telefon"}${r.kapora ? " · kapora " + kacis(r.kapora) : ""}</small></span>
+        ic = `<span class="i"><b>${r.aboneNo ? `Abone ${r.aboneNo} · ` : ""}${kacis(r.ad)}</b><small>${yonetici() ? (telYazi(r.telefon) || "telefonsuz") + " · " : ""}${r.kaynak === "Online" ? "Online" : "Telefon"}${r.kapora ? " · kapora " + kacis(r.kapora) : ""}</small></span>
               <span class="rozet ${durumSinif(r.durum)}">${r.durum === "Kapora bekleniyor" ? (r.kaynak === "Online" ? "⏳ Opsiyon" : "Kapora") : kacis(r.durum)}</span>`;
       } else if (s.tur === "abone") {
         sinif += " t-abone";
@@ -1034,7 +1034,8 @@
       if (s.tur === "rez") {
         const bek = s.rez.durum === "Kapora bekleniyor";
         sinif = `h ${bek ? "h-bekliyor" : "h-onayli"}`;
-        yazi = (bek ? "⏳ " : "") + (s.rez.ekstra && s.rez.ekstra.length ? "★ " : "") + kacis(kisaAd(s.rez.ad)); // ⏳ = opsiyon, ★ = VIP
+        yazi = (bek ? "⏳ " : "") + (s.rez.ekstra && s.rez.ekstra.length ? "★ " : "") + kacis(s.rez.aboneNo ? `Abone ${s.rez.aboneNo}` : kisaAd(s.rez.ad)); // ⏳ = opsiyon, ★ = VIP
+        if (s.rez.aboneNo && !bek) sinif = "h h-abone";
         baslik = `${g.gun} ${saat}: ${s.rez.ad}${s.rez.telefon ? " " + telYazi(s.rez.telefon) : ""} (${s.rez.durum})`;
       } else if (s.tur === "abone") {
         sinif = "h h-abone"; yazi = aboneEtiket(s.abone) + (yonetici() && aboneNot(s.abone) ? " 📝" : ""); baslik = `${g.gun} ${saat}: ${aboneEtiket(s.abone)}${yonetici() && s.abone.ad ? " (" + s.abone.ad + ")" : ""}${yonetici() && aboneNot(s.abone) ? "\n" + aboneNot(s.abone) : ""}`;

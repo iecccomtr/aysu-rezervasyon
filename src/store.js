@@ -1833,7 +1833,8 @@ export class RezervasyonDeposu extends DurableObject {
         // İlk abone maçında depozito da alınır (önceden IBAN'a ödendiyse alınmaz; o ödeme depozitodur, maçtan düşülmez)
         const depIban = Boolean(r.aboneBasvuru?.depozitoIban);
         const dep = r.aboneBasvuru && !r.ucretsiz && !depIban ? Number(r.aboneBasvuru.depozito) || 0 : 0;
-        satirlar.push({ saat, tur: r.aboneId || r.aboneBasvuru ? "abone" : "normal", ...(r.aboneId ? { aboneId: r.aboneId } : {}), ...(dep ? { depozito: `İlk maç: ${dep.toLocaleString("tr-TR")} ₺ depozito ücrete dahil` } : {}), ad: r.ad, ucret: Math.max(0, (Number.isFinite(Number(r.ucret)) && r.ucret !== null && r.ucret !== undefined ? Number(r.ucret) : macFiyati(f, gun, saat)) - vip) + dep, vip, ekstra: (r.ekstra || []).filter((x) => EKSTRALAR[x]), onOdeme, tkOn: onOdeme, kayitNo: r.kayitNo, kaynak: "takvim",
+        const rAboneNo = r.aboneId ? aboneNo(d.abone.find((a) => a.id === r.aboneId)) : null;
+        satirlar.push({ saat, tur: r.aboneId || r.aboneBasvuru ? "abone" : "normal", ...(r.aboneId ? { aboneId: r.aboneId } : {}), ...(dep ? { depozito: `İlk maç: ${dep.toLocaleString("tr-TR")} ₺ depozito ücrete dahil` } : {}), ad: rAboneNo ? `Abone ${rAboneNo}` : r.ad, ucret: Math.max(0, (Number.isFinite(Number(r.ucret)) && r.ucret !== null && r.ucret !== undefined ? Number(r.ucret) : macFiyati(f, gun, saat)) - vip) + dep, vip, ekstra: (r.ekstra || []).filter((x) => EKSTRALAR[x]), onOdeme, tkOn: onOdeme, kayitNo: r.kayitNo, kaynak: "takvim",
           ...(r.ucretsiz ? { ucretsiz: r.ucretsiz.neden || "Ücretsiz" } : {}) });
       }
     }
@@ -2193,7 +2194,8 @@ export class RezervasyonDeposu extends DurableObject {
             return {
               saat, tarih, gecmis: macZamani(tarih, saat) < Date.now() - 3600_000, tur: s.tur,
               ...(SAATLER.includes(saat) ? {} : { ozel: true }),
-              ...(s.rez ? { rez: s.rez } : {}),
+              // Abone başvurusunun ilk maçı (rezervasyon) da "Abone N" olarak görünsün
+              ...(s.rez ? { rez: s.rez.aboneId ? { ...s.rez, aboneNo: aboneNo(d.abone.find((a) => a.id === s.rez.aboneId)) } : s.rez } : {}),
               ...(s.abone ? { abone: { id: s.abone.id, no: aboneNo(s.abone), ad: s.abone.ad, telefon: s.abone.telefon, not: s.abone.not, depozito: s.abone.depozito || "", slotlar: slotlarOf(s.abone) } } : {}),
             };
           }),

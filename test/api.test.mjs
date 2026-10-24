@@ -193,9 +193,10 @@ test("Panel: telefon rezervasyonu, kapora onayı, abone 'gelmiyor', CRM", async 
   const m = await istek("/api/musaitlik");
   assert.equal(m.veri.gunler.find((x) => x.tarih === "2026-10-22").saatler.find((s) => s.saat === "21:00").bos, true);
 
-  const yeni = await istek("/api/panel/abone", { ad: "Futbol Koleji", telefon: "0553 704 80 26", gun: 5, saat: "08:00" });
+  assert.match((await istek("/api/panel/abone", { ad: "Futbol Koleji", telefon: "0553 704 80 26", gun: 5, saat: "08:00" })).veri.hata, /e-posta/);
+  const yeni = await istek("/api/panel/abone", { ad: "Futbol Koleji", telefon: "0553 704 80 26", gun: 5, saat: "08:00", eposta: "koleji@ornek.com" });
   assert.equal(yeni.durum, 200);
-  assert.equal((await istek("/api/panel/abone", { ad: "Çakışan", gun: 5, saat: "08:00" })).durum, 400);
+  assert.equal((await istek("/api/panel/abone", { ad: "Çakışan", gun: 5, saat: "08:00", eposta: "c@ornek.com" })).durum, 400);
 
   await istek("/api/panel/musteri-not", { telefon: "0532 111 22 33", not: "İyi müşteri", etiket: "VIP" });
   const ml = (await istek("/api/panel/musteriler")).veri;

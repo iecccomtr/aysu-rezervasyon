@@ -55,6 +55,17 @@ export const ABONE_KURALLARI = [
   "Saha personelleri ile hiçbir şekilde ticari ilişkiye girmeyiniz.",
 ];
 
+/** Memnuniyet anketi soruları (1–5 puan) */
+export const ANKET_SORULARI = [
+  { id: "zemin", soru: "Saha zemini" },
+  { id: "temizlik", soru: "Temizlik (soyunma odası, duş, WC)" },
+  { id: "personel", soru: "Personelin ilgisi" },
+  { id: "kantin", soru: "Kantin" },
+  { id: "rezervasyon", soru: "Rezervasyon kolaylığı" },
+  { id: "fiyat", soru: "Fiyat / performans" },
+  { id: "genel", soru: "Genel memnuniyet" },
+];
+
 export const KURALLAR = {
   aboneGelmiyorSaat: 12,        // abone "bu hafta gelmiyoruz"u maçtan en geç bu kadar saat önce kendi sayfasından bildirir
   aboneEnAzAy: 3,               // yeni aboneler ilk maçtan itibaren bu kadar ay çıkamaz (çıkarsa depozito yanar)

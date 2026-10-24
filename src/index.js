@@ -2,7 +2,7 @@
 // Statik sayfalar /public klasöründen sunulur; /api/* istekleri burada işlenir.
 
 import { simdi, isletmeGunu, gunEkle, haftaBasi } from "./time.js";
-import { KURALLAR, FIYATLAR, IBAN, ISLETME, EKSTRALAR, ABONE_KURALLARI } from "./config.js";
+import { KURALLAR, FIYATLAR, IBAN, ISLETME, EKSTRALAR, ABONE_KURALLARI, ANKET_SORULARI } from "./config.js";
 import { bildir, epostaYolla, epostaKurulu } from "./bildirim.js";
 import * as bildirimModulu from "./bildirim.js";
 import { TESIS_KURALLARI } from "./tesis-kurallari.js";
@@ -354,7 +354,12 @@ async function panel(request, env, ctx, yol) {
     }
     case "GET aboneler": return json(await d.aboneListe());
     case "POST abone": {
-      const r = await d.aboneKaydet(g);
+      const r = await d.aboneKaydet({ ...g, epostaZorunlu: true }); // panelden kayıtta abone e-postası zorunlu
+      // Yönetici e-postayı yeni girdiyse / değiştirdiyse aboneye kendi sayfasının bağlantısı gider
+      if (r.basarili && r.epostaDegisti) ctx.waitUntil((async () => {
+        const e = await d.aboneErisim(r.abone.id);
+        if (e.basarili) await aboneSayfaGonder(env, e.abone, `${url.origin}/abone/${e.anahtar}`, r.abone.eposta);
+      })().catch(() => {}));
       if (r.basarili && !g.id) aboneBildir(`Yeni abone: ${r.abone.no ? "Abone " + r.abone.no + " · " : ""}${r.abone.ad}`, [
         ["Abone", `${r.abone.no ? "Abone " + r.abone.no + " · " : ""}${r.abone.ad}`], ["Telefon", r.abone.telefon || "—"],
         ["Gün / saat", (r.abone.slotlar || []).map((x) => `${GUN_ADLARI[x.gun]} ${x.saat}`).join(", ")], ...(r.abone.depozito ? [["Depozito", r.abone.depozito]] : [])]);
@@ -382,6 +387,14 @@ async function panel(request, env, ctx, yol) {
           ...(r.hakAsildi ? [["Kural", "Bu ay iptal hakkı aşıldı — kurala göre depozito yanar"]] : [])]);
       }
       return degisti(r);
+    }
+    case "GET anket":
+      if (ben.rol !== "admin" && ben.rol !== "mudur") return json({ hata: "Sadece Admin ve Müdür." }, 403);
+      return json(await d.anketOzet(Number(url.searchParams.get("gun")) || 30));
+    case "POST kantin-carpan": {
+      const r = await d.kantinCarpanKaydet(g, ben);
+      if (r.basarili && r.fiyatFark?.length) fiyatBildir(r.fiyatFark);
+      return json(r, r.hata ? 400 : 200);
     }
     case "POST abone-talep-red": { const r = await d.aboneIptalTalebiReddet(g.id, ben); return json(r, r.hata ? 400 : 200); }
     case "POST abone-link": {
@@ -456,7 +469,17 @@ async function panel(request, env, ctx, yol) {
       }).catch((e) => console.error("Sipariş e-postası", e)));
       return json({ basarili: true });
     }
-    case "POST kasa/kapora-sil": { const r = await d.gelenKaporaSil(g, ben); return json(r, r.hata ? 400 : 200); }
+    case "POST kasa/kapora-sil": {
+      const r = await d.gelenKaporaSil(g, ben);
+      // Yönetici sildiyse Admin'e açıklamasıyla e-posta
+      if (r.basarili && ben.rol !== "admin") ctx.waitUntil((async () => epostaYolla(env, {
+        kime: await d.rolEpostalari(["admin"]), konu: `Kasadan kapora silindi: ${r.silinen?.ad || g.kayitNo} (${trTarih(r.gun)})`,
+        satirlar: [["Kasa günü", trTarih(r.gun)], ["Kapora", r.silinen ? `${r.silinen.ad} — ${r.silinen.mac} maçı · ${Number(r.silinen.tutar).toLocaleString("tr-TR")} TL` : g.kayitNo],
+          ["Kayıt no", g.kayitNo], ["Silen", `${ben.ad} (${ben.rolAd || ""})`], ["Açıklama", String(g.neden || "").slice(0, 300)]],
+        alt: "Aysu Halı Saha · kasa bildirimi",
+      }))().catch(() => {}));
+      return json(r, r.hata ? 400 : 200);
+    }
     case "POST veresiye-ode": return sonuc(await d.veresiyeOde(g, ben));
     case "POST puantaj/kisi-sil": { const r = await d.puantajKisiSil(g.ay, g.eposta, ben); return json(r, r.hata ? 400 : 200); }
     case "POST puantaj/eposta": {
@@ -512,7 +535,8 @@ async function panel(request, env, ctx, yol) {
     case "GET urunler": return json(alisGizle({ urunler: await d.urunlerGorunum() }, ben).urunler);
     case "POST urun": {
       // Alış fiyatını sadece Admin değiştirir (diğerleri göremez de)
-      const r = await d.urunKaydet(ben.rol === "admin" ? g : { ...g, alis: undefined }, ben);
+      // Müdür de yeni alış fiyatı girebilir (göremez); satış fiyatı çarpanla kendiliğinden hesaplanır
+      const r = await d.urunKaydet(["admin", "mudur"].includes(ben.rol) ? g : { ...g, alis: undefined }, ben);
       if (r.fiyatFark?.length) fiyatBildir(r.fiyatFark);
       return json(alisGizle(r, ben), r.hata ? 400 : 200);
     }
@@ -880,6 +904,28 @@ export default {
     }
 
     // Rezervasyon sayfası: önümüzdeki günlerin tüm saatleri (boş/dolu). Kişisel veri içermez.
+    // ---- Memnuniyet anketi ----
+    if (yol === "/anket") return Response.redirect(url.origin + "/anket/", 301);
+    if (yol === "/api/anket" && request.method === "GET") return json({ sorular: ANKET_SORULARI });
+    if (yol === "/api/anket" && request.method === "POST") {
+      if (!ayniKaynak(request)) return json({ hata: "Yetkisiz istek." }, 403);
+      if (await sinirAsildi(env, request, "anket")) return cokFazla();
+      const g = (await govdeOku(request)) || {};
+      if (g.web) return json({ basarili: true }); // bot tuzağı
+      const d = depo(env);
+      const r = await d.anketKaydet(g);
+      if (r.hata) return json(r, 400);
+      // Düşük puan (1–2) ya da "tavsiye etmem": Admin ve Müdür'e hemen haber
+      if (r.dusuk) ctx.waitUntil((async () => epostaYolla(env, {
+        kime: await d.rolEpostalari(["admin", "mudur"]), konu: "Memnuniyet anketi: düşük puan",
+        satirlar: [...ANKET_SORULARI.filter((q) => r.kayit.puan[q.id]).map((q) => [q.soru, `${r.kayit.puan[q.id]} / 5`]),
+          ["Tavsiye eder mi", { evet: "Evet", belki: "Belki", hayir: "Hayır" }[r.kayit.tavsiye] || "—"], ["Öneri / şikâyet", r.kayit.oneri || "—"],
+          ["Ad", r.kayit.ad || "—"], ["Telefon", r.kayit.telefon || "—"]],
+        alt: "Aysu Halı Saha · memnuniyet anketi",
+      }))().catch(() => {}));
+      return json({ basarili: true });
+    }
+
     // ---- Abone sayfası (aboneye özel bağlantı) ----
     if (yol.startsWith("/abone/") && !yol.startsWith("/abone/index")) {
       const sayfa = await env.ASSETS.fetch(new Request(url.origin + "/abone/index.html", { headers: request.headers }));

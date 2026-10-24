@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Memnuniyet anketi · Aysu Halı Saha</title>
+<meta name="description" content="Aysu Halı Saha memnuniyet anketi: görüşleriniz bizim için önemli.">
+<link rel="icon" href="/img/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --cim: #0067a4; --cim-koyu: #062a45; --turuncu: #ef7f1a; --murekkep: #10202d; --gri: #566270; --cizgi: #d5dde5; --kart: #fff; --zemin: #eef2f6; --yesil: #1a7f37; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { font: 400 17px/1.5 "Barlow", system-ui, sans-serif; color: var(--murekkep); background: var(--zemin); min-height: 100dvh; }
+  .ust { background: var(--cim-koyu); color: #fff; padding: 14px 16px; }
+  .ust .ic, main { max-width: 600px; margin: 0 auto; }
+  .ust .ic { display: flex; align-items: center; gap: 12px; }
+  .ust img { height: 32px; background: #fff; border-radius: 8px; padding: 3px 6px; }
+  .ust h1 { font: 700 24px/1.1 "Barlow Condensed", sans-serif; margin: 0; }
+  main { padding: 16px 16px 40px; }
+  .giris { color: var(--gri); margin: 4px 0 16px; }
+  .kutu { background: var(--kart); border: 1px solid var(--cizgi); border-radius: 14px; padding: 14px 16px; margin-bottom: 12px; }
+  .soru b { display: block; margin-bottom: 8px; }
+  .yildiz { display: flex; gap: 6px; }
+  .yildiz button { flex: 1; min-width: 0; height: 48px; border-radius: 12px; border: 1px solid var(--cizgi); background: #f6f8fa; font-size: 26px; line-height: 1; cursor: pointer; color: #c3ccd5; }
+  .yildiz button[aria-pressed="true"] { color: #f5b301; background: #fff8e1; border-color: #f3d27a; }
+  .uclu { display: flex; gap: 8px; }
+  .uclu button { flex: 1; padding: 12px 6px; border-radius: 12px; border: 1px solid var(--cizgi); background: #f6f8fa; font: 600 16px "Barlow", sans-serif; cursor: pointer; }
+  .uclu button[aria-pressed="true"] { background: var(--cim); color: #fff; border-color: var(--cim); }
+  label { font-weight: 600; display: block; margin-bottom: 6px; }
+  input, textarea { width: 100%; border: 1px solid #b5c3cf; border-radius: 10px; padding: 11px 12px; font: inherit; background: #fff; }
+  textarea { min-height: 96px; }
+  .iki { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  @media (max-width: 420px) { .iki { grid-template-columns: 1fr; } }
+  .gonder { width: 100%; background: var(--turuncu); color: #fff; border: 0; border-radius: 999px; padding: 15px; font: 700 18px "Barlow", sans-serif; cursor: pointer; }
+  .gonder:disabled { opacity: .6; }
+  .not { color: var(--gri); font-size: 14px; }
+  .tuzak { position: absolute; left: -9999px; }
+  .tesekkur { text-align: center; padding: 40px 16px; }
+  .tesekkur b { font: 700 32px/1.1 "Barlow Condensed", sans-serif; display: block; margin-bottom: 8px; color: var(--yesil); }
+  .uyari { color: #b42318; font-weight: 600; margin-bottom: 10px; }
+</style>
+</head>
+<body>
+<header class="ust"><div class="ic"><a href="/"><img src="/img/aysu-logo.svg" alt="Aysu Halı Saha"></a><h1>Memnuniyet anketi</h1></div></header>
+<main id="ana">
+  <p class="giris">Görüşleriniz bizim için önemli. 1 dakikanızı ayırıp puan verir misiniz? (1 = çok kötü, 5 = çok iyi)</p>
+  <form id="form" novalidate>
+    <div id="sorular"></div>
+    <div class="kutu"><b style="display:block;margin-bottom:8px">Bizi arkadaşlarınıza tavsiye eder misiniz?</b>
+      <div class="uclu" id="tavsiye"><button type="button" data-t="evet" aria-pressed="false">👍 Evet</button><button type="button" data-t="belki" aria-pressed="false">🤔 Belki</button><button type="button" data-t="hayir" aria-pressed="false">👎 Hayır</button></div></div>
+    <div class="kutu"><label for="oneri">Öneri, şikâyet ya da teşekkür</label><textarea id="oneri" maxlength="1000" placeholder="Bize yazmak istedikleriniz…"></textarea></div>
+    <div class="kutu"><p class="not" style="margin:0 0 8px">Size dönmemizi isterseniz (isteğe bağlı):</p>
+      <div class="iki"><div><label for="ad">Ad soyad</label><input id="ad" maxlength="60" autocomplete="name"></div>
+        <div><label for="tel">Telefon</label><input id="tel" type="tel" inputmode="numeric" maxlength="14" placeholder="05XX XXX XX XX" autocomplete="tel-national"></div></div>
+      <p class="not" style="margin:8px 0 0">Bilgileriniz yalnızca size dönüş için kullanılır. <a href="/kvkk.html">Aydınlatma metni</a></p></div>
+    <div class="tuzak" aria-hidden="true"><input id="web" tabindex="-1" autocomplete="off"></div>
+    <p class="uyari" id="uyari" hidden></p>
+    <button class="gonder" type="submit" id="gonder">Gönder</button>
+  </form>
+</main>
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const puan = {}; let tavsiye = "";
+  fetch("/api/anket").then((r) => r.json()).then((v) => {
+    $("sorular").innerHTML = (v.sorular || []).map((q) => `<div class="kutu soru"><b>${q.soru}</b><div class="yildiz" data-q="${q.id}" role="group" aria-label="${q.soru}">${[1, 2, 3, 4, 5].map((n) => `<button type="button" data-n="${n}" aria-pressed="false" aria-label="${n} puan">★</button>`).join("")}</div></div>`).join("");
+    document.querySelectorAll(".yildiz").forEach((g) => g.addEventListener("click", (e) => {
+      const b = e.target.closest("[data-n]"); if (!b) return;
+      puan[g.dataset.q] = Number(b.dataset.n);
+      g.querySelectorAll("[data-n]").forEach((x) => x.setAttribute("aria-pressed", String(Number(x.dataset.n) <= puan[g.dataset.q])));
+    }));
+  });
+  $("tavsiye").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-t]"); if (!b) return;
+    tavsiye = b.dataset.t;
+    $("tavsiye").querySelectorAll("[data-t]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+  });
+  $("form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (!Object.keys(puan).length && !$("oneri").value.trim()) { $("uyari").hidden = false; $("uyari").textContent = "Lütfen en az bir soruyu puanlayın."; return; }
+    $("gonder").disabled = true;
+    const r = await fetch("/api/anket", { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ puan, tavsiye, oneri: $("oneri").value, ad: $("ad").value, telefon: $("tel").value, web: $("web").value }) }).then((x) => x.json()).catch(() => ({ hata: "Bağlantı kurulamadı." }));
+    if (r.hata) { $("gonder").disabled = false; $("uyari").hidden = false; $("uyari").textContent = r.hata; return; }
+    $("ana").innerHTML = `<div class="tesekkur"><b>Teşekkür ederiz!</b><p>Görüşleriniz bize ulaştı. İyi maçlar dileriz.</p><p><a href="/rezervasyon/">Online halı saha rezervasyonu →</a></p></div>`;
+  });
+})();
+</script>
+</body>
+</html>

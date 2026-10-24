@@ -14,7 +14,7 @@
 //   d:<kayitNo>                  müşterinin yüklediği kapora dekontu (fotoğraf/PDF)
 
 import { DurableObject } from "cloudflare:workers";
-import { SAATLER, KURALLAR, DURUM, EKSTRALAR, FIYATLAR, IBAN, ABONE_KURALLARI } from "./config.js";
+import { SAATLER, KURALLAR, DURUM, EKSTRALAR, FIYATLAR, IBAN, ABONE_KURALLARI, ANKET_SORULARI } from "./config.js";
 import {
   simdi, gunAdi, gunEkle, macZamani, tarihNormalize, saatNormalize,
   telefonNormalize, telefonGercekci, gecerliSaat, fiyat, isletmeGunu, haftaBasi,
@@ -233,6 +233,8 @@ export const kasaTuketim = (k) => {
   return t;
 };
 /** Personel birim fiyatı: %40 indirimli (KURALLAR.personelIndirim), 5 TL'nin katına yukarı yuvarlanmış (25 → 15; 95 → 57 → 60) */
+/** Kantin satış fiyatı: alış × çarpan, 5 TL'nin katına yukarı yuvarlanır (12 × 2,5 = 30; 13 × 2,5 = 32,5 → 35) */
+export const kantinSatis = (alis, carpan) => (alis > 0 ? Math.ceil((alis * (carpan || 2.5)) / 5 - 1e-9) * 5 : 0);
 export const personelFiyat = (satis) => (satis > 0 ? Math.ceil((satis * (1 - KURALLAR.personelIndirim)) / 5) * 5 : 0);
 /** Bir kasa gününde personelin kantin tüketimi {eposta: tutar} (maaştan düşülür) */
 export const personelKesintileri = (k) => {
@@ -506,6 +508,7 @@ export class RezervasyonDeposu extends DurableObject {
     // Abone başvurusu: kurallar onaylanır; ilk maç abone ücretinden, ilk maçta 1 maç bedeli depozito alınır (kapora ikisinden düşer)
     if (abone) {
       if (!panel && !kurallarKabul) return { hata: "Abone olmak için abonelik kurallarını onaylamanız gerekiyor." };
+      if (!panel && !epostaNormalize(eposta)) return { hata: "Abone olmak için e-posta adresinizi yazın (abone sayfanızın bağlantısı gönderilir)." };
       if ((await this.aboneler()).some((a) => !a.bitis && slotlarOf(a).some((x) => x.gun === gunNo(gun) && x.saat === saat))) {
         return { hata: "Bu gün ve saatte zaten bir abonemiz var. Abonelik için başka bir saat seçin." };
       }
@@ -1172,6 +1175,31 @@ export class RezervasyonDeposu extends DurableObject {
     return bugun.length ? bugun : y.map((u) => u.eposta);
   }
 
+  // ---- Memnuniyet anketi (sahadaki QR → /anket) ----
+  //   an:<ISO zaman>:<rastgele>  { zaman, puan: {soruId: 1-5}, oneri, tavsiye, ad, telefon }
+  async anketKaydet({ puan, tavsiye, oneri, ad, telefon }) {
+    const p = {};
+    for (const q of ANKET_SORULARI) { const n = Math.round(Number(puan?.[q.id])); if (n >= 1 && n <= 5) p[q.id] = n; }
+    if (!Object.keys(p).length && !kirp(oneri, 1000)) return { hata: "Lütfen en az bir soruyu puanlayın." };
+    const kayit = { zaman: simdiYazi(), puan: p, tavsiye: ["evet", "belki", "hayir"].includes(tavsiye) ? tavsiye : "",
+      oneri: kirp(oneri, 1000), ad: kirp(ad, 60), telefon: telefonNormalize(telefon) || "" };
+    await this.st.put(`an:${new Date().toISOString()}:${rastgele(4)}`, kayit);
+    return { basarili: true, kayit, dusuk: Object.values(p).some((n) => n <= 2) || kayit.tavsiye === "hayir" };
+  }
+
+  /** Admin: son N gün anket özeti (ortalamalar) ve son yorumlar */
+  async anketOzet(gunSayisi = 30) {
+    const bas = new Date(Date.now() - gunSayisi * 86400_000).toISOString();
+    const l = [...(await this.st.list({ start: `an:${bas}`, end: "an:~" })).values()].reverse();
+    const ort = ANKET_SORULARI.map((q) => {
+      const v = l.map((x) => x.puan?.[q.id]).filter(Boolean);
+      return { ...q, ortalama: v.length ? Math.round((v.reduce((t, n) => t + n, 0) / v.length) * 10) / 10 : null, sayi: v.length };
+    });
+    const tav = { evet: 0, belki: 0, hayir: 0 };
+    for (const x of l) if (tav[x.tavsiye] !== undefined) tav[x.tavsiye]++;
+    return { gun: gunSayisi, toplam: l.length, ortalamalar: ort, tavsiye: tav, son: l.slice(0, 50) };
+  }
+
   /** Tek seferlik bayrak: yoksa koyar ve true döner */
   async birKez(anahtar) {
     return this.kilitli(async () => {
@@ -1476,6 +1504,7 @@ export class RezervasyonDeposu extends DurableObject {
         mac: k.mac ?? FIYATLAR.gunduz, kapora: k.kapora ?? FIYATLAR.kapora,
         spiker: k.spiker ?? EKSTRALAR.spiker.ucret, hakem: k.hakem ?? EKSTRALAR.hakem.ucret,
         abone: k.abone ?? 3200, krampon: k.krampon ?? 100, eldiven: k.eldiven ?? 100,
+        kantinCarpan: k.kantinCarpan ?? 2.5, // kantin satış fiyatı = alış × çarpan (5 TL'ye yukarı yuvarlanır)
         siparisTel: k.siparisTel ?? "05434764687", // kantin tedarikçisi (Tespo) WhatsApp
         temizlikTel: k.temizlikTel ?? "05545618282", // temizlik ürünleri tedarikçisi WhatsApp
       };
@@ -1552,6 +1581,33 @@ export class RezervasyonDeposu extends DurableObject {
   async urunlerGorunum() { return bardakGorunum(await this.urunler()); }
 
   /** Ürün ekle / düzenle / stok sayımı (Admin, Müdür). stokEkle: gelen mal adedi. */
+  /** Admin / Müdür: kantin kâr çarpanı; istenirse bütün ürünlerin satış fiyatı yeniden hesaplanır */
+  async kantinCarpanKaydet({ carpan, hepsine }, yapan) {
+    return this.kilitli(async () => {
+      if (!["admin", "mudur"].includes(yapan?.rol)) return { hata: "Kâr çarpanını sadece Admin ve Müdür değiştirir." };
+      const c = Math.round(Number(String(carpan).replace(",", ".")) * 100) / 100;
+      if (!(c >= 1 && c <= 10)) return { hata: "Çarpan 1 ile 10 arasında olmalı (ör. 2,5)." };
+      const f = await this.fiyatAyar();
+      const eskiC = f.kantinCarpan;
+      const yeniF = { ...((await this.st.get("ayar:fiyat")) || {}), kantinCarpan: c };
+      await this.st.put("ayar:fiyat", yeniF);
+      this._fiyat = null;
+      const degisen = [];
+      if (hepsine) {
+        const yaz = {};
+        for (const u of await this.urunler()) {
+          if (!u.alis) continue;
+          const satis = kantinSatis(u.alis, c);
+          if (satis !== u.satis) { yaz[`urun:${u.id}`] = { ...u, satis }; degisen.push([`Kantin: ${u.ad}`, `${(u.satis ?? 0).toLocaleString("tr-TR")} TL → ${satis.toLocaleString("tr-TR")} TL`]); }
+        }
+        const anahtarlar = Object.keys(yaz);
+        for (let i = 0; i < anahtarlar.length; i += 100) await this.st.put(Object.fromEntries(anahtarlar.slice(i, i + 100).map((k) => [k, yaz[k]])));
+      }
+      await this.kayitTut(yapan, "Kantin kâr çarpanını değiştirdi", `${eskiC} → ${c}${hepsine ? ` · ${degisen.length} ürünün satış fiyatı güncellendi` : ""}`);
+      return { basarili: true, carpan: c, fiyatFark: degisen };
+    });
+  }
+
   async urunKaydet({ id, ad, alis, satis, stok, stokEkle, aktif, sil }, yapan) {
     return this.kilitli(async () => {
       if (!["admin", "mudur"].includes(yapan?.rol)) return { hata: "Ürünleri sadece Admin ve Müdür düzenler." };
@@ -1568,6 +1624,8 @@ export class RezervasyonDeposu extends DurableObject {
       if (!yeni.ad) return { hata: "Ürün adı gerekli." };
       if (alis !== undefined && alis !== "") yeni.alis = tutar(alis);
       if (satis !== undefined && satis !== "") yeni.satis = tutar(satis);
+      // Alış fiyatı değişti ve satış elle değiştirilmediyse: satış = alış × kâr çarpanı (5 TL'ye yukarı)
+      else if (yeni.alis && yeni.alis !== eski?.alis) yeni.satis = kantinSatis(yeni.alis, (await this.fiyatAyar()).kantinCarpan);
       if (bardakKurali(yeni.ad).bagli) { stok = undefined; stokEkle = 0; } // stoğu bardak stoğuna bağlı
       if (stok !== undefined && stok !== "") yeni.stok = Math.round(Number(stok)) || 0;
       if (stokEkle) yeni.stok = (yeni.stok || 0) + (Math.round(Number(stokEkle)) || 0);
@@ -1888,9 +1946,10 @@ export class RezervasyonDeposu extends DurableObject {
   }
 
   /** Admin: "bugün gelen kaporalar" listesinden bir kaydı çıkarır (yanlış / mükerrer) */
-  async gelenKaporaSil({ gun, kayitNo }, yapan) {
+  async gelenKaporaSil({ gun, kayitNo, neden }, yapan) {
     return this.kilitli(async () => {
-      if (yapan?.rol !== "admin") return { hata: "Kaporayı kasadan sadece Admin silebilir." };
+      if (!["admin", "mudur", "mudur_yrd"].includes(yapan?.rol)) return { hata: "Kaporayı kasadan sadece yöneticiler silebilir." };
+      if (yapan.rol !== "admin" && kirp(neden, 300).length < 3) return { hata: "Kaporayı silmek için açıklama yazmanız gerekiyor." };
       const g = tarihNormalize(gun);
       if (!g || !kayitNo) return { hata: "Gün ve kayıt gerekli." };
       const l = (await this.st.get(`kh:${g}`)) || [];
@@ -1903,8 +1962,8 @@ export class RezervasyonDeposu extends DurableObject {
         yeni.ozet = kasaOzet(yeni);
         await this.st.put(`kasa:${g}`, yeni);
       }
-      await this.kayitTut(yapan, "Kasadan kapora sildi", `${g} · ${kayitNo}${silinen ? ` · ${silinen.ad} · ${silinen.tutar} TL` : ""}`);
-      return { basarili: true };
+      await this.kayitTut(yapan, "Kasadan kapora sildi", `${g} · ${kayitNo}${silinen ? ` · ${silinen.ad} · ${silinen.tutar} TL` : ""}${kirp(neden, 300) ? ` · açıklama: ${kirp(neden, 300)}` : ""}`);
+      return { basarili: true, silinen: silinen || null, gun: g };
     });
   }
 
@@ -2263,8 +2322,9 @@ export class RezervasyonDeposu extends DurableObject {
   }
 
   /** slotlar: [{gun, saat}] — ya da eski biçimde tek gun + saat */
-  async aboneKaydet({ id, ad, telefon, slotlar, gun, saat, baslangic, not = "", ucret = "", depozito, veresiye, no, yeniKural, ilkMac, eposta }) {
+  async aboneKaydet({ id, ad, telefon, slotlar, gun, saat, baslangic, not = "", ucret = "", depozito, veresiye, no, yeniKural, ilkMac, eposta, epostaZorunlu }) {
     return this.kilitli(async () => {
+      if (epostaZorunlu && !epostaNormalize(eposta)) return { hata: "Abonenin e-posta adresi zorunludur (abone sayfası ve bildirimler için)." };
       let liste = Array.isArray(slotlar) ? slotlar : [{ gun, saat }];
       liste = liste.map((x) => ({ gun: Number(x.gun), saat: saatNormalize(x.saat) }));
       if (!kirp(ad, 60)) return { hata: "Abone adı gerekli." };
@@ -2311,7 +2371,7 @@ export class RezervasyonDeposu extends DurableObject {
       const cakisanRez = (await this.rezervasyonlar(n.tarih, gunEkle(n.tarih, 60)))
         .filter((r) => !iptalMi(r.durum) && (r.isletmeGunu || r.tarih) >= bas
           && liste.some((x) => x.saat === r.saat && x.gun === gunNo(r.isletmeGunu || r.tarih)));
-      return { basarili: true, abone, uyari: cakisanRez.length ? `${cakisanRez.length} ileri tarihli rezervasyon bu abonenin saatlerine denk geliyor, kontrol edin.` : null };
+      return { basarili: true, abone, epostaDegisti: Boolean(abone.eposta && abone.eposta !== (eski?.eposta || "")), uyari: cakisanRez.length ? `${cakisanRez.length} ileri tarihli rezervasyon bu abonenin saatlerine denk geliyor, kontrol edin.` : null };
     });
   }
 

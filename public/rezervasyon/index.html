@@ -338,7 +338,7 @@
               <ol class="abone-kurallar" id="abone-kurallar"></ol>
               <label class="vip-sec abone-dep"><input type="checkbox" id="abone-dep"><span>Depozitoyu (<b id="abone-dep-tutar"></b>) <b>şimdi IBAN'a</b> göndereceğim <small style="display:block;font-weight:400">Bu durumda kapora gerekmez; dekontta en az depozito tutarı görünmeli.</small></span></label>
               <p class="abone-bilgi abone-odeme" id="abone-odeme"></p>
-              <div class="alan" style="margin:8px 0 4px"><label for="abone-eposta">E-posta <small>(isteğe bağlı — abone sayfanızın bağlantısı gönderilir)</small></label><input id="abone-eposta" type="email" autocomplete="email" maxlength="120" placeholder="ornek@gmail.com"></div>
+              <div class="alan" style="margin:8px 0 4px"><label for="abone-eposta">E-posta <small>(zorunlu — abone sayfanızın bağlantısı gönderilir)</small></label><input id="abone-eposta" type="email" autocomplete="email" maxlength="120" placeholder="ornek@gmail.com"></div>
               <label class="vip-sec abone-onay"><input type="checkbox" id="abone-kabul"><span>Abone kayıt kurallarını ve karşılıklı taahhütleri okudum, kabul ediyorum.</span></label>
             </div>
           </fieldset>
@@ -712,6 +712,7 @@
     if (!telefonGecerli(tSade)) return uyar(uyari, "Cep telefonunuzu 05XX XXX XX XX biçiminde, eksiksiz ve doğru yazın.");
     if (tSade !== telefonSade($("telefon2").value)) return uyar(uyari, "İki telefon numarası aynı değil. Lütfen kontrol edin.");
     if (!$("kvkk").checked) return uyar(uyari, "Devam etmek için onay kutusunu işaretleyin.");
+    if (aboneSecili() && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test($("abone-eposta").value.trim())) return uyar(uyari, "Abone olmak için geçerli bir e-posta adresi yazın.");
     if (aboneSecili() && !$("abone-kabul").checked) return uyar(uyari, "Abone olmak için abonelik kurallarını okuyup onay kutusunu işaretleyin.");
 
     const g = veri.gunler[gunIdx];

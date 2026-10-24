@@ -581,6 +581,12 @@
           <button class="dugme" type="submit">Kaydet</button>
         </form>
       </div>
+      <div id="anket-alan" hidden>
+        <div class="baslik-satir" style="margin-top:22px"><h2>Memnuniyet anketi</h2>
+          <select id="anket-gun" class="sag" style="border:1px solid #b5c3cf;border-radius:10px;padding:7px 10px;font-size:15px;background:var(--kart)"><option value="7">Son 7 gün</option><option value="30" selected>Son 30 gün</option><option value="90">Son 3 ay</option><option value="365">Son 1 yıl</option></select></div>
+        <p class="soluk" style="margin-bottom:10px;font-size:14px">Sahadaki QR kod ve <b>aysuhalisaha.com/anket</b> adresinden gelen cevaplar. 1–2 puan ya da "tavsiye etmem" gelince Admin ve Müdür'e e-posta gider.</p>
+        <div class="kutu" id="anket-ozet" style="padding:12px 14px"></div>
+      </div>
       <div id="islem-alan" hidden>
         <div class="baslik-satir" style="margin-top:22px"><h2>İşlem kaydı</h2><span class="soluk sag">Sadece Admin görür</span></div>
         <div class="ara-kutu">
@@ -1411,7 +1417,7 @@
           <span style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap"><button type="button" class="dugme tehlike kucuk" id="d-talep-onay">Talebi onayla — aboneliği sonlandır</button><button type="button" class="dugme ikincil kucuk" id="d-talep-red">Talebi geri çevir</button></span></p>` : ""}
         <div class="iki-alan">
           <div class="alan"><label for="d-tel">Telefon</label><input id="d-tel" type="tel" inputmode="tel" value="${kacis(telYazi(a.telefon))}" placeholder="05XX XXX XX XX"></div>
-          <div class="alan"><label for="d-eposta">E-posta <small class="soluk">(abone sayfası için)</small></label><input id="d-eposta" type="email" value="${kacis(a.eposta || "")}" placeholder="ornek@gmail.com"></div>
+          <div class="alan"><label for="d-eposta">E-posta <small class="soluk">(zorunlu)</small></label><input id="d-eposta" type="email" value="${kacis(a.eposta || "")}" placeholder="ornek@gmail.com"></div>
         </div>
         ${yeni ? "" : `<div class="kutu" style="padding:10px;margin-bottom:12px">
           <b style="display:block;margin-bottom:4px">Abone sayfası</b><small class="soluk" style="display:block;margin-bottom:8px">Aboneye özel bağlantı: maç günleri, "bu hafta gelmiyoruz", kantin harcamaları, veresiye ve iptal talebi.</small>
@@ -1471,7 +1477,7 @@
       try {
         const r = await api("abone", { id: yeni ? undefined : a.id, no: $("d-no").value, ad: $("d-ad").value, telefon: $("d-tel").value, slotlar, baslangic: $("d-bas").value, ucret: $("d-ucret").value, depozito: $("d-depozito").value, veresiye: $("d-veresiye").checked, not: $("d-not").value, yeniKural: $("d-kural").checked, ilkMac: $("d-ilk").value || $("d-bas").value, eposta: $("d-eposta").value });
         if (r.hata) return dlgUyari(r.hata);
-        dlg.close(); bildir(r.uyari || (yeni ? "Abone eklendi" : "Kaydedildi")); aboneYukle(); if (sekme === "musteriler") musteriYukle();
+        dlg.close(); bildir(r.uyari || `${yeni ? "Abone eklendi" : "Kaydedildi"}${r.epostaDegisti ? ` · abone sayfası ${r.abone.eposta} adresine gönderildi` : ""}`); aboneYukle(); if (sekme === "musteriler") musteriYukle();
       } finally { btn.disabled = false; }
     });
     $("d-talep-onay")?.addEventListener("click", () => { const b = $("d-sil"); if (b) { b.click(); const n = $("d-sil-neden"); if (n && !n.value) n.value = `Abonenin iptal talebi: ${a.iptalTalebi.neden || ""}`.trim(); b.scrollIntoView({ block: "center" }); } });
@@ -1610,7 +1616,7 @@
           : `<span class="rozet r-rol">${kacis(u.rolAd)}</span>`}
       </button>`).join("") || '<p class="soluk" style="padding:14px">Henüz kullanıcı yok.</p>';
     $("kullanici-liste").querySelectorAll("[data-i]").forEach((el) => el.addEventListener("click", () => kullaniciDetay(kullanicilar[el.dataset.i])));
-    islemYukle();
+    islemYukle(); anketYukle();
     fiyatYukle();
     kodYukle();
     ibanYukle();
@@ -1756,6 +1762,25 @@
     if (r.hata) return bildir(r.hata);
     bildir("Rehber kaydedildi"); islemYukle();
   });
+
+  async function anketYukle() {
+    $("anket-alan").hidden = !["admin", "mudur"].includes(ben.rol);
+    if ($("anket-alan").hidden) return;
+    const v = await api("anket?gun=" + $("anket-gun").value).catch(() => null);
+    if (!v || v.hata) return;
+    const yildiz = (n) => n == null ? '<span class="soluk">—</span>' : `<b>${String(n).replace(".", ",")}</b> <span style="color:#f5b301">${"★".repeat(Math.round(n))}</span><span style="color:#d5dde5">${"★".repeat(5 - Math.round(n))}</span>`;
+    const t = v.tavsiye, tt = t.evet + t.belki + t.hayir;
+    $("anket-ozet").innerHTML = v.toplam ? `
+      <p style="margin:0 0 8px"><b>${v.toplam}</b> cevap${tt ? ` · Tavsiye eder: <b style="color:#1a7f37">%${Math.round((t.evet / tt) * 100)} evet</b>, %${Math.round((t.belki / tt) * 100)} belki, <span style="color:#b42318">%${Math.round((t.hayir / tt) * 100)} hayır</span>` : ""}</p>
+      ${v.ortalamalar.map((q) => `<div class="k-sat" style="grid-template-columns:1fr auto;margin-bottom:2px"><span>${kacis(q.soru)} <small class="soluk">(${q.sayi})</small></span><span>${yildiz(q.ortalama)}</span></div>`).join("")}
+      <h3 style="font-size:18px;margin:14px 0 6px">Son yorumlar</h3>
+      ${v.son.filter((x) => x.oneri || x.ad || x.telefon).slice(0, 20).map((x) => {
+        const p = Object.values(x.puan || {}); const ort = p.length ? p.reduce((a, b) => a + b, 0) / p.length : null;
+        return `<div style="border-top:1px solid var(--cizgi);padding:8px 0"><small class="soluk">${kacis(x.zaman)}${ort != null ? ` · ort. ${ort.toFixed(1).replace(".", ",")}★` : ""}${x.tavsiye ? ` · tavsiye: ${{ evet: "evet", belki: "belki", hayir: "hayır" }[x.tavsiye]}` : ""}</small>
+          ${x.oneri ? `<div>${kacis(x.oneri)}</div>` : ""}${x.ad || x.telefon ? `<small>${kacis(x.ad || "")} ${x.telefon ? `<a href="tel:${x.telefon}">${telYazi(x.telefon)}</a>` : ""}</small>` : ""}</div>`; }).join("") || '<p class="soluk">Yazılı yorum yok.</p>'}`
+      : '<p class="soluk" style="margin:0">Bu dönemde cevap yok.</p>';
+  }
+  $("anket-gun").addEventListener("change", anketYukle);
 
   let islemler = [];
   async function islemYukle() {
@@ -1973,7 +1998,7 @@
       </tbody></table>
       ${duzeltir ? '<p class="soluk" style="font-size:13px;margin-top:8px">Düzeltmek için güne dokunun.</p>' : ""}
       ${(k.avansListe || []).length || ben.rol === "admin" ? `<h3 style="font-size:20px;margin:16px 0 8px">Avans / ödemeler</h3>
-        ${(k.avansListe || []).map((a, j) => `<div class="k-sat" style="grid-template-columns:1fr auto ${ben.rol === "admin" ? "32px" : ""}"><span>${tarihYazi(a.gun)}${a.not ? ` <small class="soluk">· ${kacis(a.not)}</small>` : ""}</span><b>${para(a.tutar)}</b>${ben.rol === "admin" && !a.kasadan ? `<button class="x-sil" type="button" data-av-sil="${j}" aria-label="Sil">×</button>` : ben.rol === "admin" ? "<span></span>" : ""}</div>`).join("") || '<p class="soluk">Bu ay avans yok.</p>'}
+        ${(k.avansListe || []).map((a, j) => `<div class="k-sat" style="grid-template-columns:1fr auto ${yonetici() ? "32px" : ""}"><span>${tarihYazi(a.gun)}${a.not ? ` <small class="soluk">· ${kacis(a.not)}</small>` : ""}</span><b>${para(a.tutar)}</b>${ben.rol === "admin" && !a.kasadan ? `<button class="x-sil" type="button" data-av-sil="${j}" aria-label="Sil">×</button>` : ben.rol === "admin" ? "<span></span>" : ""}</div>`).join("") || '<p class="soluk">Bu ay avans yok.</p>'}
         ${ben.rol === "admin" ? `<div class="iki-alan" style="margin-top:8px">
           <div class="alan"><label for="av-gun">Gün</label><input type="date" id="av-gun" value="${new Date(Date.now() + 3 * 3600000).toISOString().slice(0, 10)}"></div>
           <div class="alan"><label for="av-tutar">Tutar (₺)</label><input id="av-tutar" inputmode="numeric" placeholder="${k.kalan > 0 ? k.kalan : ""}"></div>
@@ -2200,7 +2225,7 @@
       </div>
 
       <div class="kutu kasa-kart"><h3>Bugün gelen kaporalar <small class="soluk">(IBAN)</small><span class="sag">${para((kk.gelenKaporalar || []).reduce((t, x) => t + x.tutar, 0))}</span></h3>
-        ${(kk.gelenKaporalar || []).map((x, j) => `<div class="k-sat" style="grid-template-columns:1fr auto ${ben.rol === "admin" ? "32px" : ""}"><span><b>${kacis(x.ad)}</b> <small class="soluk">${kacis(x.mac)} maçı · ${kacis(x.yol)}${x.iptal ? " · iptal (iade yok)" : ""}</small></span><b>${para(x.tutar)}</b>${ben.rol === "admin" ? `<button class="x-sil" type="button" data-kapora-sil="${j}" aria-label="Kaporayı kasadan sil">×</button>` : ""}</div>`).join("")
+        ${(kk.gelenKaporalar || []).map((x, j) => `<div class="k-sat" style="grid-template-columns:1fr auto ${yonetici() ? "32px" : ""}"><span><b>${kacis(x.ad)}</b> <small class="soluk">${kacis(x.mac)} maçı · ${kacis(x.yol)}${x.iptal ? " · iptal (iade yok)" : ""}</small></span><b>${para(x.tutar)}</b>${yonetici() ? `<button class="x-sil" type="button" data-kapora-sil="${j}" aria-label="Kaporayı kasadan sil">×</button>` : ""}</div>`).join("")
           || '<p class="soluk">Bugün kapora alınmadı.</p>'}
         <p class="soluk" style="font-size:13px;margin-top:6px">Bugün alınan, ileri tarihli maçların kaporaları (dekont ya da panel) rezervasyonlardan kendiliğinden gelir ve <b>bugünün kasasına eklenir</b>. Maç günü o maçın toplamından düşülür, iki kez sayılmaz. Maç günü gelen kapora maçın toplamında kalır.</p></div>
       ${satirListesi("girisler", "Diğer kasa girişi", "Açıklama")}
@@ -2350,12 +2375,15 @@
       }, { odeme: true, odenen: m.kantinOdenen || {}, aciklama: "Adetleri seçin. Her ürünün altında kaç tanesinin ödendiğini − / + ile girin (ör. 3 çaydan 2'si ödendi), sonra Kaydet'e basın." });
     } else if (b.dataset.kaporaSil !== undefined) {
       const x = kk.gelenKaporalar[b.dataset.kaporaSil];
-      if (!confirm(`${x.ad} — ${para(x.tutar)} kapora bugünkü kasadan silinsin mi? (Rezervasyon değişmez)`)) return;
-      api("kasa/kapora-sil", { gun: kasaGun, kayitNo: x.kayitNo }).then((r) => {
+      // Açıklama zorunlu (Admin dışındakiler); silinince Admin'e e-posta gider
+      const neden = prompt(`${x.ad} — ${para(x.tutar)} kapora bugünkü kasadan silinsin mi? (Rezervasyon değişmez)\n\nNeden siliyorsunuz? (açıklama${ben.rol === "admin" ? ", isteğe bağlı" : " zorunlu"})`, "");
+      if (neden === null) return;
+      if (ben.rol !== "admin" && neden.trim().length < 3) return bildir("Kaporayı silmek için açıklama yazın.");
+      api("kasa/kapora-sil", { gun: kasaGun, kayitNo: x.kayitNo, neden: neden.trim() }).then((r) => {
         if (r.hata) return bildir(r.hata);
         kk.gelenKaporalar = kk.gelenKaporalar.filter((y) => y !== x);
         kasa.kayit.gelenKaporalar = (kasa.kayit.gelenKaporalar || []).filter((y) => y.kayitNo !== x.kayitNo);
-        kasaCiz(); bildir("Kapora kasadan silindi");
+        kasaCiz(); bildir(ben.rol === "admin" ? "Kapora kasadan silindi" : "Kapora kasadan silindi, Admin'e bildirildi");
       });
     } else if (b.dataset.grup !== undefined) {
       grupAcik.has(b.dataset.grup) ? grupAcik.delete(b.dataset.grup) : grupAcik.add(b.dataset.grup); kasaCiz();
@@ -2546,6 +2574,7 @@
       ${l.map((u, i) => `<tr data-s="${i}" class="${u.aktif !== false && u.stok <= 5 ? "az" : ""}"${u.aktif === false ? ' style="opacity:.5"' : ""}><td>${kacis(u.ad)}</td>${admin ? `<td>${para(u.alis)}</td>` : ""}<td>${para(u.satis)}</td><td>${u.stok}${u.bagli ? '<small class="soluk"> ☕</small>' : ""}</td></tr>`).join("")}
       </tbody></table>
       ${duzenler ? '<div class="k-alt"><button class="dugme ikincil kucuk" type="button" id="s-ekle">+ Yeni ürün</button><span class="soluk" style="font-size:13px">Mal girişi, sayım ve fiyat için ürüne dokunun.</span></div>' : ""}
+      ${duzenler ? `<div class="k-alt" style="align-items:center"><span>Kâr çarpanı: <b>${String(kasa.fiyat?.kantinCarpan ?? 2.5).replace(".", ",")}</b> <small class="soluk">(satış = alış × çarpan, 5 ₺'ye yukarı yuvarlanır)</small></span><button class="dugme ikincil kucuk" type="button" id="s-carpan">Değiştir</button></div>` : ""}
     </details>` + `<div class="baslik-satir" style="margin-top:18px"><h2>KANTİN TEDARİKÇİ</h2><span class="soluk sag">Tespo · ${telYazi(siparisTel())}</span></div>` + siparis
       + `<div class="baslik-satir" style="margin-top:18px"><h2>TEMİZLİK</h2></div>` + temizlik + rehberKutu();
     $("temizlik-det").addEventListener("toggle", (e) => { temizlikAcik = e.target.open; });
@@ -2579,13 +2608,28 @@
     if (!duzenler) return;
     $("kasa-stok-alan").querySelectorAll("[data-s]").forEach((tr) => tr.addEventListener("click", () => urunDuzenle(l[tr.dataset.s])));
     $("s-ekle").addEventListener("click", () => urunDuzenle(null));
+    $("s-carpan").addEventListener("click", () => {
+      ac("Kantin kâr çarpanı", `
+        <p class="soluk" style="font-size:14px">Alış fiyatı girilince satış fiyatı = alış × çarpan olur ve 5 ₺'nin katına yukarı yuvarlanır (ör. 12 ₺ × 2,5 = 30 ₺).</p>
+        <div class="alan"><label for="c-carpan">Çarpan</label><input id="c-carpan" inputmode="decimal" value="${String(kasa.fiyat?.kantinCarpan ?? 2.5).replace(".", ",")}"></div>
+        <label style="display:flex;gap:8px;align-items:center;font-weight:600;margin-bottom:12px"><input type="checkbox" id="c-hepsi" style="width:20px;height:20px"> Bütün ürünlerin satış fiyatını şimdi yeniden hesapla</label>
+        <button class="dugme tam" type="button" id="c-kaydet">Kaydet</button>`);
+      $("c-kaydet").addEventListener("click", async () => {
+        const hepsine = $("c-hepsi").checked;
+        if (hepsine && !confirm("Alış fiyatı girili bütün ürünlerin satış fiyatı yeni çarpanla değişsin mi? Yöneticilere fiyat değişti e-postası gider.")) return;
+        const r = await api("kantin-carpan", { carpan: $("c-carpan").value, hepsine });
+        if (r.hata) return dlgUyari(r.hata);
+        dlg.close(); bildir(`Çarpan ${String(r.carpan).replace(".", ",")} oldu${hepsine ? ` · ${r.fiyatFark.length} ürünün fiyatı güncellendi` : ""}`); kasaYukle(kasaGun);
+      });
+    });
   }
 
   function urunDuzenle(u) {
     const ic = ac(u ? u.ad : "Yeni ürün", `
       <div class="alan"><label for="u-ad">Ürün adı</label><input id="u-ad" value="${kacis(u?.ad || "")}"></div>
       <div class="iki-alan">
-        ${ben.rol === "admin" ? `<div class="alan"><label for="u-alis">Alış (₺)</label><input id="u-alis" inputmode="numeric" value="${u?.alis ?? ""}"></div>` : ""}
+        ${ben.rol === "admin" ? `<div class="alan"><label for="u-alis">Alış (₺)</label><input id="u-alis" inputmode="numeric" value="${u?.alis ?? ""}"></div>`
+          : ben.rol === "mudur" ? `<div class="alan"><label for="u-alis">Yeni alış fiyatı (₺)</label><input id="u-alis" inputmode="numeric" placeholder="değiştiyse yazın"></div>` : ""}
         <div class="alan"><label for="u-satis">Satış (₺)</label><input id="u-satis" inputmode="numeric" value="${u?.satis ?? ""}"></div>
       </div>
       <div class="iki-alan">
@@ -2595,9 +2639,14 @@
       ${u?.bagli ? `<p class="bilgi" style="font-size:13px;margin:-4px 0 12px">Bu ürünün ayrı stoğu yok: <b>ÇAY - BARDAK - ORALET</b> stoğuna bağlı (${u.bardak} bardak düşer). Bardak girilince kendiliğinden yenilenir.</p>`
         : u?.bardak ? `<p class="bilgi" style="font-size:13px;margin:-4px 0 12px">Her satışta kendi stoğundan 1 ve ÇAY - BARDAK - ORALET stoğundan 1 bardak düşer.</p>` : ""}
       ${u ? `<label style="display:flex;gap:6px;align-items:center;margin-bottom:12px"><input type="checkbox" id="u-aktif"${u.aktif !== false ? " checked" : ""}> Satışta</label>` : ""}
-      <p class="soluk" style="font-size:13px;margin:-4px 0 12px">Fiyat değişikliği eski günlerin kasasını değiştirmez.</p>
+      <p class="soluk" style="font-size:13px;margin:-4px 0 12px">Alış fiyatı girilince satış fiyatı çarpanla (${String(kasa.fiyat?.kantinCarpan ?? 2.5).replace(".", ",")}) kendiliğinden hesaplanır; isterseniz değiştirebilirsiniz. Fiyat değişikliği eski günlerin kasasını değiştirmez.</p>
       <div style="display:grid;gap:8px"><button class="dugme" type="button" id="u-kaydet">Kaydet</button>
       ${u && ben.rol === "admin" ? '<button class="dugme tehlike" type="button" id="u-sil">Ürünü sil</button>' : ""}</div>`);
+    // Alış yazıldıkça satış = alış × çarpan (5 ₺'ye yukarı)
+    $("u-alis")?.addEventListener("input", (e) => {
+      const a = Number(String(e.target.value).replace(/[^\d]/g, "")), c = Number(kasa.fiyat?.kantinCarpan ?? 2.5);
+      if (a > 0) $("u-satis").value = Math.ceil((a * c) / 5 - 1e-9) * 5;
+    });
     const gonder = async (ek) => {
       const g = { id: u?.id, ad: $("u-ad").value, alis: $("u-alis")?.value, satis: $("u-satis").value, ...ek };
       if (!ek.sil) {

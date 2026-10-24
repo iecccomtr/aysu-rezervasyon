@@ -749,13 +749,14 @@ test("Kasa: online dekontla bugün gelen kapora bugünün kasasına eklenir (tut
   assert.equal(mg.kayit.gelenKaporalar.length, 0);
 });
 
-test("Kasa: Admin bugün gelen kaporayı kasadan silebilir, Müdür silemez", async () => {
+test("Kasa: Admin bugün gelen kaporayı kasadan silebilir, Müdür açıklamayla silebilir", async () => {
   const d = demoDepo({ PANEL_KURULUM_KODU: "k" });
   const admin = await d.oturum((await d.panelKur({ kurulumKodu: "k", eposta: "admin@aysu.com", ad: "Admin", sifre: "aysu-2026!" })).token);
   const r = await d.panelRezEkle({ gunTarihi: "2026-10-25", saat: "21:00", ad: "Fevzi", telefon: "", kapora: "960" });
   const k = await d.kasaGetir("2026-10-19", admin);
   await d.kasaKaydet({ ...k.kayit }, admin);
-  assert.match((await d.gelenKaporaSil({ gun: "2026-10-19", kayitNo: r.kayitNo }, { rol: "mudur", ad: "M" })).hata, /Admin/);
+  assert.match((await d.gelenKaporaSil({ gun: "2026-10-19", kayitNo: r.kayitNo }, { rol: "mudur", ad: "M" })).hata, /açıklama/);
+  assert.match((await d.gelenKaporaSil({ gun: "2026-10-19", kayitNo: r.kayitNo }, { rol: "personel", ad: "P" })).hata, /yönetici/);
   assert.ok((await d.gelenKaporaSil({ gun: "2026-10-19", kayitNo: r.kayitNo }, admin)).basarili);
   const k2 = await d.kasaGetir("2026-10-19", admin);
   assert.equal(k2.kayit.gelenKaporalar.length, 0); assert.equal(k2.kayit.ozet.gelenKapora, 0);
@@ -1064,7 +1065,7 @@ test("Online abone başvurusu: kurallar onayı, abone ücreti, kapora onayında 
   const d = demoDepo();
   saatiAyarla("2026-10-20T10:00");
   assert.match((await d.olustur({ gunTarihi: "2026-10-22", saat: "21:00", ad: "Yeni Takım", telefon: "05330000021", abone: true })).hata, /kurallar/);
-  const r = await d.olustur({ gunTarihi: "2026-10-22", saat: "21:00", ad: "Yeni Takım", telefon: "05330000021", abone: true, kurallarKabul: true });
+  const r = await d.olustur({ gunTarihi: "2026-10-22", saat: "21:00", ad: "Yeni Takım", telefon: "05330000021", abone: true, kurallarKabul: true, eposta: "takim@ornek.com" });
   assert.ok(r.basarili); assert.equal(r.ucret, 3200); assert.ok(r.aboneBasvuru);
   // kapora onayı
   await d.dekontSonuc(r.kayitNo, "ozet-abone", { nedenler: [], tutar: 1200, okunan: {} });
@@ -1110,7 +1111,7 @@ test("Abone depozitoyu şimdi IBAN'a öderse: kapora yerine depozito istenir, de
   assert.ok(!dekontDegerlendir({ ...ok, tutar: null }, kural).onay, "tutar okunamazsa kabul yok");
   const d = demoDepo();
   saatiAyarla("2026-10-20T10:00");
-  const r = await d.olustur({ gunTarihi: "2026-10-22", saat: "21:00", ad: "Depozitolu", telefon: "05330000031", abone: true, kurallarKabul: true, depozitoIban: true });
+  const r = await d.olustur({ gunTarihi: "2026-10-22", saat: "21:00", ad: "Depozitolu", telefon: "05330000031", abone: true, kurallarKabul: true, depozitoIban: true, eposta: "dep@ornek.com" });
   assert.equal(r.kaporaTutar, 3200); assert.ok(r.aboneBasvuru.depozitoIban);
   await d.dekontSonuc(r.kayitNo, "ozet-dep", { nedenler: [], tutar: 3200, okunan: {} });
   await d.panelRezGuncelle({ kayitNo: r.kayitNo, kapora: "3200" });
@@ -1170,4 +1171,19 @@ test("İptal edilen rezervasyonun dekontu yeni rezervasyonda kabul edilir; kapor
   assert.equal(k.rez.kaporaGunu, "2026-10-20");
   const gk = await d.gelenKaporalar("2026-10-20");
   assert.equal(gk.filter((x) => x.kayitNo === r1.kayitNo).length, 0, "iptal kaydı artık sayılmaz");
+});
+
+test("Kantin kâr çarpanı: alış değişince satış = alış × çarpan (5'e yukarı); Müdür alış girebilir; çarpan bütün ürünlere uygulanabilir", async () => {
+  const { kantinSatis } = await import("../src/store.js");
+  assert.equal(kantinSatis(12, 2.5), 30); assert.equal(kantinSatis(13, 2.5), 35); assert.equal(kantinSatis(38, 2.5), 95);
+  const d = demoDepo();
+  const admin = { eposta: "a@a.com", ad: "Admin", rol: "admin" }, mudur = { eposta: "m@a.com", ad: "Müdür", rol: "mudur" };
+  const u = (await d.urunler()).find((x) => x.ad === "SU 0,50");
+  const r = await d.urunKaydet({ id: u.id, alis: 14 }, mudur);
+  assert.equal(r.urun.satis, 35);
+  assert.match((await d.kantinCarpanKaydet({ carpan: "3" }, { rol: "mudur_yrd" })).hata, /Admin ve Müdür/);
+  const c = await d.kantinCarpanKaydet({ carpan: "3", hepsine: true }, admin);
+  assert.ok(c.basarili && c.fiyatFark.length > 5);
+  assert.equal((await d.urunler()).find((x) => x.id === u.id).satis, 45);
+  assert.equal((await d.fiyatAyar()).kantinCarpan, 3);
 });

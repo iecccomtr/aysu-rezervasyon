@@ -1230,3 +1230,12 @@ test("Temizlik ürünleri stoğunu Temizlik Şefi de girer, silemez", async () =
   assert.match((await d.temizlikKaydet({ id, sil: true }, t)).hata, /yönetici/);
   assert.match((await d.temizlikKaydet({ ad: "X" }, { rol: "personel" })).hata, /yetki/i);
 });
+
+test("Kantin sayımı sistem stoğundan farklıysa fark bilgisi döner (Admin'e uyarı)", async () => {
+  const d = demoDepo();
+  const m = { eposta: "m@a.com", ad: "Müdür", rol: "mudur" };
+  const u = (await d.urunler()).find((x) => x.ad === "SU 0,50");
+  const r = await d.urunKaydet({ id: u.id, stok: u.stok - 3 }, m);
+  assert.deepEqual([r.sayimFark.beklenen, r.sayimFark.sayilan, r.sayimFark.fark], [u.stok, u.stok - 3, -3]);
+  assert.ok(!(await d.urunKaydet({ id: u.id, stokEkle: 10 }, m)).sayimFark, "gelen mal fark değildir");
+});

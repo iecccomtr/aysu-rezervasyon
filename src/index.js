@@ -546,6 +546,18 @@ async function panel(request, env, ctx, yol) {
       // Müdür de yeni alış fiyatı girebilir (göremez); satış fiyatı çarpanla kendiliğinden hesaplanır
       const r = await d.urunKaydet(["admin", "mudur"].includes(ben.rol) ? g : { ...g, alis: undefined }, ben);
       if (r.fiyatFark?.length) fiyatBildir(r.fiyatFark);
+      // Stok sayımı satışlara göre beklenen stoktan farklı: Admin'e UYARI
+      if (r.sayimFark) ctx.waitUntil((async () => {
+        const f = r.sayimFark, eksik = f.fark < 0;
+        await epostaYolla(env, {
+          kime: await d.rolEpostalari(["admin"]),
+          konu: `UYARI: Kantin stok farkı — ${f.ad} ${eksik ? `${-f.fark} adet eksik` : `${f.fark} adet fazla`}`,
+          satirlar: [["Ürün", f.ad], ["Sistemdeki stok (satışlara göre)", `${f.beklenen} adet`], ["Sayılan", `${f.sayilan} adet`],
+            ["Fark", `${f.fark > 0 ? "+" : ""}${f.fark} adet (${eksik ? "eksik" : "fazla"})`], ["Satış değeri", `${Math.abs(f.tutar).toLocaleString("tr-TR")} TL`],
+            ["Sayan", `${f.sayan} (${ben.rolAd || ""})`], ["Kural", "Kantin stoklarındaki açık sahadan sorumlu müdürün maaşından kesilir."]],
+          alt: "Aysu Halı Saha · kantin stok uyarısı",
+        });
+      })().catch(() => {}));
       return json(alisGizle(r, ben), r.hata ? 400 : 200);
     }
     case "POST fiyat": {

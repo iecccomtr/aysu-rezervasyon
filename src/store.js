@@ -1702,7 +1702,10 @@ export class RezervasyonDeposu extends DurableObject {
         ? ["ad", "alis", "satis", "stok", "aktif"].filter((a) => eski[a] !== yeni[a]).map((a) => `${{ ad: "ad", alis: "alış", satis: "satış", stok: "stok", aktif: "satışta" }[a]}: ${eski[a]} → ${yeni[a]}`)
         : [`alış ${yeni.alis || 0} · satış ${yeni.satis || 0} · stok ${yeni.stok}`];
       if (fark.length) await this.kayitTut(yapan, eski ? "Kantin ürünü düzenledi" : "Kantin ürünü ekledi", `${yeni.ad} · ${fark.join(" · ")}`);
-      return { basarili: true, urun: yeni, ...(eski && eski.satis !== yeni.satis ? { fiyatFark: [[`Kantin: ${yeni.ad}`, `${(eski.satis ?? 0).toLocaleString("tr-TR")} TL → ${(yeni.satis ?? 0).toLocaleString("tr-TR")} TL`]] } : {}) };
+      // Sayım sistemdeki stoktan (satışlara göre beklenen) farklıysa: Admin'e uyarı için fark bilgisi
+      const sayimFark = eski && stok !== undefined && stok !== "" && !bardakKurali(yeni.ad).bagli && (eski.stok || 0) !== yeni.stok
+        ? { ad: yeni.ad, beklenen: eski.stok || 0, sayilan: yeni.stok, fark: yeni.stok - (eski.stok || 0), tutar: (yeni.stok - (eski.stok || 0)) * (yeni.satis || 0), sayan: yapan?.ad || "" } : null;
+      return { basarili: true, urun: yeni, ...(sayimFark ? { sayimFark } : {}), ...(eski && eski.satis !== yeni.satis ? { fiyatFark: [[`Kantin: ${yeni.ad}`, `${(eski.satis ?? 0).toLocaleString("tr-TR")} TL → ${(yeni.satis ?? 0).toLocaleString("tr-TR")} TL`]] } : {}) };
     });
   }
 

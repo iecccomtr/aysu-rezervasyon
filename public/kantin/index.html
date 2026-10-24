@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kantin fiyat listesi · Aysu Halı Saha</title>
+<meta name="description" content="Aysu Halı Saha kantin fiyat listesi (güncel fiyatlar).">
+<link rel="icon" href="/img/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --cim: #0067a4; --cim-koyu: #062a45; --turuncu: #ef7f1a; --murekkep: #10202d; --gri: #566270; --cizgi: #d5dde5; --kart: #fff; --zemin: #eef2f6; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { font: 400 17px/1.5 "Barlow", system-ui, sans-serif; color: var(--murekkep); background: var(--zemin); min-height: 100dvh; }
+  .ust { background: var(--cim-koyu); color: #fff; padding: 14px 16px; }
+  .ust .ic, main { max-width: 600px; margin: 0 auto; }
+  .ust .ic { display: flex; align-items: center; gap: 12px; }
+  .ust img { height: 32px; background: #fff; border-radius: 8px; padding: 3px 6px; }
+  .ust h1 { font: 700 24px/1.1 "Barlow Condensed", sans-serif; margin: 0; }
+  main { padding: 16px 16px 40px; }
+  .ara { width: 100%; border: 1px solid #b5c3cf; border-radius: 12px; padding: 12px 14px; font: inherit; background: #fff; margin-bottom: 12px; }
+  .liste { background: var(--kart); border: 1px solid var(--cizgi); border-radius: 14px; overflow: hidden; }
+  .u { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--cizgi); }
+  .u:last-child { border-bottom: 0; }
+  .u span { font-weight: 600; }
+  .u b { font: 700 22px/1 "Barlow Condensed", sans-serif; color: var(--cim); white-space: nowrap; }
+  .u.yok { opacity: .5; }
+  .u.yok b::after { content: " · tükendi"; font: 600 13px "Barlow", sans-serif; color: #b42318; }
+  .not { color: var(--gri); font-size: 14px; margin-top: 12px; }
+</style>
+</head>
+<body>
+<header class="ust"><div class="ic"><a href="/"><img src="/img/aysu-logo.svg" alt="Aysu Halı Saha"></a><h1>Kantin fiyat listesi</h1></div></header>
+<main>
+  <input class="ara" id="ara" type="search" placeholder="Ürün ara (ör. su, çay, soda)" aria-label="Ürün ara">
+  <div class="liste" id="liste"><div class="u"><span>Yükleniyor…</span></div></div>
+  <p class="not" id="not"></p>
+</main>
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const kacis = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const tl = (n) => `${Math.round(Number(n) || 0).toLocaleString("tr-TR")} ₺`;
+  let urunler = [];
+  const ciz = () => {
+    const q = $("ara").value.trim().toLocaleLowerCase("tr");
+    const l = urunler.filter((u) => !q || u.ad.toLocaleLowerCase("tr").includes(q));
+    $("liste").innerHTML = l.map((u) => `<div class="u${u.yok ? " yok" : ""}"><span>${kacis(u.ad)}</span><b>${tl(u.satis)}</b></div>`).join("") || '<div class="u"><span>Ürün bulunamadı.</span></div>';
+  };
+  fetch("/api/kantin", { cache: "no-store" }).then((r) => r.json()).then((v) => {
+    urunler = (v.urunler || []).sort((a, b) => a.ad.localeCompare(b.ad, "tr"));
+    ciz();
+    $("not").innerHTML = `Krampon kirası ${tl(v.kira?.krampon)} · Eldiven kirası ${tl(v.kira?.eldiven)}<br>Fiyatlar günceldir, kantinde değişiklik olursa burada da hemen değişir.`;
+  }).catch(() => { $("liste").innerHTML = '<div class="u"><span>Fiyatlar şu an yüklenemedi.</span></div>'; });
+  $("ara").addEventListener("input", ciz);
+})();
+</script>
+</body>
+</html>

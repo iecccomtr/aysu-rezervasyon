@@ -346,7 +346,9 @@ async function panel(request, env, ctx, yol) {
         // Abone başvurusunun ilk maçı iptal edildi: başvuruyla açılan abonelik de kapanır (henüz başlamamış)
         if (r.rez.aboneBasvuru && r.rez.aboneId) {
           const ab = (await d.aboneListe()).find((x) => x.id === r.rez.aboneId);
-          if (ab && ab.kural?.ilkMac === (r.rez.isletmeGunu || r.rez.tarih)) { await d.aboneSil(ab.id, {}); r.aboneKapandi = true; }
+          const rg = r.rez.isletmeGunu || r.rez.tarih;
+          // İlk maçı iptal edilen başvuru: abonelik henüz başlamadıysa (ilk maç / kayıt günü bu gün ya da takvim sonra başlıyor) kapanır
+          if (ab && (ab.kural?.ilkMac === rg || ab.kayitTarihi === rg || ab.baslangic > rg)) { await d.aboneSil(ab.id, {}); r.aboneKapandi = true; }
         }
         ctx.waitUntil(iptalBildir(env, d, { ...r.rez, kimden: `${ben.ad} (${ROLLER[ben.rol]?.ad || ""}, panel)`, aboneKapandi: r.aboneKapandi }));
       }
@@ -905,6 +907,15 @@ export default {
     }
 
     // Rezervasyon sayfası: önümüzdeki günlerin tüm saatleri (boş/dolu). Kişisel veri içermez.
+    // ---- Kantin fiyat listesi (sahadaki QR → /kantin): canlı satış fiyatları, stok / alış gösterilmez ----
+    if (yol === "/kantin") return Response.redirect(url.origin + "/kantin/", 301);
+    if (yol === "/api/kantin" && request.method === "GET") {
+      const l = (await depo(env).urunlerGorunum()).filter((u) => u.aktif !== false && u.satis > 0)
+        .map((u) => ({ ad: u.ad, satis: u.satis, yok: !u.bagli && (u.stok || 0) <= 0 }));
+      const f = await depo(env).fiyatAyar();
+      return json({ urunler: l, kira: { krampon: f.krampon, eldiven: f.eldiven } }, 200, { "cache-control": "no-store" });
+    }
+
     // ---- Memnuniyet anketi ----
     if (yol === "/anket") return Response.redirect(url.origin + "/anket/", 301);
     if (yol === "/api/anket" && request.method === "GET") return json({ sorular: ANKET_SORULARI });

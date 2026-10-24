@@ -9,6 +9,7 @@ import { TESIS_KURALLARI } from "./tesis-kurallari.js";
 import { dekontOku, dekontDegerlendir, ozet } from "./dekont-kontrol.js";
 import { ROLLER, ibanGecerli } from "./store.js";
 import { kasaPdf, kasaPdfDetayli } from "./kasa-pdf.js";
+import { takvimPdf } from "./takvim-pdf.js";
 export { RezervasyonDeposu } from "./store.js";
 
 const OTURUM_CEREZ = "aysu_panel";
@@ -433,6 +434,7 @@ async function panel(request, env, ctx, yol) {
         const c = await d.puantajHepsiCikis(r.kayit.gun, ben).catch(() => ({ kapanan: [] }));
         for (const x of c.kapanan) await puantajOzetGonder(env, d, x, { gun: r.kayit.gun }).catch((e) => console.error("Puantaj e-postası", e));
         await kasaRaporuGonder(env, d, r.kayit, r.ilkKayit);
+        await takvimRaporuGonder(env, d, r.kayit.gun).catch((e) => console.error("Takvim PDF", e));
       })().catch((e) => console.error("Kasa PDF", e)));
       return json(alisGizle(r, ben), r.hata ? 400 : 200);
     }
@@ -750,6 +752,21 @@ async function kasaRaporuGonder(env, d, k, ilk) {
     ],
     alt: `Kaydeden: ${k.guncelleyen} · ${k.guncelleme}. Ayrıntı ekteki PDF'te.`,
     ekler: [{ ad: `aysu-kasa-${k.gun}.pdf`, tur: "application/pdf", veri: kasaPdf(k, { calisanlar }) }],
+  });
+}
+
+/** Kasa gönderilince: ertesi günün haftasının takvimi (PDF) Admin ve Müdür'e */
+async function takvimRaporuGonder(env, d, gun) {
+  const kime = await d.rolEpostalari(["admin", "mudur"]);
+  if (!kime.length) return;
+  const h = await d.panelHafta(gunEkle(gun, 1));
+  const say = (t) => h.gunler.reduce((n, g) => n + g.saatler.filter((s) => s.tur === t).length, 0);
+  const aralik = `${trTarih(h.gunler[0].tarih)} – ${trTarih(h.gunler[6].tarih)}`;
+  await epostaYolla(env, {
+    kime, konu: `Haftalık takvim ${aralik}`,
+    satirlar: [["Hafta", aralik], ["Rezervasyon", `${say("rez")} saat`], ["Abone", `${say("abone")} saat`], ["Abone gelmiyor (boş)", `${say("abone-gelmiyor")} saat`]],
+    alt: "Haftanın tablosu ekteki PDF'te. Kasa gönderildiğinde otomatik gelir.",
+    ekler: [{ ad: `aysu-takvim-${h.gunler[0].tarih}.pdf`, tur: "application/pdf", veri: takvimPdf(h) }],
   });
 }
 

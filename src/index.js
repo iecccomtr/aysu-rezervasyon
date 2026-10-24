@@ -664,12 +664,12 @@ async function dekontKontrolEt(env, d, rez, veri) {
   const okunan = await dekontOku(env, { tur: rez.dekont.tur, veri }, { yeterli: (o) => dekontDegerlendir(o, kurallar).onay });
   const deger = dekontDegerlendir(okunan, kurallar);
   const k = await d.dekontSonuc(rez.kayitNo, await ozet(veri), deger);
-  if (k.onay && k.rez?.aboneBasvuru) await aboneBasvuruIsle(env, d, rez.kayitNo).catch((e) => console.error("Abone başvurusu", e));
+  if (k.onay && k.rez?.aboneBasvuru) await aboneBasvuruIsle(env, d, rez.kayitNo, { tur: rez.dekont?.tur, veri }).catch((e) => console.error("Abone başvurusu", e));
   return { okunan, k, deger };
 }
 
 /** Kaporası onaylanan abone başvurusu → abone kaydı + yöneticilere e-posta */
-async function aboneBasvuruIsle(env, d, kayitNo) {
+async function aboneBasvuruIsle(env, d, kayitNo, dekont = null) {
   const r = await d.aboneBasvuruKabul(kayitNo);
   if (!r) return;
   // Abone e-posta bıraktıysa kendi sayfasının bağlantısı gönderilir
@@ -677,13 +677,18 @@ async function aboneBasvuruIsle(env, d, kayitNo) {
     const e = await d.aboneErisim(r.abone.id);
     if (e.basarili) await aboneSayfaGonder(env, e.abone, `https://aysuhalisaha.com/abone/${e.anahtar}`, r.abone.eposta);
   }
-  const kime = await d.rolEpostalari(["admin", "mudur", "mudur_yrd"]);
   const rz = r.rez || {};
-  await epostaYolla(env, {
-    kime, konu: r.basarili ? `Yeni abone (online): ${rz.ad} — her hafta ${rz.gun} ${rz.saat}` : `Abone başvurusu kaydedilemedi: ${rz.ad}`,
+  const uzanti = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "application/pdf": "pdf" }[dekont?.tur] || "jpg";
+  // İşletme adresi + Admin, Müdür, Müdür Yardımcısı: tek e-posta (rezervasyon e-postası ayrıca gitmez)
+  await bildir(env, {
+    ekKime: await d.rolEpostalari(["admin", "mudur", "mudur_yrd"]),
+    ...(dekont?.veri ? { ekler: [{ ad: `dekont-${rz.kayitNo}.${uzanti}`, tur: dekont.tur, veri: dekont.veri }] } : {}),
+    konu: r.basarili ? `Yeni abone (online): ${rz.ad} — her hafta ${rz.gun} ${rz.saat}` : `Abone başvurusu kaydedilemedi: ${rz.ad}`,
     satirlar: [["Abone", `${r.abone ? "Abone " + r.abone.no + " · " : ""}${rz.ad}`], ["Telefon", rz.telefon || "—"],
       ["İlk maç", `${trTarih(r.ilkMac || rz.isletmeGunu)} ${rz.saat}`], ["Her hafta", `${rz.gun} ${rz.saat}`],
-      ["Kapora", rz.kapora || "—"], ["İlk maçta alınacak", `Abone ücreti + ${Number(rz.aboneBasvuru?.depozito || 0).toLocaleString("tr-TR")} TL depozito − kapora`],
+      [rz.aboneBasvuru?.depozitoIban ? "Depozito (IBAN)" : "Kapora", `${rz.kapora || "?"} TL${dekont?.veri ? " (dekont ekte)" : ""}`],
+      ["İlk maçta alınacak", rz.aboneBasvuru?.depozitoIban ? `${Number(rz.ucret || 0).toLocaleString("tr-TR")} TL maç ücreti (depozito ödendi)`
+        : `${Number(rz.ucret || 0).toLocaleString("tr-TR")} TL maç + ${Number(rz.aboneBasvuru?.depozito || 0).toLocaleString("tr-TR")} TL depozito − kapora`],
       ["Kurallar", "Müşteri abonelik kurallarını online onayladı (" + (rz.aboneBasvuru?.kabul || "") + ")"],
       ...(r.uyari ? [["Uyarı", r.uyari]] : []), ...(r.hata ? [["Hata", r.hata]] : [])],
     alt: "Aysu Halı Saha · abone bildirimi",
@@ -997,7 +1002,8 @@ export default {
         const uzanti = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "application/pdf": "pdf" }[r.dekont.tur];
         // Sadece bu dekontla kesinleşen rezervasyon için "Yeni rezervasyon" e-postası
         // (doğrulanamayan dekont ya da kaporanın ikinci parçası için e-posta yok; eksik kapora 15 dk sonra bildirilir)
-        if (k.onay && r.durum !== "Onaylı") ctx.waitUntil((async () => bildir(env, {
+        // Abone başvurusunda ayrı "Yeni rezervasyon" e-postası gitmez: tek e-posta "Yeni abone (online)" (dekont ekli)
+        if (k.onay && r.durum !== "Onaylı" && !r.aboneBasvuru) ctx.waitUntil((async () => bildir(env, {
           // İşletme adresi + Admin, Müdür ve Müdür Yardımcısı (rolü o an olan herkes)
           ekKime: await d.rolEpostalari(["admin", "mudur", "mudur_yrd"]),
           konu: `Yeni rezervasyon: ${r.gun} ${r.saat} (${r.kayitNo})`,

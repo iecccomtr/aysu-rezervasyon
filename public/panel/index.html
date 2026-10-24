@@ -2125,6 +2125,8 @@
   // Aynı abonenin art arda saatleri (ör. Abone 1 08:00–12:00) kasada tek kartta gösterilir
   const grupAcik = new Set();
   let macGrup = [];
+  /** Maçın bitiş saati: son maç 22:00'de başlıyorsa grup 23:00'te biter */
+  const bitisSaati = (saat) => `${String((Number(saat.slice(0, 2)) + 1) % 24).padStart(2, "0")}:${saat.slice(3, 5)}`;
   function gruplariHesapla() {
     macGrup = [];
     const l = kk.maclar;
@@ -2158,7 +2160,7 @@
       <div class="kutu kasa-kart"><h3>Maçlar<span class="sag soluk" data-top="maclar"></span></h3>
         ${kk.maclar.map((m, i) => { const gr = macGrup[i]; if (gr && gr.bas !== i && !grupAcik.has(gr.anahtar)) return ""; const grupKart = gr && gr.bas === i && !grupAcik.has(gr.anahtar); return `<div class="mac t-${m.tur}">
           <div class="mac-ust">
-            <span class="saat-i">${grupKart ? `${kacis(m.saat)}<small style="display:block;font-size:11px">– ${kacis(kk.maclar[gr.son].saat)}</small>` : kacis(m.saat)}</span>
+            <span class="saat-i">${grupKart ? `${kacis(m.saat)}<small style="display:block;font-size:11px">– ${bitisSaati(kk.maclar[gr.son].saat)}</small>` : kacis(m.saat)}</span>
             <span class="tur-y">${m.tur === "abone" ? "Abone" : m.tur === "bos" ? "Boş" : "Normal"}</span>
             <b class="ad-y">${kacis(m.ad)}${grupKart ? ` <small class="soluk">· ${gr.son - gr.bas + 1} saat</small>` : ""}${m.odendi ? ' <span class="rozet r-onayli" style="font-size:12px">✓ ödendi</span>' : ""}</b>
             ${m.kaynak === "takvim" ? "" : `<button class="x-sil" type="button" data-sil="maclar.${i}" aria-label="Satırı sil">×</button>`}

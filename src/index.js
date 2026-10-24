@@ -640,7 +640,7 @@ async function guvenliIban(env, d, ctx, nereden = "") {
 }
 
 const rezCevap = (r, ib) => ({
-  basarili: true, kayitNo: r.kayitNo, tarih: r.tarih, gun: r.gun, saat: r.saat, durum: r.durum, ucretsiz: Boolean(r.ucretsiz), abone: Boolean(r.aboneBasvuru),
+  basarili: true, kayitNo: r.kayitNo, tarih: r.tarih, gun: r.gun, saat: r.saat, durum: r.durum, ad: r.ad, ucretsiz: Boolean(r.ucretsiz), abone: Boolean(r.aboneBasvuru),
   ucret: r.ucret, kapora: r.ucretsiz ? 0 : r.kaporaTutar ?? FIYATLAR.kapora,
   // Maç günü ödenecek: abone başvurusunda depozito da eklenir (depozito şimdi IBAN'a ödeniyorsa maç ücretinin tamamı kalır)
   kalan: r.aboneBasvuru?.depozitoIban ? r.ucret : r.ucret - (r.ucretsiz ? 0 : r.kaporaTutar ?? FIYATLAR.kapora) + (r.aboneBasvuru ? Number(r.aboneBasvuru.depozito) || 0 : 0),

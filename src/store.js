@@ -622,6 +622,18 @@ export class RezervasyonDeposu extends DurableObject {
     });
   }
 
+  /** Yönetici abonenin iptal talebini geri çevirir (abonelik devam eder) */
+  async aboneIptalTalebiReddet(id, yapan) {
+    return this.kilitli(async () => {
+      const a = await this.st.get(`a:${id}`);
+      if (!a?.iptalTalebi) return { hata: "Bekleyen iptal talebi yok." };
+      const { iptalTalebi, ...kalan } = a;
+      await this.st.put(`a:${id}`, kalan);
+      await this.kayitTut(yapan, "Abone iptal talebini geri çevirdi", `${a.ad} · ${iptalTalebi.zaman}`);
+      return { basarili: true };
+    });
+  }
+
   /**
    * Online abone başvurusunun kaporası onaylanınca: abone kaydı açılır (ilk maç = başvurulan maç, sonraki haftadan itibaren
    * her hafta), rezervasyon aboneye bağlanır. Depozito ilk maç günü kasada alınır.

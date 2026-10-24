@@ -1406,7 +1406,8 @@
           <div class="alan" style="max-width:110px"><label for="d-no">Abone no</label><input id="d-no" type="number" inputmode="numeric" min="1" max="999" value="${a.no || ""}" placeholder="otomatik"></div>
           <div class="alan"><label for="d-ad">Ad / takım</label><input id="d-ad" value="${kacis(a.ad)}" required></div>
         </div>
-        ${a.iptalTalebi ? `<p class="bilgi" style="background:#fff1f1;border-color:#f2c4c4;color:#7a1a12">⚠ <b>Abonelik iptal talebi</b> (${kacis(a.iptalTalebi.zaman)}): ${kacis(a.iptalTalebi.neden || "neden yazılmadı")}${a.iptalTalebi.taahhut ? " · 3 ay dolmadan — depozito yanar" : ""}. Aşağıdan "Aboneliği sonlandır" ile kapatın.</p>` : ""}
+        ${a.iptalTalebi ? `<p class="bilgi" style="background:#fff1f1;border-color:#f2c4c4;color:#7a1a12">⚠ <b>Abonelik iptal talebi</b> (${kacis(a.iptalTalebi.zaman)}): ${kacis(a.iptalTalebi.neden || "neden yazılmadı")}${a.iptalTalebi.taahhut ? " · 3 ay dolmadan — depozito yanar" : ""}. Abonelik siz onaylayana kadar takvimde devam eder.
+          <span style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap"><button type="button" class="dugme tehlike kucuk" id="d-talep-onay">Talebi onayla — aboneliği sonlandır</button><button type="button" class="dugme ikincil kucuk" id="d-talep-red">Talebi geri çevir</button></span></p>` : ""}
         <div class="iki-alan">
           <div class="alan"><label for="d-tel">Telefon</label><input id="d-tel" type="tel" inputmode="tel" value="${kacis(telYazi(a.telefon))}" placeholder="05XX XXX XX XX"></div>
           <div class="alan"><label for="d-eposta">E-posta <small class="soluk">(abone sayfası için)</small></label><input id="d-eposta" type="email" value="${kacis(a.eposta || "")}" placeholder="ornek@gmail.com"></div>
@@ -1471,6 +1472,13 @@
         if (r.hata) return dlgUyari(r.hata);
         dlg.close(); bildir(r.uyari || (yeni ? "Abone eklendi" : "Kaydedildi")); aboneYukle(); if (sekme === "musteriler") musteriYukle();
       } finally { btn.disabled = false; }
+    });
+    $("d-talep-onay")?.addEventListener("click", () => { const b = $("d-sil"); if (b) { b.click(); const n = $("d-sil-neden"); if (n && !n.value) n.value = `Abonenin iptal talebi: ${a.iptalTalebi.neden || ""}`.trim(); b.scrollIntoView({ block: "center" }); } });
+    $("d-talep-red")?.addEventListener("click", async () => {
+      if (!confirm(`${a.ad} aboneliği devam etsin, iptal talebi geri çevrilsin mi?`)) return;
+      const r = await api("abone-talep-red", { id: a.id });
+      if (r.hata) return dlgUyari(r.hata);
+      dlg.close(); bildir("İptal talebi geri çevrildi, abonelik devam ediyor"); aboneYukle();
     });
     const sayfaLink = async (eposta) => { const r = await api("abone-link", { id: a.id, eposta }); if (r.hata) { dlgUyari(r.hata); return null; } return r; };
     $("d-sayfa-eposta")?.addEventListener("click", async (e) => {
@@ -2245,7 +2253,9 @@
       // Tek kartta toplanmış abone saatleri: kartta grubun toplamı
       const gr = macGrup[i];
       const m = gr && gr.bas === i && !grupAcik.has(gr.anahtar)
-        ? o.maclar.slice(gr.bas, gr.son + 1).reduce((t, x) => ({ ...t, toplam: t.toplam + x.toplam, kapora: t.kapora + (x.kapora || 0), iban: t.iban + (x.iban || 0), kalan: t.kalan + x.kalan }), { ...m0, toplam: 0, kapora: 0, iban: 0, kalan: 0 })
+        ? o.maclar.slice(gr.bas, gr.son + 1).reduce((t, x) => ({ ...t, toplam: t.toplam + x.toplam, kapora: t.kapora + (x.kapora || 0), iban: t.iban + (x.iban || 0), kalan: t.kalan + x.kalan,
+            kantin: t.kantin + (x.kantin || 0), odenmemis: t.odenmemis + (x.odenmemis || 0), ikram: t.ikram + (x.ikram || 0), veresiye: t.veresiye + (x.veresiye || 0) }),
+          { ...m0, toplam: 0, kapora: 0, iban: 0, kalan: 0, kantin: 0, odenmemis: 0, ikram: 0, veresiye: 0 })
         : m0;
       const t = document.querySelector(`[data-mt="${i}"]`);
       if (t) t.innerHTML = m.kapora || m.iban ? `<small>Toplam ${para(m.toplam)}${m.kapora ? ` − kapora ${para(m.kapora)}` : ""}${m.iban ? ` − IBAN ${para(m.iban)}` : ""}</small>Nakit ${para(m.kalan)}` : para(m.toplam);
@@ -2349,9 +2359,11 @@
     } else if (b.dataset.grup !== undefined) {
       grupAcik.has(b.dataset.grup) ? grupAcik.delete(b.dataset.grup) : grupAcik.add(b.dataset.grup); kasaCiz();
     } else if (b.dataset.tahsil !== undefined) {
-      const m = kk.maclar[b.dataset.tahsil];
+      const i = Number(b.dataset.tahsil), m = kk.maclar[i], gr = macGrup[i];
+      // Tek kartta toplanmış abone saatleri: grubun bütün saatlerindeki ödenmemiş kantin birlikte tahsil edilir
+      const satirlar = gr && gr.bas === i && !grupAcik.has(gr.anahtar) ? kk.maclar.slice(gr.bas, gr.son + 1) : [m];
       if (!confirm(`${m.saat} ${m.ad}: ödenmemiş kantin tahsil edildi mi?`)) return;
-      m.kantinOdenen = { ...(m.kantin || {}) }; degisti(); kasaCiz(); bildir("Tahsil edildi");
+      satirlar.forEach((x) => { x.kantinOdenen = { ...(x.kantin || {}) }; }); degisti(); kasaCiz(); bildir("Tahsil edildi");
     } else if (b.dataset.ode !== undefined) {
       const v = kasa.acikVeresiyeler[b.dataset.ode];
       if (!confirm(`${v.kim} veresiyesi ${para(v.tutar)} tahsil edildi mi? Tutar bugünün (${tarihYazi(kasa.bugun)}) kasa toplamına eklenecek.`)) return;

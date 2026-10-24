@@ -380,6 +380,7 @@ async function panel(request, env, ctx, yol) {
       }
       return degisti(r);
     }
+    case "POST abone-talep-red": { const r = await d.aboneIptalTalebiReddet(g.id, ben); return json(r, r.hata ? 400 : 200); }
     case "POST abone-link": {
       // Aboneye özel sayfa bağlantısı; istenirse abonenin e-postasına gönderilir
       const r = await d.aboneErisim(g.id);

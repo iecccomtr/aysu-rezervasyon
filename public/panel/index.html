@@ -1356,7 +1356,8 @@
         <span class="i"><b>${aboneEtiket(a)} · ${kacis(a.ad)}</b>
         <small><span style="color:var(--murekkep);font-weight:600">${kacis(slotOzet(a.slotlar || []))}</span>
         · ${telYazi(a.telefon) || "telefon yok"}${a.ucret ? " · " + kacis(a.ucret) : ""}${a.not ? " · " + kacis(a.not) : ""}</small>
-        <small class="depozito">${a.depozito ? `Depozito: ${kacis(a.depozito)}` : "Depozito: girilmemiş"}</small></span>
+        <small class="depozito">${a.depozito ? `Depozito: ${kacis(a.depozito)}` : "Depozito: girilmemiş"}</small>
+        ${a.iptalTalebi ? `<small style="color:#b42318;font-weight:700;display:block">⚠ İptal talebi (${kacis(a.iptalTalebi.zaman)})</small>` : ""}</span>
         <span class="rozet r-abone">${(a.slotlar || []).length} saat</span></button>`).join("");
     $("abone-liste").querySelectorAll("[data-abone]").forEach((el) => el.addEventListener("click", () => aboneForm(aboneler.find((a) => a.id === el.dataset.abone))));
   }
@@ -1390,7 +1391,18 @@
           <div class="alan" style="max-width:110px"><label for="d-no">Abone no</label><input id="d-no" type="number" inputmode="numeric" min="1" max="999" value="${a.no || ""}" placeholder="otomatik"></div>
           <div class="alan"><label for="d-ad">Ad / takım</label><input id="d-ad" value="${kacis(a.ad)}" required></div>
         </div>
-        <div class="alan"><label for="d-tel">Telefon</label><input id="d-tel" type="tel" inputmode="tel" value="${kacis(telYazi(a.telefon))}" placeholder="05XX XXX XX XX"></div>
+        ${a.iptalTalebi ? `<p class="bilgi" style="background:#fff1f1;border-color:#f2c4c4;color:#7a1a12">⚠ <b>Abonelik iptal talebi</b> (${kacis(a.iptalTalebi.zaman)}): ${kacis(a.iptalTalebi.neden || "neden yazılmadı")}${a.iptalTalebi.taahhut ? " · 3 ay dolmadan — depozito yanar" : ""}. Aşağıdan "Aboneliği sonlandır" ile kapatın.</p>` : ""}
+        <div class="iki-alan">
+          <div class="alan"><label for="d-tel">Telefon</label><input id="d-tel" type="tel" inputmode="tel" value="${kacis(telYazi(a.telefon))}" placeholder="05XX XXX XX XX"></div>
+          <div class="alan"><label for="d-eposta">E-posta <small class="soluk">(abone sayfası için)</small></label><input id="d-eposta" type="email" value="${kacis(a.eposta || "")}" placeholder="ornek@gmail.com"></div>
+        </div>
+        ${yeni ? "" : `<div class="kutu" style="padding:10px;margin-bottom:12px">
+          <b style="display:block;margin-bottom:4px">Abone sayfası</b><small class="soluk" style="display:block;margin-bottom:8px">Aboneye özel bağlantı: maç günleri, "bu hafta gelmiyoruz", kantin harcamaları, veresiye ve iptal talebi.</small>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <button type="button" class="dugme ikincil kucuk" id="d-sayfa-eposta">✉ E-postayla gönder</button>
+            <button type="button" class="dugme ikincil kucuk" id="d-sayfa-wp">WhatsApp ile gönder</button>
+            <button type="button" class="dugme ikincil kucuk" id="d-sayfa-kopya">Bağlantıyı kopyala</button>
+          </div></div>`}
         <label style="font-weight:600;display:block;margin-bottom:6px">Günler ve saatler</label>
         <p class="soluk" style="font-size:14px;margin-bottom:8px">Günleri seçin, ilk ve son maç saatini girin (tek saatse ikisi aynı). Farklı günlerde farklı saatler için satır ekleyin. 00:00–02:00 seçilen günün gecesidir.</p>
         <div id="d-satirlar"></div>
@@ -1440,10 +1452,25 @@
       if (!slotlar.length) return dlgUyari("En az bir gün seçin.");
       const btn = e.submitter; btn.disabled = true;
       try {
-        const r = await api("abone", { id: yeni ? undefined : a.id, no: $("d-no").value, ad: $("d-ad").value, telefon: $("d-tel").value, slotlar, baslangic: $("d-bas").value, ucret: $("d-ucret").value, depozito: $("d-depozito").value, veresiye: $("d-veresiye").checked, not: $("d-not").value, yeniKural: $("d-kural").checked, ilkMac: $("d-ilk").value || $("d-bas").value });
+        const r = await api("abone", { id: yeni ? undefined : a.id, no: $("d-no").value, ad: $("d-ad").value, telefon: $("d-tel").value, slotlar, baslangic: $("d-bas").value, ucret: $("d-ucret").value, depozito: $("d-depozito").value, veresiye: $("d-veresiye").checked, not: $("d-not").value, yeniKural: $("d-kural").checked, ilkMac: $("d-ilk").value || $("d-bas").value, eposta: $("d-eposta").value });
         if (r.hata) return dlgUyari(r.hata);
         dlg.close(); bildir(r.uyari || (yeni ? "Abone eklendi" : "Kaydedildi")); aboneYukle(); if (sekme === "musteriler") musteriYukle();
       } finally { btn.disabled = false; }
+    });
+    const sayfaLink = async (eposta) => { const r = await api("abone-link", { id: a.id, eposta }); if (r.hata) { dlgUyari(r.hata); return null; } return r; };
+    $("d-sayfa-eposta")?.addEventListener("click", async (e) => {
+      const ep = $("d-eposta").value.trim();
+      if (!ep) return dlgUyari("Önce abonenin e-posta adresini yazın.");
+      e.target.disabled = true; const r = await sayfaLink(ep); e.target.disabled = false;
+      if (r) bildir(`Abone sayfası ${r.gonderildi} adresine gönderildi`);
+    });
+    $("d-sayfa-wp")?.addEventListener("click", async () => {
+      const r = await sayfaLink(); if (!r) return;
+      window.open(`${wa(a.telefon)}?text=${encodeURIComponent(`Merhaba ${a.ad}, Aysu Halı Saha abone sayfanız: ${r.link}\nMaç günlerinizi görebilir, gelemeyeceğiniz haftayı bildirebilir ve kantin harcamalarınızı takip edebilirsiniz.`)}`, "_blank", "noopener");
+    });
+    $("d-sayfa-kopya")?.addEventListener("click", async () => {
+      const r = await sayfaLink(); if (!r) return;
+      try { await navigator.clipboard.writeText(r.link); bildir("Bağlantı kopyalandı"); } catch { prompt("Bağlantı:", r.link); }
     });
     const sil = $("d-sil");
     if (sil) sil.addEventListener("click", async () => {

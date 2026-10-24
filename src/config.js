@@ -56,6 +56,7 @@ export const ABONE_KURALLARI = [
 ];
 
 export const KURALLAR = {
+  aboneGelmiyorSaat: 12,        // abone "bu hafta gelmiyoruz"u maçtan en geç bu kadar saat önce kendi sayfasından bildirir
   aboneEnAzAy: 3,               // yeni aboneler ilk maçtan itibaren bu kadar ay çıkamaz (çıkarsa depozito yanar)
   aboneAylikIptal: 1,           // yeni aboneler ayda en fazla bu kadar "gelmiyor" (fazlasında depozito yanar)
   enFazlaGunSonra: 27,          // en fazla kaç gün sonrasına rezervasyon alınır (bugün + 27 gün = 4 hafta)

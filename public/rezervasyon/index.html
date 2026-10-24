@@ -335,6 +335,7 @@
               <ol class="abone-kurallar" id="abone-kurallar"></ol>
               <label class="vip-sec abone-dep"><input type="checkbox" id="abone-dep"><span>Depozitoyu (<b id="abone-dep-tutar"></b>) <b>şimdi IBAN'a</b> göndereceğim <small style="display:block;font-weight:400">Bu durumda kapora gerekmez; dekontta en az depozito tutarı görünmeli.</small></span></label>
               <p class="abone-bilgi abone-odeme" id="abone-odeme"></p>
+              <div class="alan" style="margin:8px 0 4px"><label for="abone-eposta">E-posta <small>(isteğe bağlı — abone sayfanızın bağlantısı gönderilir)</small></label><input id="abone-eposta" type="email" autocomplete="email" maxlength="120" placeholder="ornek@gmail.com"></div>
               <label class="vip-sec abone-onay"><input type="checkbox" id="abone-kabul"><span>Abone kayıt kurallarını ve karşılıklı taahhütleri okudum, kabul ediyorum.</span></label>
             </div>
           </fieldset>
@@ -344,11 +345,11 @@
           </div>
           <div class="alan">
             <label for="telefon">Cep telefonu</label>
-            <input id="telefon" name="telefon" type="tel" inputmode="numeric" autocomplete="off" placeholder="05XX XXX XX XX" maxlength="14" required>
+            <input id="telefon" name="telefon" type="tel" inputmode="numeric" autocomplete="tel-national" placeholder="05XX XXX XX XX" maxlength="14" required>
           </div>
           <div class="alan">
             <label for="telefon2">Cep telefonu (tekrar)</label>
-            <input id="telefon2" name="telefon2" type="tel" inputmode="numeric" autocomplete="off" placeholder="05XX XXX XX XX" maxlength="14" required>
+            <input id="telefon2" name="tel-dogrula" type="tel" inputmode="numeric" autocomplete="one-time-code" data-lpignore="true" placeholder="05XX XXX XX XX" maxlength="14" required>
             <p class="ipucu" id="tel-ipucu">Rezervasyonla ilgili sizi bu numaradan ararız; iptal ve devam için de bu numara gerekir.</p>
           </div>
           <div class="alan">
@@ -655,11 +656,17 @@
     ip.className = b ? "ipucu iyi" : "ipucu"; ip.textContent = b ? "✓ Telefon numarası doğru" : "Numarayı bir kez daha yazın.";
   }
   ["telefon", "telefon2"].forEach((id) => $(id).addEventListener("input", (e) => {
+    // Tarayıcı otomatik doldurma telefon kutusuna e-posta / yazı koyarsa temizle: sadece rakam kalır
+    if (/[^\d\s+()-]/.test(e.target.value)) e.target.value = e.target.value.replace(/[^\d]/g, "");
     const d = telefonSade(e.target.value).slice(0, 11);
     if (/^\d+$/.test(e.target.value.replace(/\s/g, ""))) e.target.value = telefonBicim(d);
     telefonKontrol();
   }));
   $("telefon2").addEventListener("paste", (e) => e.preventDefault()); // ikinciyi elle yazsın
+  // Otomatik doldurma "input" olayı tetiklemeden yazı bırakabilir: odaklanınca / formu açınca harfleri temizle
+  const telTemizle = () => ["telefon", "telefon2"].forEach((id) => { const el = $(id); if (/[^\d\s+()-]/.test(el.value)) { el.value = ""; telefonKontrol(); } });
+  ["telefon", "telefon2"].forEach((id) => { $(id).addEventListener("focus", telTemizle); $(id).addEventListener("change", telTemizle); });
+  setInterval(telTemizle, 1500);
 
   function uyar(el, metin) { el.textContent = metin; el.hidden = false; el.scrollIntoView({ block: "center" }); }
 
@@ -710,7 +717,7 @@
       if (dogrulamaToken === "") return uyar(uyari, "Güvenlik doğrulamasını tamamlayın, ardından tekrar deneyin.");
       const r = await fetch("/api/rezervasyon", {
         method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ tarih: g.tarih, saat: secilenSaat, ad, telefon, not: $("not").value.trim(), kvkk: true, web: $("web").value, dogrulama: dogrulamaToken, ekstra: seciliEkstralar(), kod: $("kod").value.trim() || undefined, abone: aboneSecili() || undefined, kurallarKabul: aboneSecili() ? $("abone-kabul").checked : undefined, depozitoIban: aboneSecili() && $("abone-dep").checked ? true : undefined }),
+        body: JSON.stringify({ tarih: g.tarih, saat: secilenSaat, ad, telefon, not: $("not").value.trim(), kvkk: true, web: $("web").value, dogrulama: dogrulamaToken, ekstra: seciliEkstralar(), kod: $("kod").value.trim() || undefined, abone: aboneSecili() || undefined, kurallarKabul: aboneSecili() ? $("abone-kabul").checked : undefined, depozitoIban: aboneSecili() && $("abone-dep").checked ? true : undefined, eposta: aboneSecili() ? $("abone-eposta").value.trim() || undefined : undefined }),
       });
       dogrulamaYenile();
       const v = await r.json().catch(() => ({}));

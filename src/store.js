@@ -443,7 +443,7 @@ export class RezervasyonDeposu extends DurableObject {
   }
 
   /** Ortak kayıt oluşturma. `panel` true ise müşteri sınırları uygulanmaz. */
-  async rezervasyonYaz({ gunTarihi, saat: s, ad, telefon: tel, not = "", durum, kaynak, kapora = "", ekstra = [], kod, abone, kurallarKabul, depozitoIban }, panel) {
+  async rezervasyonYaz({ gunTarihi, saat: s, ad, telefon: tel, not = "", durum, kaynak, kapora = "", ekstra = [], kod, abone, kurallarKabul, depozitoIban, eposta }, panel) {
     const gun = tarihNormalize(gunTarihi);
     const saat = saatNormalize(s);
     const telefon = telefonNormalize(tel);
@@ -509,7 +509,7 @@ export class RezervasyonDeposu extends DurableObject {
       if ((await this.aboneler()).some((a) => !a.bitis && slotlarOf(a).some((x) => x.gun === gunNo(gun) && x.saat === saat))) {
         return { hata: "Bu gün ve saatte zaten bir abonemiz var. Abonelik için başka bir saat seçin." };
       }
-      kayit.aboneBasvuru = { kabul: simdiYazi(), depozito: f.abone, kurallar: ABONE_KURALLARI.length, ...(depozitoIban ? { depozitoIban: true } : {}) };
+      kayit.aboneBasvuru = { kabul: simdiYazi(), depozito: f.abone, kurallar: ABONE_KURALLARI.length, ...(depozitoIban ? { depozitoIban: true } : {}), ...(epostaNormalize(eposta) ? { eposta: epostaNormalize(eposta) } : {}) };
       // Depozitoyu şimdi IBAN'a gönderecekse kapora yerine depozito istenir (dekontta en az depozito tutarı görünmeli)
       if (depozitoIban) kayit.kaporaTutar = f.abone;
       kayit.not = kirp(`Abone başvurusu — her hafta ${GUNLER[gunNo(gun)]} ${saat}${kayit.not ? " · " + kayit.not : ""}`, 200);
@@ -528,6 +528,100 @@ export class RezervasyonDeposu extends DurableObject {
     return { basarili: true, ...kayit };
   }
 
+  // ---- Abone sayfası (aboneye özel bağlantı: /abone/<anahtar>) ----
+  //   ae:<anahtar> → abone id
+  async aboneErisim(id) {
+    return this.kilitli(async () => {
+      const a = await this.st.get(`a:${id}`);
+      if (!a) return { hata: "Abone bulunamadı." };
+      if (a.erisim) return { basarili: true, anahtar: a.erisim, abone: a };
+      const anahtar = rastgele(24, "abcdefghjkmnpqrstuvwxyz23456789");
+      await this.st.put({ [`a:${id}`]: { ...a, erisim: anahtar }, [`ae:${anahtar}`]: id });
+      return { basarili: true, anahtar, abone: { ...a, erisim: anahtar } };
+    });
+  }
+
+  async aboneAnahtarla(anahtar) {
+    if (!/^[a-z0-9]{24}$/.test(String(anahtar || ""))) return null;
+    const id = await this.st.get(`ae:${anahtar}`);
+    const a = id && (await this.st.get(`a:${id}`));
+    return a && !a.bitis && a.erisim === anahtar ? a : null;
+  }
+
+  /** Abonenin kendi sayfası: saatleri, önümüzdeki maçları, kantin geçmişi, açık veresiye, kurallar */
+  async aboneSayfa(anahtar) {
+    const a = await this.aboneAnahtarla(anahtar);
+    if (!a) return { hata: "Bağlantı geçersiz ya da abonelik sona ermiş." };
+    const bugun = bugunIsletme();
+    const son = gunEkle(bugun, 27);
+    const d = await this.durumYukle(bugun, son);
+    const maclar = [];
+    for (let i = 0; i <= 27; i++) {
+      const g = gunEkle(bugun, i);
+      for (const x of slotlarOf(a).filter((x) => x.gun === gunNo(g))) {
+        const zaman = macZamani(takvimTarihi(g, x.saat), x.saat);
+        if (zaman <= Date.now() || g < a.baslangic) continue;
+        const s = this.slot(d, g, x.saat);
+        const gelmiyor = s.tur !== "abone" || s.abone?.id !== a.id;
+        maclar.push({ gun: g, gunAd: gunAdi(g), saat: x.saat, gelmiyor, baskasi: gelmiyor && s.tur === "rez",
+          bildirimSuresi: zaman - Date.now() >= KURALLAR.aboneGelmiyorSaat * 3600_000 });
+      }
+    }
+    // Kantin geçmişi (son 60 gün): maç maç ne yenip içildi
+    const kasalar = await this.st.list({ start: `kasa:${gunEkle(bugun, -60)}`, end: `kasa:${bugun}~` });
+    const kantin = [];
+    for (const k of [...kasalar.values()].reverse()) {
+      const b = k.birimler || {};
+      for (const m of k.maclar || []) {
+        if (m.aboneId !== a.id) continue;
+        const liste = (o, tur) => Object.entries(o || {}).filter(([, n]) => n > 0).map(([id, n]) => ({ ad: b[id]?.ad || "Ürün", adet: n, tutar: n * (b[id]?.satis || 0), tur }));
+        const kalemler = [...liste(m.kantin, "kantin"), ...liste(m.veresiyeKantin, "veresiye"), ...liste(m.ikramKantin, "ikram")];
+        if (m.krampon) kalemler.push({ ad: "Krampon kirası", adet: m.krampon, tutar: m.krampon * (k.kira?.krampon || 0), tur: "kira" });
+        if (m.eldiven) kalemler.push({ ad: "Eldiven kirası", adet: m.eldiven, tutar: m.eldiven * (k.kira?.eldiven || 0), tur: "kira" });
+        if (kalemler.length) kantin.push({ gun: k.gun, saat: m.saat, kalemler });
+      }
+    }
+    const veresiye = (await this.acikVeresiyeler()).filter((v) => v.aboneId === a.id).map((v) => ({ gun: v.gun, saat: v.saat, tutar: v.tutar, urunler: v.urunler }));
+    const ay = bugun.slice(0, 7);
+    const iptalAy = new Set([...(await this.st.list({ start: `x:${ay}-01`, end: `x:${ay}-31~` })).keys()].filter((k) => k.endsWith(`:${a.id}`)).map((k) => k.split(":")[1])).size;
+    return {
+      basarili: true, no: aboneNo(a), ad: a.ad, slotlar: slotSirala(slotlarOf(a)).map((x) => `${GUNLER[x.gun]} ${x.saat}`),
+      baslangic: a.kural?.ilkMac || a.baslangic, depozito: a.depozito || "", kural: Boolean(a.kural?.yeni),
+      taahhutBitis: a.kural?.yeni && a.kural.ilkMac ? ayEkle(a.kural.ilkMac, KURALLAR.aboneEnAzAy) : null,
+      iptalHakki: a.kural?.yeni ? Math.max(0, KURALLAR.aboneAylikIptal - iptalAy) : null,
+      bildirimSaat: KURALLAR.aboneGelmiyorSaat, maclar, kantin, veresiye, kurallar: ABONE_KURALLARI,
+      iptalTalebi: a.iptalTalebi || null,
+    };
+  }
+
+  /** Abone kendi sayfasından "bu hafta gelmiyoruz" / "geliyoruz" */
+  async aboneKendiAtla(anahtar, { gun, saat, gelmiyor, zorla }) {
+    const a = await this.aboneAnahtarla(anahtar);
+    if (!a) return { hata: "Bağlantı geçersiz." };
+    const g = tarihNormalize(gun), s1 = saatNormalize(saat);
+    if (!g || !s1) return { hata: "Maç bulunamadı." };
+    const kalan = macZamani(takvimTarihi(g, s1), s1) - Date.now();
+    if (kalan < KURALLAR.aboneGelmiyorSaat * 3600_000) return { hata: `Maça ${KURALLAR.aboneGelmiyorSaat} saatten az kaldı; değişiklik için lütfen bizi arayın (0 555 510 26 26).` };
+    const r = await this.aboneAtla({ id: a.id, gun: g, saat: s1, gelmiyor, kapsam: "saat", zorla });
+    if (r.onayGerekli) r.uyari = `Bu ay iptal hakkınızı kullandınız. Kurala göre ayda ${KURALLAR.aboneAylikIptal} erteleme hakkı var; bu iptal depozitonuzun yanmasına yol açar. Yine de bildirmek istiyor musunuz?`;
+    if (r.basarili) await this.kayitTut({ ad: `${a.ad} (abone sayfası)` }, gelmiyor ? "Abone: bu hafta gelmiyoruz" : "Abone: yine geliyoruz", `${g} ${s1}${r.hakAsildi ? " · iptal hakkı aşıldı" : ""}`);
+    return r;
+  }
+
+  /** Abone kendi sayfasından abonelik iptali ister (yönetici sonlandırır) */
+  async aboneIptalTalebi(anahtar, { neden }) {
+    return this.kilitli(async () => {
+      const a = await this.aboneAnahtarla(anahtar);
+      if (!a) return { hata: "Bağlantı geçersiz." };
+      if (a.iptalTalebi) return { hata: "İptal talebiniz zaten alındı; sizinle iletişime geçeceğiz." };
+      const taahhut = aboneTaahhutte(a, bugunIsletme());
+      const talep = { zaman: simdiYazi(), neden: kirp(neden, 300), taahhut };
+      await this.st.put(`a:${a.id}`, { ...a, iptalTalebi: talep });
+      await this.kayitTut({ ad: `${a.ad} (abone sayfası)` }, "Abone: abonelik iptal talebi", `${talep.neden || "—"}${taahhut ? " · 3 ay dolmadı" : ""}`);
+      return { basarili: true, talep, abone: { id: a.id, ad: a.ad, no: aboneNo(a), telefon: a.telefon, depozito: a.depozito } };
+    });
+  }
+
   /**
    * Online abone başvurusunun kaporası onaylanınca: abone kaydı açılır (ilk maç = başvurulan maç, sonraki haftadan itibaren
    * her hafta), rezervasyon aboneye bağlanır. Depozito ilk maç günü kasada alınır.
@@ -541,7 +635,7 @@ export class RezervasyonDeposu extends DurableObject {
       ad: r.ad, telefon: r.telefon, gun: gunNo(ilk), saat: r.saat, baslangic: gunEkle(ilk, 1),
       depozito: r.aboneBasvuru.depozitoIban ? `${r.aboneBasvuru.depozito.toLocaleString("tr-TR")} TL (IBAN ile ödendi ${String(r.kaporaGunu || "").split("-").reverse().join(".")})`
         : `${r.aboneBasvuru.depozito.toLocaleString("tr-TR")} TL (ilk maçta alınacak)`,
-      not: "Online abone başvurusu", yeniKural: true, ilkMac: ilk,
+      not: "Online abone başvurusu", yeniKural: true, ilkMac: ilk, eposta: r.aboneBasvuru.eposta || "",
     });
     if (!sonuc.basarili) return sonuc;
     await this.kilitli(async () => {
@@ -2138,7 +2232,7 @@ export class RezervasyonDeposu extends DurableObject {
   }
 
   /** slotlar: [{gun, saat}] — ya da eski biçimde tek gun + saat */
-  async aboneKaydet({ id, ad, telefon, slotlar, gun, saat, baslangic, not = "", ucret = "", depozito, veresiye, no, yeniKural, ilkMac }) {
+  async aboneKaydet({ id, ad, telefon, slotlar, gun, saat, baslangic, not = "", ucret = "", depozito, veresiye, no, yeniKural, ilkMac, eposta }) {
     return this.kilitli(async () => {
       let liste = Array.isArray(slotlar) ? slotlar : [{ gun, saat }];
       liste = liste.map((x) => ({ gun: Number(x.gun), saat: saatNormalize(x.saat) }));
@@ -2174,6 +2268,9 @@ export class RezervasyonDeposu extends DurableObject {
         not: kirp(not, 200), ucret: kirp(ucret, 40), depozito: depozito === undefined ? (eski?.depozito || "") : kirp(depozito, 120),
         olusturma: eski?.olusturma || simdiYazi(),
         ...(veresiye !== undefined ? { veresiye: Boolean(veresiye) } : eski?.veresiye !== undefined ? { veresiye: eski.veresiye } : {}),
+        eposta: eposta === undefined ? (eski?.eposta || "") : (epostaNormalize(eposta) || ""),
+        ...(eski?.erisim ? { erisim: eski.erisim } : {}),
+        ...(eski?.iptalTalebi ? { iptalTalebi: eski.iptalTalebi } : {}),
         // Yeni abone kuralları (3 ay taahhüt, ayda 1 iptal): eski abonelerde uygulanmaz
         kural: yeniKural === undefined ? (eski?.kural || null)
           : yeniKural ? { yeni: true, ilkMac: tarihNormalize(ilkMac) || eski?.kural?.ilkMac || bas } : null,

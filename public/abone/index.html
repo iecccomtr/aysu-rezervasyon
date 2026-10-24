@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Abone sayfam · Aysu Halı Saha</title>
+<link rel="icon" href="/img/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --cim: #0067a4; --cim-koyu: #062a45; --turuncu: #ef7f1a; --murekkep: #10202d; --gri: #566270; --cizgi: #d5dde5; --kart: #fff; --zemin: #eef2f6; --hata: #b42318; --yesil: #1a7f37; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { font: 400 17px/1.5 "Barlow", system-ui, sans-serif; color: var(--murekkep); background: var(--zemin); min-height: 100dvh; }
+  .ust { background: var(--cim-koyu); color: #fff; padding: 14px 16px; }
+  .ust .ic, main { max-width: 640px; margin: 0 auto; }
+  .ust .ic { display: flex; align-items: center; gap: 12px; }
+  .ust img { height: 32px; background: #fff; border-radius: 8px; padding: 3px 6px; }
+  .ust h1 { font: 700 24px/1.1 "Barlow Condensed", sans-serif; margin: 0; }
+  main { padding: 16px 16px 40px; }
+  h2 { font: 700 24px/1.1 "Barlow Condensed", sans-serif; margin: 22px 0 8px; }
+  .kutu { background: var(--kart); border: 1px solid var(--cizgi); border-radius: 14px; padding: 14px 16px; }
+  .kimlik > b { font: 700 30px/1.1 "Barlow Condensed", sans-serif; display: block; }
+  .bilgi { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin-top: 10px; font-size: 15px; }
+  .bilgi span { color: var(--gri); }
+  .mac { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--cizgi); }
+  .mac:last-child { border-bottom: 0; }
+  .mac .z { flex: 1; min-width: 0; }
+  .mac .z b { display: block; }
+  .mac .z small { color: var(--gri); }
+  .rozet { display: inline-block; border-radius: 999px; padding: 2px 10px; font-size: 13px; font-weight: 700; }
+  .geliyor { background: #e7f6ec; color: var(--yesil); }
+  .gelmiyor { background: #eceff2; color: var(--gri); }
+  button { font: 600 15px "Barlow", sans-serif; border-radius: 999px; padding: 9px 14px; cursor: pointer; border: 1px solid var(--cizgi); background: #fff; color: var(--cim); }
+  button.ana { background: var(--turuncu); border-color: var(--turuncu); color: #fff; }
+  button.tehlike { color: var(--hata); border-color: #e8b4ae; }
+  button:disabled { opacity: .5; cursor: default; }
+  .satir { display: flex; justify-content: space-between; gap: 10px; font-size: 15px; padding: 3px 0; }
+  .satir small { color: var(--gri); }
+  .gun-b { font-weight: 700; margin-top: 10px; border-top: 1px solid var(--cizgi); padding-top: 8px; }
+  .gun-b:first-child { border-top: 0; margin-top: 0; padding-top: 0; }
+  .etiket { font-size: 12px; border-radius: 999px; padding: 1px 8px; margin-left: 6px; font-weight: 700; }
+  .e-veresiye { background: #fff6c2; color: #6b5900; } .e-ikram { background: #e7f6ec; color: var(--yesil); } .e-kira { background: #eef3fb; color: var(--cim); }
+  .uyari { background: #fff1f1; border: 1px solid #f2c4c4; color: #7a1a12; border-radius: 12px; padding: 10px 12px; font-size: 15px; }
+  .not { color: var(--gri); font-size: 14px; }
+  details summary { cursor: pointer; font-weight: 600; }
+  ol { padding-left: 20px; margin: 8px 0 0; font-size: 15px; } li { margin: 4px 0; }
+  textarea { width: 100%; min-height: 80px; border: 1px solid #b5c3cf; border-radius: 10px; padding: 10px; font: inherit; }
+  .bildirim { position: fixed; left: 16px; right: 16px; bottom: 16px; max-width: 480px; margin: 0 auto; background: var(--cim-koyu); color: #fff; padding: 12px 16px; border-radius: 12px; text-align: center; }
+</style>
+</head>
+<body>
+<header class="ust"><div class="ic"><a href="/"><img src="/img/aysu-logo.svg" alt="Aysu Halı Saha"></a><h1>Abone sayfam</h1></div></header>
+<main id="ana"><p class="not">Yükleniyor…</p></main>
+<div class="bildirim" id="bildirim" hidden></div>
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const anahtar = (location.pathname.split("/")[2] || new URLSearchParams(location.search).get("t") || "").trim();
+  const kacis = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const tl = (n) => `${Math.round(Number(n) || 0).toLocaleString("tr-TR")} ₺`;
+  const tarih = (g) => g.split("-").reverse().join(".");
+  let v = null;
+  const bildir = (m) => { const b = $("bildirim"); b.textContent = m; b.hidden = false; clearTimeout(bildir.z); bildir.z = setTimeout(() => { b.hidden = true; }, 3500); };
+  const istek = async (yol, govde) => (await fetch(yol, govde ? { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(govde) } : { cache: "no-store" })).json().catch(() => ({ hata: "Bağlantı kurulamadı." }));
+
+  async function yukle() {
+    v = await istek(`/api/abone?t=${encodeURIComponent(anahtar)}`);
+    if (!v || v.hata) { $("ana").innerHTML = `<div class="uyari">${kacis(v?.hata || "Sayfa açılamadı.")} Bize ulaşın: <a href="tel:+905555102626">0 555 510 26 26</a></div>`; return; }
+    ciz();
+  }
+
+  function ciz() {
+    const hak = v.iptalHakki;
+    $("ana").innerHTML = `
+      <div class="kutu kimlik"><small class="not">${v.no ? "Abone " + v.no : "Abone"}</small><b>${kacis(v.ad)}</b>
+        <div class="bilgi">
+          <span>Saatleriniz</span><b>${v.slotlar.map(kacis).join(", ")}</b>
+          <span>Başlangıç</span><b>${v.baslangic ? tarih(v.baslangic) : "—"}</b>
+          ${v.depozito ? `<span>Depozito</span><b>${kacis(v.depozito)}</b>` : ""}
+          ${v.taahhutBitis ? `<span>3 aylık süre</span><b>${tarih(v.taahhutBitis)} tarihinde doluyor</b>` : ""}
+          ${hak !== null ? `<span>Bu ay erteleme</span><b>${hak ? `${hak} hakkınız var` : "hakkınızı kullandınız"}</b>` : ""}
+        </div></div>
+
+      <h2>Önümüzdeki maçlarınız</h2>
+      <div class="kutu">${v.maclar.length ? v.maclar.map((m, i) => `
+        <div class="mac"><div class="z"><b>${kacis(m.gunAd)} ${tarih(m.gun)} · ${kacis(m.saat)}</b>
+          <span class="rozet ${m.gelmiyor ? "gelmiyor" : "geliyor"}">${m.gelmiyor ? "Gelmiyoruz" : "Geliyoruz"}</span>
+          ${!m.bildirimSuresi ? `<small style="display:block">Değişiklik için bizi arayın</small>` : ""}</div>
+          ${m.bildirimSuresi ? (m.gelmiyor ? (m.baskasi ? '<small class="not">Saat başkasına verildi</small>' : `<button type="button" data-geliyor="${i}">Yine geliyoruz</button>`) : `<button type="button" class="ana" data-gelmiyor="${i}">Bu hafta gelmiyoruz</button>`) : ""}
+        </div>`).join("") : '<p class="not">Önümüzdeki 4 haftada maçınız görünmüyor.</p>'}
+        <p class="not" style="margin:8px 0 0">Gelemeyeceğiniz haftayı maçtan en geç <b>${v.bildirimSaat} saat</b> önce bildirin. Daha sonrası için arayın: <a href="tel:+905555102626">0 555 510 26 26</a></p>
+      </div>
+
+      ${v.veresiye.length ? `<h2>Açık veresiye</h2><div class="kutu">${v.veresiye.map((x) => `<div class="satir"><span>${tarih(x.gun)} ${kacis(x.saat)} <small>· ${kacis(x.urunler)}</small></span><b>${tl(x.tutar)}</b></div>`).join("")}
+        <div class="satir" style="border-top:1px solid var(--cizgi);margin-top:6px;padding-top:6px"><b>Toplam</b><b>${tl(v.veresiye.reduce((t, x) => t + x.tutar, 0))}</b></div>
+        <p class="not" style="margin:6px 0 0">Bir sonraki maçınızda sahada ödeyebilirsiniz.</p></div>` : ""}
+
+      <h2>Kantin ve harcamalarınız <small class="not">(son 60 gün)</small></h2>
+      <div class="kutu">${v.kantin.length ? v.kantin.map((k) => `<div class="gun-b">${tarih(k.gun)} · ${kacis(k.saat)} maçı</div>
+        ${k.kalemler.map((x) => `<div class="satir"><span>${kacis(x.ad)} ×${x.adet}${x.tur === "veresiye" ? '<span class="etiket e-veresiye">veresiye</span>' : x.tur === "ikram" ? '<span class="etiket e-ikram">ikram</span>' : x.tur === "kira" ? '<span class="etiket e-kira">kira</span>' : ""}</span><span>${x.tur === "ikram" ? "ücretsiz" : tl(x.tutar)}</span></div>`).join("")}
+        <div class="satir"><small>Toplam</small><b>${tl(k.kalemler.filter((x) => x.tur !== "ikram").reduce((t, x) => t + x.tutar, 0))}</b></div>`).join("") : '<p class="not">Kayıtlı kantin harcaması yok.</p>'}</div>
+
+      <h2>Abonelik kuralları</h2>
+      <div class="kutu"><details><summary>Kuralları ve karşılıklı taahhütleri göster</summary><ol>${v.kurallar.map((k) => `<li>${kacis(k)}</li>`).join("")}</ol></details></div>
+
+      <h2>Aboneliği iptal et</h2>
+      <div class="kutu" id="iptal-kutu">${v.iptalTalebi ? `<p style="margin:0">İptal talebiniz <b>${kacis(v.iptalTalebi.zaman)}</b> tarihinde alındı. Sizinle iletişime geçeceğiz.</p>` : `
+        ${v.taahhutBitis && new Date().toISOString().slice(0, 10) < v.taahhutBitis ? `<div class="uyari" style="margin-bottom:10px">İlk 3 ay (${tarih(v.taahhutBitis)} tarihine kadar) dolmadan iptal ederseniz kurala göre depozitonuz yanar.</div>` : `<p class="not" style="margin:0 0 10px">3 ayı doldurduysanız depozitonuz karşılığında aynı gün ve saatte 1 saat ücretsiz son maçınızı oynayabilirsiniz.</p>`}
+        <button type="button" class="tehlike" id="iptal-ac">Abonelik iptal talebi gönder</button>`}</div>`;
+    document.querySelectorAll("[data-gelmiyor]").forEach((b) => b.addEventListener("click", () => atla(v.maclar[b.dataset.gelmiyor], true, b)));
+    document.querySelectorAll("[data-geliyor]").forEach((b) => b.addEventListener("click", () => atla(v.maclar[b.dataset.geliyor], false, b)));
+    $("iptal-ac")?.addEventListener("click", iptalAc);
+  }
+
+  async function atla(m, gelmiyor, b) {
+    if (gelmiyor && !confirm(`${m.gunAd} ${tarih(m.gun)} ${m.saat} maçına gelmeyeceğinizi bildirmek istiyor musunuz? Saatiniz o hafta başka müşteriye verilebilir.`)) return;
+    b.disabled = true;
+    let r = await istek("/api/abone/gelmiyor", { t: anahtar, gun: m.gun, saat: m.saat, gelmiyor });
+    if (r.onayGerekli) {
+      if (!confirm(r.uyari)) { b.disabled = false; return; }
+      r = await istek("/api/abone/gelmiyor", { t: anahtar, gun: m.gun, saat: m.saat, gelmiyor, zorla: true });
+    }
+    if (r.hata) { b.disabled = false; return bildir(r.hata); }
+    bildir(gelmiyor ? "Bildiriminiz alındı. Teşekkürler!" : "Yine geliyorsunuz, saatiniz size ayrıldı.");
+    yukle();
+  }
+
+  function iptalAc() {
+    $("iptal-kutu").innerHTML = `<label for="iptal-neden" style="font-weight:600">İptal nedeniniz</label><textarea id="iptal-neden" maxlength="300" placeholder="Ör. sezon bitti, takım dağıldı"></textarea>
+      <div style="display:flex;gap:8px;margin-top:10px"><button type="button" class="tehlike" id="iptal-gonder">Talebi gönder</button><button type="button" id="iptal-vazgec">Vazgeç</button></div>`;
+    $("iptal-vazgec").addEventListener("click", ciz);
+    $("iptal-gonder").addEventListener("click", async (e) => {
+      if (!confirm("Abonelik iptal talebiniz işletmeye iletilsin mi?")) return;
+      e.target.disabled = true;
+      const r = await istek("/api/abone/iptal", { t: anahtar, neden: $("iptal-neden").value });
+      if (r.hata) { e.target.disabled = false; return bildir(r.hata); }
+      bildir("İptal talebiniz alındı. Sizinle iletişime geçeceğiz."); yukle();
+    });
+  }
+  yukle();
+})();
+</script>
+</body>
+</html>

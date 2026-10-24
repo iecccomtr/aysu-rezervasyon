@@ -1120,3 +1120,34 @@ test("Abone depozitoyu şimdi IBAN'a öderse: kapora yerine depozito istenir, de
   const m = (await d.kasaTakvim("2026-10-22")).find((x) => x.saat === "21:00");
   assert.equal(m.ucret, 3200); assert.equal(m.onOdeme, 0);
 });
+
+test("Abone sayfası: özel bağlantı, maçlar, kantin geçmişi, kendi 'gelmiyoruz' ve iptal talebi", async () => {
+  const d = demoDepo();
+  saatiAyarla("2026-10-20T10:00");
+  const admin = { eposta: "a@a.com", ad: "Admin", rol: "admin" };
+  const a = (await d.aboneKaydet({ ad: "Sayfalı Ekip", telefon: "05330000041", gun: 3, saat: "21:00", baslangic: "2026-10-19", yeniKural: true, ilkMac: "2026-10-01", eposta: "ekip@ornek.com" })).abone;
+  const e = await d.aboneErisim(a.id);
+  assert.equal(e.anahtar.length, 24); assert.equal((await d.aboneErisim(a.id)).anahtar, e.anahtar);
+  assert.match((await d.aboneSayfa("yanlisanahtaryanlisanaht")).hata, /geçersiz/);
+  const s = await d.aboneSayfa(e.anahtar);
+  assert.ok(s.basarili); assert.equal(s.maclar[0].gun, "2026-10-22"); assert.equal(s.maclar[0].gelmiyor, false);
+  // kantin geçmişi
+  saatiAyarla("2026-10-22T22:00");
+  const k = await d.kasaGetir("2026-10-22", admin);
+  const su = k.urunler.find((u) => u.ad === "SU 0,50");
+  const g = { ...k.kayit }; const i = g.maclar.findIndex((m) => m.aboneId === a.id);
+  g.maclar[i] = { ...g.maclar[i], kantin: { [su.id]: 2 } };
+  assert.ok((await d.kasaKaydet(g, admin)).basarili);
+  saatiAyarla("2026-10-23T10:00");
+  const s2 = await d.aboneSayfa(e.anahtar);
+  assert.equal(s2.kantin[0].kalemler[0].adet, 2);
+  // kendi gelmiyoruz: süre kuralı ve başarı
+  saatiAyarla("2026-10-29T15:00");
+  assert.match((await d.aboneKendiAtla(e.anahtar, { gun: "2026-10-29", saat: "21:00", gelmiyor: true })).hata, /saatten az/);
+  saatiAyarla("2026-10-27T10:00");
+  const r = await d.aboneKendiAtla(e.anahtar, { gun: "2026-10-29", saat: "21:00", gelmiyor: true });
+  assert.ok(r.basarili);
+  assert.equal((await d.aboneSayfa(e.anahtar)).maclar[0].gelmiyor, true);
+  const t = await d.aboneIptalTalebi(e.anahtar, { neden: "Sezon bitti" });
+  assert.ok(t.basarili); assert.match((await d.aboneIptalTalebi(e.anahtar, {})).hata, /zaten/);
+});

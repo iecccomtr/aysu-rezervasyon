@@ -375,6 +375,19 @@ async function panel(request, env, ctx, yol) {
       }
       return degisti(r);
     }
+    case "POST abone-link": {
+      // Aboneye özel sayfa bağlantısı; istenirse abonenin e-postasına gönderilir
+      const r = await d.aboneErisim(g.id);
+      if (r.hata) return json(r, 400);
+      const link = `${url.origin}/abone/${r.anahtar}`;
+      if (g.eposta) {
+        const kime = String(g.eposta || r.abone.eposta || "").trim();
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(kime)) return json({ hata: "Geçerli bir e-posta adresi yazın." }, 400);
+        const ok = await aboneSayfaGonder(env, r.abone, link, kime);
+        return ok ? json({ basarili: true, link, gonderildi: kime }) : json({ hata: "E-posta gönderilemedi." }, 500);
+      }
+      return json({ basarili: true, link });
+    }
     case "POST abone-tasi": {
       const r = await d.aboneTasi(g);
       if (r.basarili) aboneBildir(`Abone maçı taşındı: ${r.ad || ""}`, [["Abone", r.ad || ""], ["Eski", r.eski], ["Yeni (kalıcı)", r.yeni]]);
@@ -648,6 +661,11 @@ async function dekontKontrolEt(env, d, rez, veri) {
 async function aboneBasvuruIsle(env, d, kayitNo) {
   const r = await d.aboneBasvuruKabul(kayitNo);
   if (!r) return;
+  // Abone e-posta bıraktıysa kendi sayfasının bağlantısı gönderilir
+  if (r.basarili && r.abone?.eposta) {
+    const e = await d.aboneErisim(r.abone.id);
+    if (e.basarili) await aboneSayfaGonder(env, e.abone, `https://aysuhalisaha.com/abone/${e.anahtar}`, r.abone.eposta);
+  }
   const kime = await d.rolEpostalari(["admin", "mudur", "mudur_yrd"]);
   const rz = r.rez || {};
   await epostaYolla(env, {
@@ -783,6 +801,18 @@ async function yedekGonder(env, d, kime, neden = "") {
 const GUN_ADLARI = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]; // abone slot günü: 0 = Pazartesi
 const trTarih = (t) => String(t || "").split("-").reverse().join(".");
 
+/** Aboneye kendi sayfasının bağlantısı */
+function aboneSayfaGonder(env, a, link, kime) {
+  return epostaYolla(env, {
+    kime: [kime], konu: `Aysu Halı Saha abone sayfanız${a.no ? " — Abone " + a.no : ""}`,
+    giris: `Merhaba ${a.ad}, aboneliğinize ait size özel sayfanız hazır. Buradan maç günlerinizi görebilir, gelemeyeceğiniz haftayı bildirebilir, kantin harcamalarınızı ve açık veresiyenizi takip edebilirsiniz.`,
+    satirlar: [["Saatleriniz", slotlarYazi(a)], ...(a.depozito ? [["Depozito", a.depozito]] : [])],
+    dugme: { yazi: "Abone sayfamı aç", link },
+    alt: "Bu bağlantı size özeldir, başkalarıyla paylaşmayın. — Aysu Halı Saha, 0 555 510 26 26",
+  }).catch(() => false);
+}
+const slotlarYazi = (a) => (Array.isArray(a.slotlar) ? a.slotlar : []).map((x) => `${GUN_ADLARI[x.gun]} ${x.saat}`).join(", ");
+
 function kurallarGonder(env, kime, ad, rolAd, koken = "https://aysuhalisaha.com", ornek = false) {
   return epostaYolla(env, {
     kime, konu: `${ornek ? "[Örnek] " : ""}Aysu Halı Saha'ya hoş geldiniz — tesis kuralları ve görevler`,
@@ -819,6 +849,53 @@ export default {
     }
 
     // Rezervasyon sayfası: önümüzdeki günlerin tüm saatleri (boş/dolu). Kişisel veri içermez.
+    // ---- Abone sayfası (aboneye özel bağlantı) ----
+    if (yol.startsWith("/abone/") && !yol.startsWith("/abone/index")) {
+      const sayfa = await env.ASSETS.fetch(new Request(url.origin + "/abone/index.html", { headers: request.headers }));
+      return new Response(sayfa.body, { status: sayfa.status, headers: { ...Object.fromEntries(sayfa.headers), "x-robots-tag": "noindex", "cache-control": "no-store" } });
+    }
+    if (yol.startsWith("/api/abone")) {
+      const d = depo(env);
+      if (request.method === "GET" && yol === "/api/abone") {
+        if (await sinirAsildi(env, request, "abone")) return cokFazla();
+        const r = await d.aboneSayfa(url.searchParams.get("t"));
+        return json(r, r.hata ? 404 : 200, { "cache-control": "no-store" });
+      }
+      if (request.method === "POST" && ayniKaynak(request)) {
+        if (await sinirAsildi(env, request, "abone")) return cokFazla();
+        const g = (await govdeOku(request)) || {};
+        if (yol === "/api/abone/gelmiyor") {
+          const r = await d.aboneKendiAtla(g.t, { gun: g.gun, saat: g.saat, gelmiyor: g.gelmiyor !== false, zorla: Boolean(g.zorla) });
+          if (r.basarili) {
+            onbellegiTemizle(request, ctx);
+            const ad = `${r.no ? "Abone " + r.no + " · " : ""}${r.ad}`;
+            ctx.waitUntil((async () => epostaYolla(env, {
+              kime: await d.rolEpostalari(["admin", "mudur", "mudur_yrd"]),
+              konu: g.gelmiyor !== false ? `${ad} bu hafta gelmiyor (abone bildirdi)` : `${ad} yine geliyor (abone bildirdi)`,
+              satirlar: [["Abone", ad], ["Maç", (r.tarihler || []).map((t) => `${trTarih(t.slice(0, 10))} ${t.slice(11)}`).join(", ")],
+                ["Bildiren", "Abonenin kendisi (abone sayfasından)"], ...(r.hakAsildi ? [["Kural", "Bu ay iptal hakkı aşıldı — kurala göre depozito yanar"]] : [])],
+              alt: "Aysu Halı Saha · abone bildirimi",
+            }))().catch(() => {}));
+          }
+          return json(r, r.hata ? 400 : 200);
+        }
+        if (yol === "/api/abone/iptal") {
+          const r = await d.aboneIptalTalebi(g.t, { neden: g.neden });
+          if (r.basarili) ctx.waitUntil((async () => epostaYolla(env, {
+            kime: await d.rolEpostalari(["admin", "mudur", "mudur_yrd"]),
+            konu: `Abonelik iptal talebi: ${r.abone.no ? "Abone " + r.abone.no + " · " : ""}${r.abone.ad}`,
+            satirlar: [["Abone", `${r.abone.no ? "Abone " + r.abone.no + " · " : ""}${r.abone.ad}`], ["Telefon", r.abone.telefon || "—"],
+              ["Neden", r.talep.neden || "—"], ["Depozito", r.abone.depozito || "—"],
+              ["Kural", r.talep.taahhut ? "İlk 3 ay dolmadı: kurala göre depozito yanar" : "3 ay doldu: depozito karşılığı ücretsiz son maç hakkı var"],
+              ["Yapılacak", "Panelde Aboneler → abone → Aboneliği sonlandır"]],
+            alt: "Aysu Halı Saha · abone bildirimi",
+          }))().catch(() => {}));
+          return json(r, r.hata ? 400 : 200);
+        }
+      }
+      return json({ hata: "Bulunamadı" }, 404);
+    }
+
     if (yol === "/api/musaitlik" && request.method === "GET") {
       return onbellekli(request, ctx, 10, async () => {
         try {
@@ -857,7 +934,7 @@ export default {
       if (g.kvkk !== true) return json({ hata: "Devam etmek için aydınlatma metnini onaylayın." }, 400);
       if (!(await insanMi(env, request, g.dogrulama))) return robotHatasi();
       try {
-        const r = await depo(env).olustur({ gunTarihi: g.tarih, saat: g.saat, ad: g.ad, telefon: g.telefon, not: g.not || "", ekstra: g.ekstra, kod: g.abone ? "" : g.kod, abone: Boolean(g.abone), kurallarKabul: Boolean(g.kurallarKabul), depozitoIban: Boolean(g.abone && g.depozitoIban) });
+        const r = await depo(env).olustur({ gunTarihi: g.tarih, saat: g.saat, ad: g.ad, telefon: g.telefon, not: g.not || "", ekstra: g.ekstra, kod: g.abone ? "" : g.kod, abone: Boolean(g.abone), kurallarKabul: Boolean(g.kurallarKabul), depozitoIban: Boolean(g.abone && g.depozitoIban), eposta: g.abone ? g.eposta : undefined });
         if (!r.basarili) return json(r, 409);
         onbellegiTemizle(request, ctx);
         // Ücretsiz kodla yapılan rezervasyon hemen kesinleşir: yöneticilere bilgi

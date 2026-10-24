@@ -188,6 +188,11 @@
   .urun { border: 1px solid var(--cizgi); border-radius: 10px; padding: 6px 8px; font-size: 13px; line-height: 1.2; }
   .urun.var { border-color: var(--cim); background: var(--cim-acik); }
   .urun.yok { opacity: .45; }
+  .video-grup { background: var(--kart); border: 1px solid var(--cizgi); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; }
+  .video-grup.acil { border-color: #f2c4c4; background: #fff8f8; }
+  .video-grup summary { cursor: pointer; font-weight: 700; font-size: 18px; }
+  .video-grup.acil summary { color: #b42318; }
+  .video-grup summary small { font-weight: 400; color: var(--gri); font-size: 14px; }
   .video-sat { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; background: var(--kart); border: 1px solid var(--cizgi); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; cursor: pointer; font: inherit; color: inherit; }
   .video-sat.acil { border-color: #f2c4c4; background: #fff8f8; }
   .video-sat .oynat { flex: none; width: 38px; height: 38px; border-radius: 50%; background: var(--cim); color: #fff; display: grid; place-items: center; font-size: 15px; }
@@ -1928,14 +1933,16 @@
   async function videoYukle() {
     const v = await api("videolar").catch(() => []);
     vdListe = Array.isArray(v) ? v : [];
-    const KAT = [["acil", "🚨 Acil durum", "#b42318"], ["tesis", "Tesis kullanımı", "var(--murekkep)"], ["diger", "Diğer", "var(--murekkep)"]];
-    // Kompakt liste: başlık + ▶; oynatıcı pencerede açılır
-    const kart = (x) => { const i = vdListe.indexOf(x); return `<button type="button" class="video-sat${x.kategori === "acil" ? " acil" : ""}" data-vd-ac="${i}">
+    // Gruplar (ör. Acil durum, Su, Elektrik): "Acil durum" en üstte, diğerleri alfabetik; her grup açılır-kapanır
+    const acilMi = (g) => /acil/i.test(g);
+    const gruplar = [...new Set(vdListe.map((x) => x.grup || "Genel"))].sort((p, q) => (acilMi(q) - acilMi(p)) || p.localeCompare(q, "tr"));
+    const kart = (x) => { const i = vdListe.indexOf(x); return `<button type="button" class="video-sat${acilMi(x.grup || "") ? " acil" : ""}" data-vd-oynat="${i}">
       <span class="oynat" aria-hidden="true">▶</span><span><b>${kacis(x.baslik)}</b>${x.aciklama ? `<small>${kacis(x.aciklama)}</small>` : ""}</span></button>`; };
-    $("vd-liste").innerHTML = KAT.map(([k, ad, renk]) => { const l = vdListe.filter((x) => (x.kategori || "tesis") === k); return l.length ? `<h3 style="font-size:20px;margin:12px 0 8px;color:${renk}">${ad}</h3>${l.map(kart).join("")}` : ""; }).join("")
+    $("vd-liste").innerHTML = gruplar.map((g) => { const l = vdListe.filter((x) => (x.grup || "Genel") === g); return `<details class="video-grup${acilMi(g) ? " acil" : ""}"${acilMi(g) || gruplar.length === 1 ? " open" : ""}>
+      <summary>${acilMi(g) ? "🚨 " : "📁 "}${kacis(g)} <small>· ${l.length} video</small></summary><div style="padding-top:8px">${l.map(kart).join("")}</div></details>`; }).join("")
       || '<p class="soluk">Henüz video eklenmedi.</p>';
-    $("vd-liste").querySelectorAll("[data-vd-ac]").forEach((b) => b.addEventListener("click", () => {
-      const x = vdListe[b.dataset.vdAc], g = videoGom(x.link);
+    $("vd-liste").querySelectorAll("[data-vd-oynat]").forEach((b) => b.addEventListener("click", () => {
+      const x = vdListe[b.dataset.vdOynat], g = videoGom(x.link);
       if (!g) return window.open(x.link, "_blank", "noopener");
       ac(x.baslik, `<div class="video"><div class="cerceve"><iframe src="${kacis(g)}${g.includes("youtube") ? "&autoplay=1" : ""}" title="${kacis(x.baslik)}" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe></div>
         ${x.aciklama ? `<p class="soluk" style="margin-top:8px">${kacis(x.aciklama)}</p>` : ""}</div>`);
@@ -1944,15 +1951,16 @@
     vdSatirCiz();
   }
   function vdSatirCiz() {
-    $("vd-satirlar").innerHTML = vdListe.map((x, i) => `<div class="kutu" style="padding:8px;margin-bottom:8px"><div class="k-sat" style="grid-template-columns:1fr 28px">
+    const oneriler = [...new Set(["Acil durum", "Su", "Elektrik", "Projektör", "Temizlik", "Kantin", "Yazar kasa", ...vdListe.map((x) => x.grup).filter(Boolean)])];
+    $("vd-satirlar").innerHTML = `<datalist id="vd-gruplar">${oneriler.map((g) => `<option value="${kacis(g)}">`).join("")}</datalist>` + vdListe.map((x, i) => `<div class="kutu" style="padding:8px;margin-bottom:8px"><div class="k-sat" style="grid-template-columns:1fr 28px">
       <input data-vd-baslik="${i}" value="${kacis(x.baslik)}" placeholder="Başlık (ör. Projektör nasıl açılır)"><button class="x-sil" type="button" data-vd-sil="${i}" aria-label="Sil">×</button></div>
-      <select data-vd-kat="${i}" style="width:100%;border:1px solid #b5c3cf;border-radius:8px;padding:8px;font-size:15px;margin-bottom:6px">${[["acil", "🚨 Acil durum (yangın, elektrik kesintisi, yaralanma…)"], ["tesis", "Tesis kullanımı"], ["diger", "Diğer"]].map(([k, a]) => `<option value="${k}"${(x.kategori || "tesis") === k ? " selected" : ""}>${a}</option>`).join("")}</select>
+      <input data-vd-grup="${i}" list="vd-gruplar" value="${kacis(x.grup || "")}" placeholder="Grup (ör. Su, Elektrik, Acil durum)" style="width:100%;border:1px solid #b5c3cf;border-radius:8px;padding:8px;font-size:15px;margin-bottom:6px">
       <input data-vd-link="${i}" value="${kacis(x.link)}" placeholder="https://youtu.be/…" style="width:100%;border:1px solid #b5c3cf;border-radius:8px;padding:8px;font-size:15px;margin-bottom:6px">
       <input data-vd-ac="${i}" value="${kacis(x.aciklama || "")}" placeholder="Açıklama (isteğe bağlı)" style="width:100%;border:1px solid #b5c3cf;border-radius:8px;padding:8px;font-size:15px"></div>`).join("");
     $("vd-satirlar").querySelectorAll("[data-vd-sil]").forEach((b) => b.addEventListener("click", () => { vdOku(); vdListe.splice(Number(b.dataset.vdSil), 1); vdSatirCiz(); }));
   }
-  const vdOku = () => { vdListe = vdListe.map((_, i) => ({ baslik: document.querySelector(`[data-vd-baslik="${i}"]`).value, link: document.querySelector(`[data-vd-link="${i}"]`).value.trim(), aciklama: document.querySelector(`[data-vd-ac="${i}"]`).value, kategori: document.querySelector(`[data-vd-kat="${i}"]`).value })); };
-  $("vd-ekle").addEventListener("click", () => { vdOku(); vdListe.push({ baslik: "", link: "", aciklama: "", kategori: "tesis" }); vdSatirCiz(); });
+  const vdOku = () => { vdListe = vdListe.map((_, i) => ({ baslik: document.querySelector(`[data-vd-baslik="${i}"]`).value, link: document.querySelector(`[data-vd-link="${i}"]`).value.trim(), aciklama: $("vd-satirlar").querySelector(`[data-vd-ac="${i}"]`).value, grup: document.querySelector(`[data-vd-grup="${i}"]`).value.trim() })); };
+  $("vd-ekle").addEventListener("click", () => { vdOku(); vdListe.push({ baslik: "", link: "", aciklama: "", grup: "" }); vdSatirCiz(); });
   $("vd-form").addEventListener("submit", async (e) => {
     e.preventDefault(); vdOku();
     const r = await api("videolar", { liste: vdListe });

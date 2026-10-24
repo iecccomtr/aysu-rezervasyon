@@ -1845,7 +1845,10 @@ export class RezervasyonDeposu extends DurableObject {
   }
 
   // ---- Tesis kullanım videoları (YouTube "liste dışı" / Google Drive bağlantıları) ----
-  async videolar() { return (await this.st.get("ayar:videolar")) || []; }
+  async videolar() {
+    // Eski kayıtlar: kategori → grup adı
+    return ((await this.st.get("ayar:videolar")) || []).map((x) => ({ ...x, grup: x.grup || ({ acil: "Acil durum", tesis: "Tesis kullanımı", diger: "Diğer" }[x.kategori]) || "Genel" }));
+  }
   async videolarKaydet(liste, yapan) {
     return this.kilitli(async () => {
       if (yapan?.rol !== "admin") return { hata: "Videoları sadece Admin ekler / düzenler." };
@@ -1854,7 +1857,8 @@ export class RezervasyonDeposu extends DurableObject {
         const baslik = kirp(x?.baslik, 80), link = kirp(x?.link, 300);
         if (!baslik && !link) continue;
         if (!/^https:\/\/[^\s]+$/.test(link)) return { hata: `Geçersiz bağlantı: ${baslik || link || "(boş)"}` };
-        l.push({ baslik: baslik || "Video", link, aciklama: kirp(x?.aciklama, 200), kategori: ["acil", "tesis", "diger"].includes(x?.kategori) ? x.kategori : "tesis" });
+        const grup = kirp(x?.grup, 40) || ({ acil: "Acil durum", tesis: "Tesis kullanımı", diger: "Diğer" }[x?.kategori]) || "Genel";
+        l.push({ baslik: baslik || "Video", link, aciklama: kirp(x?.aciklama, 200), grup });
       }
       await this.st.put("ayar:videolar", l);
       await this.kayitTut(yapan, "Tesis videolarını güncelledi", l.map((x) => x.baslik).join(", "));

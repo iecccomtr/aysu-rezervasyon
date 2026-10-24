@@ -17,7 +17,7 @@ const PUANTAJ = { baslik: "GELDİM / ÇIKTIM (çalışma saatiniz)", maddeler: [
 ] };
 const GOREVLER = { baslik: "Görevler ve videolar", maddeler: [
   "Alt menüde Görevler: o günün işleri (WC, soyunma odaları, kantin, saha, çöp, krampon, yelek, otopark…).",
-  "Her görevi bitirince \"Yaptım ✓\"e basın. Görevler kişiye özeldir: aynı gün çalışan herkes kendi vardiyasında ayrı yapar.",
+  "Her görevi bitirince \"Yaptım\"e basın. Görevler kişiye özeldir: aynı gün çalışan herkes kendi vardiyasında ayrı yapar.",
   "Kimin yaptığı ve kimin beklediği listede görünür; onay o günün yöneticisine e-postayla gider.",
   "Aynı sayfadaki Videolar bölümünde tesis kullanımı ve Acil durum videoları vardır. İşe başlarken mutlaka izleyin.",
 ] };

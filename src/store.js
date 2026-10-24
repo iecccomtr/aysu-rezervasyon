@@ -1848,7 +1848,7 @@ export class RezervasyonDeposu extends DurableObject {
   async videolar() { return (await this.st.get("ayar:videolar")) || []; }
   async videolarKaydet(liste, yapan) {
     return this.kilitli(async () => {
-      if (!["admin", "mudur"].includes(yapan?.rol)) return { hata: "Videoları Admin ve Müdür düzenler." };
+      if (yapan?.rol !== "admin") return { hata: "Videoları sadece Admin ekler / düzenler." };
       const l = [];
       for (const x of Array.isArray(liste) ? liste.slice(0, 50) : []) {
         const baslik = kirp(x?.baslik, 80), link = kirp(x?.link, 300);

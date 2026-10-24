@@ -1940,7 +1940,7 @@
       ac(x.baslik, `<div class="video"><div class="cerceve"><iframe src="${kacis(g)}${g.includes("youtube") ? "&autoplay=1" : ""}" title="${kacis(x.baslik)}" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe></div>
         ${x.aciklama ? `<p class="soluk" style="margin-top:8px">${kacis(x.aciklama)}</p>` : ""}</div>`);
     }));
-    $("vd-duzen-alan").hidden = !["admin", "mudur"].includes(ben.rol);
+    $("vd-duzen-alan").hidden = ben.rol !== "admin";
     vdSatirCiz();
   }
   function vdSatirCiz() {

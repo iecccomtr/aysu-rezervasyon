@@ -1931,7 +1931,9 @@ export class RezervasyonDeposu extends DurableObject {
 
   async temizlikKaydet({ id, ad, stok, stokEkle, sil }, yapan) {
     return this.kilitli(async () => {
-      if (!ROLLER[yapan?.rol]?.yonetici) return { hata: "Yetkiniz yok." };
+      // Yöneticiler ve Temizlik Şefi temizlik stoğunu girer (silmeyi yöneticiler yapar)
+      if (!ROLLER[yapan?.rol]?.yonetici && yapan?.rol !== "temizlik") return { hata: "Yetkiniz yok." };
+      if (sil && !ROLLER[yapan?.rol]?.yonetici) return { hata: "Ürünü sadece yöneticiler siler." };
       const eski = id ? await this.st.get(`tu:${id}`) : null;
       if (id && !eski) return { hata: "Ürün bulunamadı." };
       if (sil) {

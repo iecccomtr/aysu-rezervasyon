@@ -275,6 +275,11 @@ async function panel(request, env, ctx, yol) {
   // Görevler: herkes görür, bugünün görevini "yaptım" diye onaylar → yöneticilere e-posta
   // Liste her hafta sıfırlanır: geçmiş haftaları sadece Admin görür
   if (yol === "videolar" && request.method === "GET") return json(await d.videolar());
+  // Temizlik ürünleri stoğu: yöneticiler ve Temizlik Şefi
+  if (yol === "temizlik" && (yonetici || ben.rol === "temizlik")) {
+    if (request.method === "GET") return json(await d.temizlikUrunleri());
+    if (post) { const r = await d.temizlikKaydet((await govdeOku(request)) || {}, ben); return json(r, r.hata ? 400 : 200); }
+  }
   if (yol === "gorevler" && request.method === "GET") return json(await d.gorevHafta(ben.rol === "admin" ? url.searchParams.get("bas") : null));
   if (yol === "gorev" && post) {
     const g = (await govdeOku(request)) || {};
@@ -535,8 +540,6 @@ async function panel(request, env, ctx, yol) {
       { const r = await d.gorevGeriAl(g.gun, g.id, ben); return json(r, r.hata ? 400 : 200); }
     case "GET rehber": return json(await d.rehber());
     case "POST rehber": { const r = await d.rehberKaydet(g.liste, ben); return json(r, r.hata ? 400 : 200); }
-    case "GET temizlik": return json(await d.temizlikUrunleri());
-    case "POST temizlik": { const r = await d.temizlikKaydet(g, ben); return json(r, r.hata ? 400 : 200); }
     case "GET urunler": return json(alisGizle({ urunler: await d.urunlerGorunum() }, ben).urunler);
     case "POST urun": {
       // Alış fiyatını sadece Admin değiştirir (diğerleri göremez de)

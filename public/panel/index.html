@@ -501,6 +501,12 @@
       <div class="kutu" id="gv-bugun"></div>
       <h3 style="margin:20px 0 8px">Haftalık tablo</h3>
       <div class="kutu gv-tablo-kap"><table class="gv-tablo" id="gv-tablo"></table></div>
+      <div id="gt-alan" hidden>
+        <div class="baslik-satir" style="margin-top:22px"><h2>Temizlik ürünleri stoğu</h2></div>
+        <p class="soluk" style="margin-bottom:8px;font-size:14px">Gelen malı ve sayımı girmek için ürüne dokunun. Sipariş Kasa sayfasından WhatsApp ile verilir.</p>
+        <div class="kutu" id="gt-liste"></div>
+        <button type="button" class="dugme ikincil kucuk" id="gt-ekle" style="margin-top:8px">+ Temizlik ürünü ekle</button>
+      </div>
       <div class="baslik-satir" style="margin-top:22px"><h2>Videolar</h2></div>
       <div id="vd-liste"></div>
       <div id="vd-duzen-alan" hidden>
@@ -1941,8 +1947,18 @@
     if (r.hata) return bildir(r.hata);
     bildir("Videolar kaydedildi"); videoYukle();
   });
+  async function temizlikGorevYukle() {
+    $("gt-alan").hidden = !(yonetici() || ben.rol === "temizlik");
+    if ($("gt-alan").hidden) return;
+    const l = await api("temizlik").catch(() => []);
+    const tl = Array.isArray(l) ? l : [];
+    $("gt-liste").innerHTML = tl.map((u, i) => `<button type="button" class="gv-sat" data-gt="${i}" style="width:100%;background:none;border:0;border-bottom:1px solid var(--cizgi);text-align:left;cursor:pointer;font:inherit">
+      <span><b>${kacis(u.ad)}</b></span><b style="${u.stok <= 2 ? "color:#b42318" : ""}">stok ${u.stok}</b></button>`).join("") || '<p class="soluk" style="padding:12px">Henüz ürün yok.</p>';
+    $("gt-liste").querySelectorAll("[data-gt]").forEach((b) => b.addEventListener("click", () => temizlikDuzenle(tl[b.dataset.gt], temizlikGorevYukle)));
+  }
+  $("gt-ekle").addEventListener("click", () => temizlikDuzenle(null, temizlikGorevYukle));
   async function gorevYukle(bas) {
-    videoYukle();
+    videoYukle(); temizlikGorevYukle();
     const v = await api("gorevler" + (bas ? `?bas=${bas}` : "")).catch(() => null);
     if (!v || v.hata) return bildir(v?.hata || "Görevler yüklenemedi");
     gv = v; gvBas = v.bas;
@@ -2646,7 +2662,7 @@
   }
   const siparisAdet = {}, temizlikAdet = {};
   let stokAcik = false, temizlikAcik = false;
-  function temizlikDuzenle(u) {
+  function temizlikDuzenle(u, sonra) {
     const ic = ac(u ? u.ad : "Yeni temizlik ürünü", `
       <div class="alan"><label for="tu-ad">Ürün adı</label><input id="tu-ad" value="${kacis(u?.ad || "")}" placeholder="Ör. ÇAMAŞIR SUYU 4 LT"></div>
       <div class="iki-alan">
@@ -2654,13 +2670,14 @@
         <div class="alan"><label for="tu-stok">Sayım (stok)</label><input id="tu-stok" inputmode="numeric" value="${u?.stok ?? 0}"></div>
       </div>
       <div style="display:grid;gap:8px"><button class="dugme" type="button" id="tu-kaydet">Kaydet</button>
-      ${u ? '<button class="dugme tehlike" type="button" id="tu-sil">Ürünü sil</button>' : ""}</div>`);
+      ${u && yonetici() ? '<button class="dugme tehlike" type="button" id="tu-sil">Ürünü sil</button>' : ""}</div>`);
     const gonder = async (ek) => {
       const g = { id: u?.id, ad: $("tu-ad").value, ...ek };
       if (!ek.sil) { if (String($("tu-stok").value) !== String(u?.stok ?? 0)) g.stok = $("tu-stok").value; if (Number($("tu-gelen").value)) g.stokEkle = $("tu-gelen").value; }
       const r = await api("temizlik", g);
       if (r.hata) return dlgUyari(r.hata);
       dlg.close(); bildir("Kaydedildi");
+      if (sonra) return sonra();
       const v = await api("temizlik"); if (Array.isArray(v)) { kasa.temizlik = v; stokCiz(); }
     };
     ic.querySelector("#tu-kaydet").addEventListener("click", () => gonder({}));

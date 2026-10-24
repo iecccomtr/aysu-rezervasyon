@@ -1218,3 +1218,15 @@ test("Eski abonelerin notundaki 'Kayıt 24.09.2026' kayıt tarihi olarak alını
   const yeni = (await d.aboneKaydet({ ad: "Yeni", gun: 1, saat: "20:00", kayitTarihi: "2026-10-20" })).abone;
   assert.equal(yeni.kayitTarihi, "2026-10-20");
 });
+
+test("Temizlik ürünleri stoğunu Temizlik Şefi de girer, silemez", async () => {
+  const d = demoDepo();
+  const t = { eposta: "t@a.com", ad: "Şef", rol: "temizlik" };
+  const r = await d.temizlikKaydet({ ad: "Çamaşır suyu", stok: 5 }, t);
+  assert.ok(r.basarili, JSON.stringify(r));
+  const id = (await d.temizlikUrunleri())[0].id;
+  assert.ok((await d.temizlikKaydet({ id, stokEkle: 3 }, t)).basarili);
+  assert.equal((await d.temizlikUrunleri())[0].stok, 8);
+  assert.match((await d.temizlikKaydet({ id, sil: true }, t)).hata, /yönetici/);
+  assert.match((await d.temizlikKaydet({ ad: "X" }, { rol: "personel" })).hata, /yetki/i);
+});

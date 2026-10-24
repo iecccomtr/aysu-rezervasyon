@@ -55,10 +55,11 @@ export function kasaPdf(k, ek = {}) {
   baslik("Kantin", para(o.kantin));
   baslik(`Krampon ve eldiven (${o.kramponAdet} krampon, ${o.eldivenAdet} eldiven)`, para(o.krampon + o.eldiven));
 
-  baslik("Kasa girişi", para(o.gelenKapora + o.giris));
+  baslik("Kasa girişi", para(o.gelenKapora + o.giris + (o.veresiyeTahsil || 0)));
   for (const x of k.gelenKaporalar || []) satir(`Kapora: ${x.ad} — ${x.mac} maçı (IBAN)`, para(x.tutar), { kucuk: true });
   for (const x of k.girisler || []) satir(x.aciklama || "Diğer giriş", para(x.tutar), { kucuk: true });
-  if (!(k.gelenKaporalar || []).length && !(k.girisler || []).length) satir("Kapora ya da başka giriş yok.", "", { renk: GRI, kucuk: true });
+  for (const x of k.veresiyeTahsil || []) satir(`Veresiye tahsil: ${x.kim} (${tarihYaz(x.gun)} ${x.saat})`, para(x.tutar), { kucuk: true });
+  if (!(k.gelenKaporalar || []).length && !(k.girisler || []).length && !(k.veresiyeTahsil || []).length) satir("Kapora ya da başka giriş yok.", "", { renk: GRI, kucuk: true });
 
   baslik("Kasa çıkışı (harcamalar + çalışan ödemeleri)", o.cikis + o.avans ? "−" + para(o.cikis + o.avans) : para(0));
   for (const x of k.cikislar || []) satir(x.aciklama || "Harcama", "−" + para(x.tutar), { renk: KIRMIZI, kucuk: true });

@@ -309,6 +309,8 @@ async function panel(request, env, ctx, yol) {
   };
   const sonuc = async (r) => { await kaydet(r); return json(r, r && r.hata ? 400 : 200); };
   // Abone hareketleri (gelmiyor, son maç, taşıma, yeni abone): Admin + Müdür + Müdür Yardımcısı'na e-posta
+  // Fiyat değişince Admin + Müdür + Müdür Yardımcısı'na
+  const fiyatBildir = (fark) => yoneticiBildir(`Fiyat değişti: ${fark.map(([a]) => a).join(", ")}`, [...fark, ["Geçerlilik", "Hemen (yeni rezervasyon ve kasalarda). Eski günlerin kasası değişmez."]], "Fiyat e-postası");
   const aboneBildir = (konu, satirlar) => yoneticiBildir(konu, satirlar, "Abone e-postası");
   function yoneticiBildir(konu, satirlar, tur) { ctx.waitUntil((async () => {
     const kime = await d.rolEpostalari(["admin", "mudur", "mudur_yrd"]);
@@ -488,11 +490,13 @@ async function panel(request, env, ctx, yol) {
     case "POST urun": {
       // Alış fiyatını sadece Admin değiştirir (diğerleri göremez de)
       const r = await d.urunKaydet(ben.rol === "admin" ? g : { ...g, alis: undefined }, ben);
+      if (r.fiyatFark?.length) fiyatBildir(r.fiyatFark);
       return json(alisGizle(r, ben), r.hata ? 400 : 200);
     }
     case "POST fiyat": {
       const r = await d.fiyatKaydet(g, ben);
       if (r.basarili) onbellegiTemizle(request, ctx);
+      if (r.fiyatFark?.length) fiyatBildir(r.fiyatFark);
       return json(r, r.hata ? 400 : 200);
     }
     case "POST dekont-kontrol": {
@@ -613,7 +617,10 @@ async function guvenliIban(env, d, ctx, nereden = "") {
 
 const rezCevap = (r, ib) => ({
   basarili: true, kayitNo: r.kayitNo, tarih: r.tarih, gun: r.gun, saat: r.saat, durum: r.durum, ucretsiz: Boolean(r.ucretsiz), abone: Boolean(r.aboneBasvuru),
-  ucret: r.ucret, kapora: r.ucretsiz ? 0 : r.kaporaTutar ?? FIYATLAR.kapora, kalan: r.ucret - (r.ucretsiz ? 0 : r.kaporaTutar ?? FIYATLAR.kapora),
+  ucret: r.ucret, kapora: r.ucretsiz ? 0 : r.kaporaTutar ?? FIYATLAR.kapora,
+  // Maç günü ödenecek: abone başvurusunda depozito da eklenir (depozito şimdi IBAN'a ödeniyorsa maç ücretinin tamamı kalır)
+  kalan: r.aboneBasvuru?.depozitoIban ? r.ucret : r.ucret - (r.ucretsiz ? 0 : r.kaporaTutar ?? FIYATLAR.kapora) + (r.aboneBasvuru ? Number(r.aboneBasvuru.depozito) || 0 : 0),
+  ...(r.aboneBasvuru ? { depozito: Number(r.aboneBasvuru.depozito) || 0, depozitoIban: Boolean(r.aboneBasvuru.depozitoIban) } : {}),
   iban: ib?.no || null, alici: ib?.alici || null, opsiyonBitis: r.opsiyonBitis || null, dekont: Boolean(r.dekont),
   // Telefon saati yanlış olabilir: kalan süre sunucudan milisaniye olarak
   opsiyonKalan: r.opsiyonBitis ? Math.max(0, r.opsiyonBitis - Date.now()) : null,
@@ -626,6 +633,8 @@ async function dekontKontrolEt(env, d, rez, veri) {
     iban: ib?.no || "IBAN-ONAYSIZ", alici: ib?.alici || "-", kapora: rez.kaporaTutar ?? FIYATLAR.kapora,
     rezTarihi: String(rez.olusturma || "").slice(0, 10) || null, bugun: simdi().tarih,
     tarihKontrol: KURALLAR.dekontTarihKontrol, enAzTutar: KURALLAR.dekontEnAzTutar || 0,
+    // Abone depozitosu IBAN'a: dekontta en az depozito tutarı okunmalı, altı / okunamayan kabul edilmez
+    ...(rez.aboneBasvuru?.depozitoIban ? { enAzTutar: Number(rez.aboneBasvuru.depozito) || 0, tutarZorunlu: true } : {}),
   };
   // Bir model IBAN'ı / adı okuyamazsa sıradaki model de denenir, okumalar birleştirilir
   const okunan = await dekontOku(env, { tur: rez.dekont.tur, veri }, { yeterli: (o) => dekontDegerlendir(o, kurallar).onay });
@@ -706,7 +715,7 @@ async function kasaRaporuGonder(env, d, k, ilk) {
       [`Oynanan maçlar (${maclar.length})`, `${para(o.mac + o.vip - o.onOdeme)}${o.onOdeme ? " (önceden alınan kapora düşülmüş)" : ""}`],
       ["Kantin", para(o.kantin)],
       [`Krampon / eldiven (${o.kramponAdet} / ${o.eldivenAdet})`, para(o.krampon + o.eldiven)],
-      ["Kasa girişi (kapora + diğer)", `${para(o.gelenKapora + o.giris)}${o.gelenKapora ? ` (kapora ${para(o.gelenKapora)})` : ""}`],
+      ["Kasa girişi (kapora + veresiye + diğer)", `${para(o.gelenKapora + o.giris + (o.veresiyeTahsil || 0))}${o.gelenKapora ? ` (kapora ${para(o.gelenKapora)})` : ""}${o.veresiyeTahsil ? ` (veresiye ${para(o.veresiyeTahsil)})` : ""}`],
       ["Kasa çıkışı (harcama + avans)", o.cikis || o.avans ? `${para(o.cikis + o.avans)}${o.avans ? ` (avans ${para(o.avans)})` : ""}` : "harcama yok"],
       ["Çalışanlar", calisanlar.length ? calisanlar.map((c) => `${c.ad} ${String(c.saat).replace(".", ",")} sa · ${para(c.ucret)}`).join(", ") : "—"],
       ["Kasa devri (ertesi gün)", k.birakilan !== null && k.birakilan !== undefined ? para(k.birakilan) : "girilmedi"],
@@ -848,7 +857,7 @@ export default {
       if (g.kvkk !== true) return json({ hata: "Devam etmek için aydınlatma metnini onaylayın." }, 400);
       if (!(await insanMi(env, request, g.dogrulama))) return robotHatasi();
       try {
-        const r = await depo(env).olustur({ gunTarihi: g.tarih, saat: g.saat, ad: g.ad, telefon: g.telefon, not: g.not || "", ekstra: g.ekstra, kod: g.abone ? "" : g.kod, abone: Boolean(g.abone), kurallarKabul: Boolean(g.kurallarKabul) });
+        const r = await depo(env).olustur({ gunTarihi: g.tarih, saat: g.saat, ad: g.ad, telefon: g.telefon, not: g.not || "", ekstra: g.ekstra, kod: g.abone ? "" : g.kod, abone: Boolean(g.abone), kurallarKabul: Boolean(g.kurallarKabul), depozitoIban: Boolean(g.abone && g.depozitoIban) });
         if (!r.basarili) return json(r, 409);
         onbellegiTemizle(request, ctx);
         // Ücretsiz kodla yapılan rezervasyon hemen kesinleşir: yöneticilere bilgi

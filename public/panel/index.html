@@ -205,6 +205,8 @@
   .gv-tablo td small { display: block; font-weight: 400; color: #3d5a45; }
   .gv-tablo .x-sil { width: 20px; height: 20px; font-size: 13px; line-height: 1; margin-top: 2px; }
   .ipucu { position: fixed; z-index: 50; background: #062a45; color: #fff; padding: 8px 10px; border-radius: 10px; font-size: 13px; line-height: 1.4; white-space: pre-line; pointer-events: none; box-shadow: 0 6px 20px rgba(0,0,0,.25); }
+  .baglanti { background: none; border: 0; padding: 0; color: var(--cim); text-decoration: underline; cursor: pointer; font: inherit; }
+  .mac-veresiye { margin-top: 8px; background: #fff6c2; border: 1px solid #ecd97a; color: #6b5900; border-radius: 10px; padding: 6px 10px; font-size: 14px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   .od-satir { display: flex; align-items: center; justify-content: space-between; margin-top: 4px; border: 1px solid #f2c4c4; background: #fde8e8; color: var(--hata); border-radius: 999px; overflow: hidden; }
   .od-satir span { font-weight: 700; font-size: 12px; }
   .od-satir button { border: 0; background: rgba(255,255,255,.6); color: inherit; width: 30px; height: 28px; font-size: 16px; cursor: pointer; }
@@ -2013,7 +2015,8 @@
     o.ciro = o.mac + o.vip + o.kantin + o.krampon + o.eldiven;
     o.giris = top(kk.girisler); o.cikis = top(kk.cikislar); o.veresiye = top(kk.veresiye); o.devir = sayi(kk.devir);
     o.gelenKapora = (kk.gelenKaporalar || []).reduce((t, x) => t + (Number(x.tutar) || 0), 0);
-    o.kasaToplam = o.ciro - o.onOdeme + o.giris + o.gelenKapora; // kapora geldiği günün kasasına girer, maç günü düşülür; personel kantini ay sonu maaştan
+    o.veresiyeTahsil = (kk.veresiyeTahsil || []).reduce((t, x) => t + (Number(x.tutar) || 0), 0); // bugün tahsil edilen eski veresiyeler
+    o.kasaToplam = o.ciro - o.onOdeme + o.giris + o.gelenKapora + o.veresiyeTahsil; // kapora geldiği günün kasasına girer, maç günü düşülür; personel kantini ay sonu maaştan
     o.avans = (kk.avanslar || []).reduce((t, x) => t + sayi(x.tutar), 0);
     o.ibanOdeme = kk.maclar.reduce((t, m) => t + sayi(m.iban), 0);
     o.ibanToplam = o.ibanOdeme + o.gelenKapora; // gelen kaporalar IBAN'a yatar, çekmecede nakit beklenmez
@@ -2077,7 +2080,22 @@
       <div class="k-alt"><button class="dugme ikincil kucuk" type="button" data-ekle="${ad}">+ Satır ekle</button>${ekDugme}</div></div>`;
   }
 
+  // Aynı abonenin art arda saatleri (ör. Abone 1 08:00–12:00) kasada tek kartta gösterilir
+  const grupAcik = new Set();
+  let macGrup = [];
+  function gruplariHesapla() {
+    macGrup = [];
+    const l = kk.maclar;
+    for (let i = 0; i < l.length; i++) {
+      const m = l[i];
+      if (m.tur !== "abone" || !m.aboneId) continue;
+      let j = i;
+      while (j + 1 < l.length && l[j + 1].tur === "abone" && l[j + 1].aboneId === m.aboneId && saatSira(l[j + 1].saat) === saatSira(l[j].saat) + 1) j++;
+      if (j > i) { const g = { bas: i, son: j, anahtar: `${m.aboneId}|${m.saat}` }; for (let k = i; k <= j; k++) macGrup[k] = g; i = j; }
+    }
+  }
   function kasaCiz() {
+    gruplariHesapla();
     const bugunMu = kasa.gun === kasa.bugun;
     $("kasa-baslik").textContent = `${tarihYazi(kasa.gun, true)} ${kasa.gunAd}`;
     $("kasa-sonraki").disabled = kasa.gun >= kasa.bugun;
@@ -2096,17 +2114,18 @@
         <input data-yol="devir" value="${kk.devir || ""}" inputmode="numeric" placeholder="0" aria-label="Kasa devir"></div></div>
 
       <div class="kutu kasa-kart"><h3>Maçlar<span class="sag soluk" data-top="maclar"></span></h3>
-        ${kk.maclar.map((m, i) => `<div class="mac t-${m.tur}">
+        ${kk.maclar.map((m, i) => { const gr = macGrup[i]; if (gr && gr.bas !== i && !grupAcik.has(gr.anahtar)) return ""; const grupKart = gr && gr.bas === i && !grupAcik.has(gr.anahtar); return `<div class="mac t-${m.tur}">
           <div class="mac-ust">
-            <span class="saat-i">${kacis(m.saat)}</span>
+            <span class="saat-i">${grupKart ? `${kacis(m.saat)}<small style="display:block;font-size:11px">– ${kacis(kk.maclar[gr.son].saat)}</small>` : kacis(m.saat)}</span>
             <span class="tur-y">${m.tur === "abone" ? "Abone" : m.tur === "bos" ? "Boş" : "Normal"}</span>
-            <b class="ad-y">${kacis(m.ad)}${m.odendi ? ' <span class="rozet r-onayli" style="font-size:12px">✓ ödendi</span>' : ""}</b>
+            <b class="ad-y">${kacis(m.ad)}${grupKart ? ` <small class="soluk">· ${gr.son - gr.bas + 1} saat</small>` : ""}${m.odendi ? ' <span class="rozet r-onayli" style="font-size:12px">✓ ödendi</span>' : ""}</b>
             ${m.kaynak === "takvim" ? "" : `<button class="x-sil" type="button" data-sil="maclar.${i}" aria-label="Satırı sil">×</button>`}
           </div>
+          ${gr ? `<small class="depozito" style="margin:-2px 0 6px">${grupKart ? `${gr.son - gr.bas + 1} saat × ${para(m.ucret || 0)} = <b>${para(kk.maclar.slice(gr.bas, gr.son + 1).reduce((t, x) => t + (Number(x.ucret) || 0), 0))}</b> · ` : ""}<button type="button" class="baglanti" data-grup="${kacis(gr.anahtar)}">${grupKart ? "Saatleri ayrı göster" : "Saatleri tek kartta topla"}</button></small>` : ""}
           ${m.depozito ? `<small class="depozito" style="margin:-2px 0 6px">Depozito: ${kacis(m.depozito)}</small>` : ""}
           ${m.ucretsiz ? `<small class="depozito" style="color:#1a7f37;margin:-2px 0 6px">✓ Ücretsiz maç: ${kacis(m.ucretsiz)}</small>` : ""}
           <div class="k-ic">
-            <div><label>Maç ücreti</label><input data-yol="maclar.${i}.ucret" value="${m.ucret || ""}" inputmode="numeric" placeholder="0"></div>
+            <div><label>${grupKart ? "Saat ücreti (ilk saat)" : "Maç ücreti"}</label><input data-yol="maclar.${i}.ucret" value="${m.ucret || ""}" inputmode="numeric" placeholder="0"></div>
             <div><label title="Önceden alınan kapora">Alınan kapora</label><input data-yol="maclar.${i}.onOdeme" value="${m.onOdeme || ""}" inputmode="numeric" placeholder="0"></div>
             <div><label title="Maç günü kalan tutarın IBAN'a yatırılan kısmı (kasaya nakit girmez)">IBAN'a ödenen</label><input data-yol="maclar.${i}.iban" value="${m.iban || ""}" inputmode="numeric" placeholder="0"></div>
           </div>
@@ -2121,7 +2140,9 @@
             <button class="dugme ikincil kucuk" type="button" data-ikram-mac="${i}" style="border-color:#1a7f37;color:#1a7f37">İkram <span data-mi="${i}"></span></button>
             <span class="mac-top" data-mt="${i}"></span>
           </div>
-        </div>`).join("") || '<p class="soluk">Bu gün maç yok.</p>'}
+          ${(() => { const acik = (kasa.acikVeresiyeler || []).map((v, j) => [v, j]).filter(([v]) => m.aboneId && v.aboneId === m.aboneId && v.gun < kasaGun);
+            return acik.length ? `<div class="mac-veresiye">⚠ <b>Açık veresiye</b> ${acik.map(([v, j]) => `<span>${tarihYazi(v.gun)} · ${para(v.tutar)} <button class="dugme kucuk" type="button" data-ode="${j}" style="background:#1a7f37;padding:4px 10px">Tahsil et</button></span>`).join(" ")}</div>` : ""; })()}
+        </div>`; }).join("") || '<p class="soluk">Bu gün maç yok.</p>'}
         <p class="soluk" style="font-size:13px;margin-top:8px">Maçlar o günün rezervasyon ve abone listesinden kendiliğinden gelir; kasaya maç eklemek ya da çıkarmak için Takvim'de rezervasyonu ekleyin / iptal edin. Krampon ${para(kr.krampon)}, eldiven ${para(kr.eldiven)}. Alınan kapora maçın toplamından düşülür; müşteriden kalan tahsil edilir.</p>
       </div>
 
@@ -2141,8 +2162,11 @@
         <p class="soluk" style="font-size:13px;margin-top:6px">Kasadan çalışana verilen para. Kasadan çıkış sayılır ve çalışanın aylık hakedişinden düşülür.</p>
       </div>
       ${kk.veresiye?.length ? satirListesi("veresiye", "Veresiye (eski kayıt)", "Kim, ne için") : ""}
+      ${(kk.veresiyeTahsil || []).length ? `<div class="kutu kasa-kart" style="border-color:#9fd3a8;background:#f1faf3"><h3>Bugün tahsil edilen veresiyeler<span class="sag">${para(kk.veresiyeTahsil.reduce((t, x) => t + x.tutar, 0))}</span></h3>
+        <p class="soluk" style="font-size:13px;margin-bottom:6px">Para bugün geldiği için bugünün kasa toplamına eklendi.</p>
+        ${kk.veresiyeTahsil.map((x) => `<div class="k-sat" style="grid-template-columns:1fr auto"><span><b>${kacis(x.kim)}</b> <small class="soluk">${tarihYazi(x.gun)} ${x.saat} veresiyesi${x.odeyen ? " · " + kacis(x.odeyen) : ""}</small></span><b>${para(x.tutar)}</b></div>`).join("")}</div>` : ""}
       ${(kasa.acikVeresiyeler || []).length ? `<div class="kutu kasa-kart" style="border-color:#ecd97a;background:#fffbe6"><h3>Açık veresiyeler<span class="sag">${para(kasa.acikVeresiyeler.reduce((t, v) => t + v.tutar, 0))}</span></h3>
-        ${kasa.acikVeresiyeler.map((v, i) => `<div class="k-sat" style="grid-template-columns:1fr auto auto"><span><b>${kacis(v.kim)}</b> <small class="soluk">${tarihYazi(v.gun)} ${v.saat} · ${kacis(v.urunler)}${v.aboneId ? " · abonenin sonraki maçında yöneticiye hatırlatılır" : ""}</small></span>
+        ${kasa.acikVeresiyeler.map((v, i) => `<div class="k-sat" style="grid-template-columns:1fr auto auto"><span><b>${kacis(v.kim)}</b> <small class="soluk">${tarihYazi(v.gun)} ${v.saat} · ${kacis(v.urunler)}${v.aboneId ? (v.sonrakiMac ? ` · <b style="color:#8a5a00">sonraki maçı ${KISA[gunNo(v.sonrakiMac.gun)]} ${tarihYazi(v.sonrakiMac.gun)} ${v.sonrakiMac.saat}</b> (o gün kasada ve e-postayla hatırlatılır)` : " · abonenin sonraki maçında yöneticiye hatırlatılır") : ""}</small></span>
           <b>${para(v.tutar)}</b><button class="dugme ikincil kucuk" type="button" data-ode="${i}">Ödendi</button></div>`).join("")}</div>` : ""}
 
       <div class="kutu kasa-kart"><h3>Personel kantini<span class="sag soluk" data-top="personel"></span></h3>
@@ -2173,7 +2197,12 @@
 
   function kasaOzetCiz() {
     const o = kasaOzetHesapla();
-    o.maclar.forEach((m, i) => {
+    o.maclar.forEach((m0, i) => {
+      // Tek kartta toplanmış abone saatleri: kartta grubun toplamı
+      const gr = macGrup[i];
+      const m = gr && gr.bas === i && !grupAcik.has(gr.anahtar)
+        ? o.maclar.slice(gr.bas, gr.son + 1).reduce((t, x) => ({ ...t, toplam: t.toplam + x.toplam, kapora: t.kapora + (x.kapora || 0), iban: t.iban + (x.iban || 0), kalan: t.kalan + x.kalan }), { ...m0, toplam: 0, kapora: 0, iban: 0, kalan: 0 })
+        : m0;
       const t = document.querySelector(`[data-mt="${i}"]`);
       if (t) t.innerHTML = m.kapora || m.iban ? `<small>Toplam ${para(m.toplam)}${m.kapora ? ` − kapora ${para(m.kapora)}` : ""}${m.iban ? ` − IBAN ${para(m.iban)}` : ""}</small>Nakit ${para(m.kalan)}` : para(m.toplam);
       const k = document.querySelector(`[data-mk="${i}"]`); if (k) k.textContent = m.kantin ? `· ${para(m.kantin)}` : "";
@@ -2273,19 +2302,21 @@
         kasa.kayit.gelenKaporalar = (kasa.kayit.gelenKaporalar || []).filter((y) => y.kayitNo !== x.kayitNo);
         kasaCiz(); bildir("Kapora kasadan silindi");
       });
+    } else if (b.dataset.grup !== undefined) {
+      grupAcik.has(b.dataset.grup) ? grupAcik.delete(b.dataset.grup) : grupAcik.add(b.dataset.grup); kasaCiz();
     } else if (b.dataset.tahsil !== undefined) {
       const m = kk.maclar[b.dataset.tahsil];
       if (!confirm(`${m.saat} ${m.ad}: ödenmemiş kantin tahsil edildi mi?`)) return;
       m.kantinOdenen = { ...(m.kantin || {}) }; degisti(); kasaCiz(); bildir("Tahsil edildi");
     } else if (b.dataset.ode !== undefined) {
       const v = kasa.acikVeresiyeler[b.dataset.ode];
-      const bugunMu = kasaGun === kasa.bugun;
-      if (!confirm(`${v.kim} veresiyesi ${para(v.tutar)} tahsil edildi mi?${bugunMu ? " Tutar bugünkü kasa girişine eklenecek." : ""}`)) return;
+      if (!confirm(`${v.kim} veresiyesi ${para(v.tutar)} tahsil edildi mi? Tutar bugünün (${tarihYazi(kasa.bugun)}) kasa toplamına eklenecek.`)) return;
       api("veresiye-ode", { gun: v.gun, saat: v.saat }).then((r) => {
         if (r.hata) return bildir(r.hata);
         kasa.acikVeresiyeler = kasa.acikVeresiyeler.filter((x) => x !== v);
-        if (bugunMu) kk.girisler.push({ aciklama: `Veresiye tahsil · ${v.kim} (${tarihYazi(v.gun)} ${v.saat})`, tutar: v.tutar });
-        kasaCiz(); if (bugunMu) degisti(); bildir("Veresiye tahsil edildi");
+        // Para bugün geldi: bugünün kasasına sunucu işler; ekrandaki gün bugünse listesi güncellenir
+        if (kasaGun === r.bugun) { kk.veresiyeTahsil = r.veresiyeTahsil; kasa.kayit.veresiyeTahsil = r.veresiyeTahsil; }
+        kasaCiz(); bildir("Veresiye tahsil edildi, bugünkü kasaya eklendi");
       });
     } else if (b.dataset.ikramMac !== undefined) {
       const m = kk.maclar[b.dataset.ikramMac];

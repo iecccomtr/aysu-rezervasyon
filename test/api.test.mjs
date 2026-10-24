@@ -408,7 +408,7 @@ test("Fiyatlar: sadece Admin değiştirir; yeni rezervasyonlar yeni fiyatla, esk
   const eski = (await istek("/api/rezervasyon", REZ)).veri;
   assert.equal(eski.ucret, 3700);
   assert.equal((await istek("/api/panel/fiyat", { mac: "4000", kapora: "1500", spiker: "1800", hakem: "1200" })).durum, 200);
-  assert.match((await istek("/api/panel/islemler")).veri[0].detay, /Maç: 3700 → 4000 TL/);
+  assert.ok((await istek("/api/panel/islemler")).veri.some((x) => /Maç: 3700 → 4000 TL/.test(x.detay)));
   const m = (await istek("/api/musaitlik")).veri;
   assert.equal(m.fiyat, 4000); assert.equal(m.kapora, 1500); assert.equal(m.ekstralar.spiker.ucret, 1800);
   const yeni = (await istek("/api/rezervasyon", { ...REZ, saat: "23:00", telefon: "0532 999 88 77", ekstra: ["hakem"] })).veri;

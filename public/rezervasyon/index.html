@@ -204,6 +204,8 @@
   .abone-bilgi { font-size: 14px; margin: 4px 0 8px; color: var(--murekkep, #10202d); }
   .abone-kurallar { font-size: 14px; margin: 0 0 8px; padding-left: 20px; color: #3b4a56; }
   .abone-kurallar li { margin: 3px 0; }
+  .abone-dep { border-top: 1px dashed #b9cdf2; margin-top: 4px; }
+  .abone-odeme { background: #fff; border: 1px solid #b9cdf2; border-radius: 10px; padding: 8px 10px; }
   .abone-onay { border-top: 1px dashed #b9cdf2; margin-top: 4px; }
   .vip-sec { display: flex; align-items: center; gap: 10px; padding: 8px 0; cursor: pointer; font-weight: 600; }
   .vip-sec input { width: 22px; height: 22px; accent-color: #ef7f1a; }
@@ -331,6 +333,8 @@
               <p class="abone-bilgi" id="abone-bilgi"></p>
               <p class="abone-bilgi" style="font-weight:700;margin-bottom:4px">Abone kayıt kuralları ve karşılıklı taahhütler</p>
               <ol class="abone-kurallar" id="abone-kurallar"></ol>
+              <label class="vip-sec abone-dep"><input type="checkbox" id="abone-dep"><span>Depozitoyu (<b id="abone-dep-tutar"></b>) <b>şimdi IBAN'a</b> göndereceğim <small style="display:block;font-weight:400">Bu durumda kapora gerekmez; dekontta en az depozito tutarı görünmeli.</small></span></label>
+              <p class="abone-bilgi abone-odeme" id="abone-odeme"></p>
               <label class="vip-sec abone-onay"><input type="checkbox" id="abone-kabul"><span>Abone kayıt kurallarını ve karşılıklı taahhütleri okudum, kabul ediyorum.</span></label>
             </div>
           </fieldset>
@@ -556,10 +560,16 @@
       const g = veri.gunler[gunIdx];
       $("abone-bilgi").innerHTML = `Her hafta <b>${g.gun}${gece(secilenSaat || "08:00") ? " gecesi" : ""} ${secilenSaat || ""}</b> saati size ayrılır. Abone maç ücreti <b>${tl(veri.aboneFiyat)}</b>. İlk maçta 1 maç bedeli <b>${tl(veri.aboneFiyat)} depozito</b> alınır; şimdi ödeyeceğiniz <b>${tl(veri.kapora)} kapora</b> ilk maçın ücreti ve depozitodan düşülür.`;
       $("abone-kurallar").innerHTML = (veri.aboneKurallari || []).map((k) => `<li>${k.replace(/[<&>]/g, "")}</li>`).join("");
+      const dep = veri.aboneFiyat, vip = toplamUcret() - veri.aboneFiyat;
+      $("abone-dep-tutar").textContent = tl(dep);
+      $("abone-odeme").innerHTML = $("abone-dep").checked
+        ? `<b>Şimdi IBAN'a:</b> ${tl(dep)} depozito<br><b>Maç günü sahada:</b> ${tl(veri.aboneFiyat + vip)} maç ücreti`
+        : `<b>Şimdi IBAN'a:</b> ${tl(veri.kapora)} kapora<br><b>Maç günü sahada:</b> kalan ${tl(veri.aboneFiyat + vip - veri.kapora)} maç ücreti + ${tl(dep)} depozito = <b>${tl(veri.aboneFiyat + vip - veri.kapora + dep)}</b>`;
     }
     $("ozet-ucret").textContent = tl(toplamUcret());
   }
   $("abone-ol").addEventListener("change", aboneCiz);
+  $("abone-dep").addEventListener("change", aboneCiz);
 
   function formuGuncelle(kaydir) {
     const g = veri.gunler[gunIdx];
@@ -700,7 +710,7 @@
       if (dogrulamaToken === "") return uyar(uyari, "Güvenlik doğrulamasını tamamlayın, ardından tekrar deneyin.");
       const r = await fetch("/api/rezervasyon", {
         method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ tarih: g.tarih, saat: secilenSaat, ad, telefon, not: $("not").value.trim(), kvkk: true, web: $("web").value, dogrulama: dogrulamaToken, ekstra: seciliEkstralar(), kod: $("kod").value.trim() || undefined, abone: aboneSecili() || undefined, kurallarKabul: aboneSecili() ? $("abone-kabul").checked : undefined }),
+        body: JSON.stringify({ tarih: g.tarih, saat: secilenSaat, ad, telefon, not: $("not").value.trim(), kvkk: true, web: $("web").value, dogrulama: dogrulamaToken, ekstra: seciliEkstralar(), kod: $("kod").value.trim() || undefined, abone: aboneSecili() || undefined, kurallarKabul: aboneSecili() ? $("abone-kabul").checked : undefined, depozitoIban: aboneSecili() && $("abone-dep").checked ? true : undefined }),
       });
       dogrulamaYenile();
       const v = await r.json().catch(() => ({}));
@@ -711,7 +721,7 @@
       }
       ["ad", "telefon", "telefon2", "not", "kod"].forEach((id) => { $(id).value = ""; }); $("kvkk").checked = false; telefonKontrol(); // formu sıfırla
       document.querySelectorAll("[data-ekstra]").forEach((x) => { x.checked = false; });
-      $("abone-ol").checked = false; $("abone-kabul").checked = false; aboneCiz();
+      $("abone-ol").checked = false; $("abone-kabul").checked = false; $("abone-dep").checked = false; aboneCiz();
       sonRez = { kayitNo: v.kayitNo, telefon };
       window.aysuOlay?.("generate_lead", { currency: "TRY", value: v.ucret || 0, saat: v.saat });
       basariGoster(v, g);
@@ -935,11 +945,11 @@
     if (v.iban) sonIban = { no: v.iban, alici: v.alici };
     if (v.iban) {
       k.innerHTML = `
-        <h3>${tl(v.kapora)} kapora gönderin</h3>
+        <h3>${tl(v.kapora)} ${v.depozitoIban ? "depozito" : "kapora"} gönderin</h3>
         <div class="iban"><code></code><button type="button" class="kopyala">IBAN'ı kopyala</button></div>
         <p>Hesap adı: <b class="alici"></b></p>
-        <p>Kalan <b>${tl(v.kalan)}</b> maç günü sahada ödenir.</p>
-        <p style="font-weight:700;color:#b42318">Kaporaların iadesi yoktur.</p>`;
+        <p>${v.abone ? (v.depozitoIban ? `Dekontta en az <b>${tl(v.kapora)}</b> görünmeli; altındaki ödeme kabul edilmez. Maç günü sahada <b>${tl(v.kalan)}</b> maç ücreti ödenir.` : `Maç günü sahada kalan maç ücreti + ${tl(v.depozito)} depozito = <b>${tl(v.kalan)}</b> ödenir.`) : `Kalan <b>${tl(v.kalan)}</b> maç günü sahada ödenir.`}</p>
+        <p style="font-weight:700;color:#b42318">${v.depozitoIban ? "Depozito, abonelik kurallarına göre 3 ay sonunda aynı gün ve saatte 1 maç karşılığı kullanılır." : "Kaporaların iadesi yoktur."}</p>`;
       k.querySelector("code").textContent = v.iban;
       k.querySelector(".alici").textContent = v.alici || "";
       k.querySelector(".kopyala").addEventListener("click", async (e) => {

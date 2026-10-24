@@ -323,9 +323,10 @@ export const kasaOzet = (k) => {
   o.giris = top(k.girisler); o.cikis = top(k.cikislar); o.veresiye = top(k.veresiye);
   o.devir = Number(k.devir) || 0;
   o.gelenKapora = (k.gelenKaporalar || []).reduce((t, x) => t + (Number(x.tutar) || 0), 0);
+  o.veresiyeTahsil = (k.veresiyeTahsil || []).reduce((t, x) => t + (Number(x.tutar) || 0), 0); // bugün tahsil edilen eski veresiyeler
   // Kapora parası geldiği günün kasasına girer (o gün gelen kaporalar +); maç günü o maçın kaporası düşülür (−).
   // Personel kantini (maaştan kesilir) eklenir; devir katılmaz
-  o.kasaToplam = o.ciro - o.onOdeme + o.giris + o.gelenKapora; // personel kantini kasaya girmez, ay sonu maaştan kesilir
+  o.kasaToplam = o.ciro - o.onOdeme + o.giris + o.gelenKapora + o.veresiyeTahsil; // personel kantini kasaya girmez, ay sonu maaştan kesilir
   // Önceden alınan kapora ve veresiye kasaya bugün girmez
   o.avans = (k.avanslar || []).reduce((t, x) => t + (Number(x.tutar) || 0), 0); // çalışana kasadan verilen günlük ödeme / avans
   o.ibanOdeme = (k.maclar || []).reduce((t, m) => t + (Number(m.iban) || 0), 0); // maç günü IBAN'a ödenen (kasaya nakit girmez)
@@ -442,7 +443,7 @@ export class RezervasyonDeposu extends DurableObject {
   }
 
   /** Ortak kayıt oluşturma. `panel` true ise müşteri sınırları uygulanmaz. */
-  async rezervasyonYaz({ gunTarihi, saat: s, ad, telefon: tel, not = "", durum, kaynak, kapora = "", ekstra = [], kod, abone, kurallarKabul }, panel) {
+  async rezervasyonYaz({ gunTarihi, saat: s, ad, telefon: tel, not = "", durum, kaynak, kapora = "", ekstra = [], kod, abone, kurallarKabul, depozitoIban }, panel) {
     const gun = tarihNormalize(gunTarihi);
     const saat = saatNormalize(s);
     const telefon = telefonNormalize(tel);
@@ -508,7 +509,9 @@ export class RezervasyonDeposu extends DurableObject {
       if ((await this.aboneler()).some((a) => !a.bitis && slotlarOf(a).some((x) => x.gun === gunNo(gun) && x.saat === saat))) {
         return { hata: "Bu gün ve saatte zaten bir abonemiz var. Abonelik için başka bir saat seçin." };
       }
-      kayit.aboneBasvuru = { kabul: simdiYazi(), depozito: f.abone, kurallar: ABONE_KURALLARI.length };
+      kayit.aboneBasvuru = { kabul: simdiYazi(), depozito: f.abone, kurallar: ABONE_KURALLARI.length, ...(depozitoIban ? { depozitoIban: true } : {}) };
+      // Depozitoyu şimdi IBAN'a gönderecekse kapora yerine depozito istenir (dekontta en az depozito tutarı görünmeli)
+      if (depozitoIban) kayit.kaporaTutar = f.abone;
       kayit.not = kirp(`Abone başvurusu — her hafta ${GUNLER[gunNo(gun)]} ${saat}${kayit.not ? " · " + kayit.not : ""}`, 200);
     }
     const saha = abone ? f.abone : macFiyati(f, gun, saat);
@@ -536,7 +539,8 @@ export class RezervasyonDeposu extends DurableObject {
     const ilk = r.isletmeGunu || r.tarih;
     const sonuc = await this.aboneKaydet({
       ad: r.ad, telefon: r.telefon, gun: gunNo(ilk), saat: r.saat, baslangic: gunEkle(ilk, 1),
-      depozito: `${r.aboneBasvuru.depozito.toLocaleString("tr-TR")} TL (ilk maçta alınacak)`,
+      depozito: r.aboneBasvuru.depozitoIban ? `${r.aboneBasvuru.depozito.toLocaleString("tr-TR")} TL (IBAN ile ödendi ${String(r.kaporaGunu || "").split("-").reverse().join(".")})`
+        : `${r.aboneBasvuru.depozito.toLocaleString("tr-TR")} TL (ilk maçta alınacak)`,
       not: "Online abone başvurusu", yeniKural: true, ilkMac: ilk,
     });
     if (!sonuc.basarili) return sonuc;
@@ -1384,7 +1388,7 @@ export class RezervasyonDeposu extends DurableObject {
       const ad = { mac: "Maç", kapora: "Kapora", spiker: "VIP spiker", hakem: "VIP hakem", abone: "Abone maç", krampon: "Krampon kirası", eldiven: "Eldiven kirası", siparisTel: "Tespo sipariş no", temizlikTel: "Temizlik sipariş no" };
       const fark = Object.keys(ad).filter((a) => eski[a] !== yeni[a]).map((a) => `${ad[a]}: ${eski[a]} → ${yeni[a]}${a.endsWith("Tel") ? "" : " TL"}`);
       if (fark.length) await this.kayitTut(yapan, "Fiyatları değiştirdi", fark.join(" · "));
-      return { basarili: true, fiyat: yeni };
+      return { basarili: true, fiyat: yeni, fiyatFark: Object.keys(ad).filter((a) => !a.endsWith("Tel") && eski[a] !== yeni[a]).map((a) => [ad[a], `${(eski[a] ?? 0).toLocaleString("tr-TR")} TL → ${yeni[a].toLocaleString("tr-TR")} TL`]) };
     });
   }
 
@@ -1451,7 +1455,7 @@ export class RezervasyonDeposu extends DurableObject {
         ? ["ad", "alis", "satis", "stok", "aktif"].filter((a) => eski[a] !== yeni[a]).map((a) => `${{ ad: "ad", alis: "alış", satis: "satış", stok: "stok", aktif: "satışta" }[a]}: ${eski[a]} → ${yeni[a]}`)
         : [`alış ${yeni.alis || 0} · satış ${yeni.satis || 0} · stok ${yeni.stok}`];
       if (fark.length) await this.kayitTut(yapan, eski ? "Kantin ürünü düzenledi" : "Kantin ürünü ekledi", `${yeni.ad} · ${fark.join(" · ")}`);
-      return { basarili: true, urun: yeni };
+      return { basarili: true, urun: yeni, ...(eski && eski.satis !== yeni.satis ? { fiyatFark: [[`Kantin: ${yeni.ad}`, `${(eski.satis ?? 0).toLocaleString("tr-TR")} TL → ${(yeni.satis ?? 0).toLocaleString("tr-TR")} TL`]] } : {}) };
     });
   }
 
@@ -1703,8 +1707,10 @@ export class RezervasyonDeposu extends DurableObject {
         const r = s.rez;
         const vip = (r.ekstra || []).reduce((t, x) => t + (f[x] ?? EKSTRALAR[x]?.ucret ?? 0), 0);
         // Kapora maç günü alındıysa ayrıca düşülmez: maçın toplamı bugün kasaya girer
-        const onOdeme = r.kaporaGunu === gun ? 0 : kaporaTutari(r);
-        const dep = r.aboneBasvuru && !r.ucretsiz ? Number(r.aboneBasvuru.depozito) || 0 : 0; // ilk abone maçında depozito da alınır
+        const onOdeme = r.kaporaGunu === gun || r.aboneBasvuru?.depozitoIban ? 0 : kaporaTutari(r);
+        // İlk abone maçında depozito da alınır (önceden IBAN'a ödendiyse alınmaz; o ödeme depozitodur, maçtan düşülmez)
+        const depIban = Boolean(r.aboneBasvuru?.depozitoIban);
+        const dep = r.aboneBasvuru && !r.ucretsiz && !depIban ? Number(r.aboneBasvuru.depozito) || 0 : 0;
         satirlar.push({ saat, tur: r.aboneId || r.aboneBasvuru ? "abone" : "normal", ...(r.aboneId ? { aboneId: r.aboneId } : {}), ...(dep ? { depozito: `İlk maç: ${dep.toLocaleString("tr-TR")} ₺ depozito ücrete dahil` } : {}), ad: r.ad, ucret: Math.max(0, (Number.isFinite(Number(r.ucret)) && r.ucret !== null && r.ucret !== undefined ? Number(r.ucret) : macFiyati(f, gun, saat)) - vip) + dep, vip, ekstra: (r.ekstra || []).filter((x) => EKSTRALAR[x]), onOdeme, tkOn: onOdeme, kayitNo: r.kayitNo, kaynak: "takvim",
           ...(r.ucretsiz ? { ucretsiz: r.ucretsiz.neden || "Ücretsiz" } : {}) });
       }
@@ -1812,13 +1818,15 @@ export class RezervasyonDeposu extends DurableObject {
       const kesinti = 0; // personel kantini ay sonu maaştan kesilir
       return { eposta: e, ad: u?.ad || v.ad, rol: ROLLER[u?.rol]?.ad || "", saat, kesinti, ucret: Math.round(saat * (u?.saatlikUcret || 0)) - kesinti, acik: Boolean(v.giris && !v.cikis) };
     });
+    const tahsil = await this.veresiyeTahsilleri(gun);
+    if (kayit) { kayit.veresiyeTahsil = tahsil; kayit.ozet = kasaOzet(kayit); }
     return {
       gun, gunAd: gunAdi(gun), bugun: isletmeGunu(n.tarih, n.saat), kayitli: Boolean(kayit),
-      kayit: kayit || { gun, gelenKaporalar: await this.gelenKaporalar(gun), devir: oncekiKasa?.birakilan ?? 0, maclar: takvim.map((x) => ({ ...x, krampon: 0, eldiven: 0, kantin: {} })), girisler: [], cikislar: [], veresiye: [], ikram: {}, birakilan: null, sayilan: null, not: "" },
+      kayit: kayit || { gun, veresiyeTahsil: tahsil, gelenKaporalar: await this.gelenKaporalar(gun), devir: oncekiKasa?.birakilan ?? 0, maclar: takvim.map((x) => ({ ...x, krampon: 0, eldiven: 0, kantin: {} })), girisler: [], cikislar: [], veresiye: [], ikram: {}, birakilan: null, sayilan: null, not: "" },
       oncekiDevir: oncekiKasa ? { gun: oncekiKasa.gun, tutar: oncekiKasa.birakilan ?? 0 } : null,
       takvim, urunler: bardakGorunum(urunler), fiyat, calisanlar, ikramKimler: IKRAM_KIMLER, temizlik: await this.temizlikUrunleri(), rehber: await this.rehber(), personelIndirim: KURALLAR.personelIndirim,
       personel: kullanicilar.filter((u) => u.durum === "aktif" && u.rol !== "admin" && ROLLER[u.rol])
-        .map((u) => ({ eposta: u.eposta, ad: u.ad, calisiyor: puantaj.has(`p:${gun}:${u.eposta}`) })), acikVeresiyeler: await this.acikVeresiyeler(),
+        .map((u) => ({ eposta: u.eposta, ad: u.ad, calisiyor: puantaj.has(`p:${gun}:${u.eposta}`) })), acikVeresiyeler: await this.veresiyeSonrakiMac(await this.acikVeresiyeler()),
     };
   }
 
@@ -1871,6 +1879,7 @@ export class RezervasyonDeposu extends DurableObject {
           .filter((x) => x.eposta && x.tutar && tumKullanicilar.some((u) => u.eposta === x.eposta))
           .map((x) => ({ ...x, ad: tumKullanicilar.find((u) => u.eposta === x.eposta).ad })),
         gelenKaporalar: await this.gelenKaporalar(gun),
+        veresiyeTahsil: await this.veresiyeTahsilleri(gun),
         veresiye: (Array.isArray(g.veresiye) ? g.veresiye : []).slice(0, 40)
           .map((x) => ({ aciklama: kirp(x?.aciklama, 120), tutar: tutar(x?.tutar) })).filter((x) => x.aciklama || x.tutar),
         ikram: Object.fromEntries([...IKRAM_KIMLER, ...kisiAnahtarlari].map((k) => [k, kantinTemiz(g.ikram?.[k])]).filter(([, v]) => Object.keys(v).length)),
@@ -1935,16 +1944,45 @@ export class RezervasyonDeposu extends DurableObject {
     return [...(await this.st.list({ prefix: "vr:" })).values()].filter((v) => !v.odendi).sort((a, c) => (a.gun + a.saat).localeCompare(c.gun + c.saat));
   }
 
+  /** O gün tahsil edilen (eski günlerden kalan) veresiyeler: tahsil edildiği günün kasasına girer */
+  async veresiyeTahsilleri(gun) {
+    return [...(await this.st.list({ prefix: "vr:" })).values()].filter((v) => v.odendi && v.odemeGunu === gun)
+      .map((v) => ({ kim: v.kim, gun: v.gun, saat: v.saat, tutar: v.tutar, odeyen: v.odeyen || "" }));
+  }
+
+  /** Açık abone veresiyelerine abonenin sonraki maç günü eklenir (14 gün içinde) */
+  async veresiyeSonrakiMac(liste) {
+    const bugun = bugunIsletme();
+    const d = await this.durumYukle(bugun, gunEkle(bugun, 14));
+    return liste.map((v) => {
+      if (!v.aboneId) return v;
+      for (let i = 0; i <= 14; i++) {
+        const g = gunEkle(bugun, i);
+        if (g <= v.gun) continue;
+        const sl = slotlarOf(d.abone.find((a) => a.id === v.aboneId) || {});
+        for (const x of sl.filter((x) => x.gun === gunNo(g))) {
+          const s = this.slot(d, g, x.saat);
+          if (s.tur === "abone" && s.abone.id === v.aboneId) return { ...v, sonrakiMac: { gun: g, saat: x.saat } };
+        }
+      }
+      return v;
+    });
+  }
+
   async veresiyeOde({ gun, saat }, yapan) {
     return this.kilitli(async () => {
       const a = `vr:${tarihNormalize(gun)}:${saatNormalize(saat)}`;
       const v = await this.st.get(a);
       if (!v) return { hata: "Veresiye bulunamadı." };
       if (v.odendi) return { hata: "Bu veresiye zaten ödenmiş." };
-      Object.assign(v, { odendi: true, odeyen: yapan.ad, odemeZamani: simdiYazi() });
+      const bugun = bugunIsletme();
+      Object.assign(v, { odendi: true, odeyen: yapan.ad, odemeZamani: simdiYazi(), odemeGunu: bugun });
       await this.st.put(a, v);
+      // Para bugün geldi: bugünün kasası kayıtlıysa tahsilat oraya işlenir
+      const kasa = await this.st.get(`kasa:${bugun}`);
+      if (kasa) { const y = { ...kasa, veresiyeTahsil: await this.veresiyeTahsilleri(bugun) }; y.ozet = kasaOzet(y); await this.st.put(`kasa:${bugun}`, y); }
       await this.kayitTut(yapan, "Veresiye tahsil etti", `${v.kim} · ${v.gun} ${v.saat} · ${v.tutar} TL · ${v.urunler}`);
-      return { basarili: true, veresiye: v };
+      return { basarili: true, veresiye: v, bugun, veresiyeTahsil: await this.veresiyeTahsilleri(bugun) };
     });
   }
 

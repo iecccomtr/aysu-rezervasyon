@@ -1100,3 +1100,23 @@ test("Yeni abone kuralları: 3 ay dolmadan ücretsiz son maç yok; ayda 1 iptal,
   await d.aboneAtla({ id: e.id, gun: "2026-10-23", saat: "20:00", gelmiyor: true });
   assert.ok((await d.aboneAtla({ id: e.id, gun: "2026-10-30", saat: "20:00", gelmiyor: true })).basarili);
 });
+
+test("Abone depozitoyu şimdi IBAN'a öderse: kapora yerine depozito istenir, dekontta en az depozito, maç günü sadece maç ücreti", async () => {
+  const { dekontDegerlendir } = await import("../src/dekont-kontrol.js");
+  const kural = { iban: "TR70 0015 7000 0000 0154 8342 35", alici: "Ahmet Aysu", kapora: 3200, enAzTutar: 3200, tutarZorunlu: true, tarihKontrol: false };
+  const ok = { alici_iban: "TR700015700000000154834235", alici_ad: "AHMET AYSU" };
+  assert.ok(dekontDegerlendir({ ...ok, tutar: 3200 }, kural).onay);
+  assert.ok(!dekontDegerlendir({ ...ok, tutar: 1200 }, kural).onay);
+  assert.ok(!dekontDegerlendir({ ...ok, tutar: null }, kural).onay, "tutar okunamazsa kabul yok");
+  const d = demoDepo();
+  saatiAyarla("2026-10-20T10:00");
+  const r = await d.olustur({ gunTarihi: "2026-10-22", saat: "21:00", ad: "Depozitolu", telefon: "05330000031", abone: true, kurallarKabul: true, depozitoIban: true });
+  assert.equal(r.kaporaTutar, 3200); assert.ok(r.aboneBasvuru.depozitoIban);
+  await d.dekontSonuc(r.kayitNo, "ozet-dep", { nedenler: [], tutar: 3200, okunan: {} });
+  await d.panelRezGuncelle({ kayitNo: r.kayitNo, kapora: "3200" });
+  const k = await d.aboneBasvuruKabul(r.kayitNo);
+  assert.match(k.abone.depozito, /IBAN ile ödendi/);
+  saatiAyarla("2026-10-22T22:00");
+  const m = (await d.kasaTakvim("2026-10-22")).find((x) => x.saat === "21:00");
+  assert.equal(m.ucret, 3200); assert.equal(m.onOdeme, 0);
+});

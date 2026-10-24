@@ -6,6 +6,7 @@ import { KURALLAR, FIYATLAR, IBAN, ISLETME, EKSTRALAR, ABONE_KURALLARI, ANKET_SO
 import { bildir, epostaYolla, epostaKurulu } from "./bildirim.js";
 import * as bildirimModulu from "./bildirim.js";
 import { TESIS_KURALLARI } from "./tesis-kurallari.js";
+import { kilavuzPdf, KILAVUZ } from "./kilavuz.js";
 import { dekontOku, dekontDegerlendir, ozet } from "./dekont-kontrol.js";
 import { ROLLER, ibanGecerli, VARDIYA_BITTI } from "./store.js";
 import { kasaPdf, kasaPdfDetayli } from "./kasa-pdf.js";
@@ -601,7 +602,8 @@ async function panel(request, env, ctx, yol) {
     case "POST kullanici": {
       const r = await d.kullaniciGuncelle(g, ben);
       // Yeni çalışan onaylandı: tesis kuralları ve görevler kendisine e-postayla
-      if (r.ilkOnay) ctx.waitUntil(kurallarGonder(env, [r.kullanici.eposta], r.kullanici.ad, r.kullanici.rolAd, url.origin));
+      if (r.ilkOnay) ctx.waitUntil(kurallarGonder(env, [r.kullanici.eposta], r.kullanici.ad, r.kullanici.rolAd, url.origin, false, r.kullanici.rol));
+      else if (r.rolDegisti && r.kullanici.durum === "aktif") ctx.waitUntil(kilavuzGonder(env, [r.kullanici.eposta], r.kullanici.ad, r.kullanici.rol, url.origin));
       return sonuc(r);
     }
     case "POST admin-devret": {
@@ -637,7 +639,7 @@ async function panel(request, env, ctx, yol) {
     }
     case "POST kurallar/gonder": {
       if (ben.rol !== "admin") return json({ hata: "Sadece Admin." }, 403);
-      const ok = await kurallarGonder(env, [ben.eposta], ben.ad, ben.rolAd || "Admin", url.origin, true);
+      const ok = await kurallarGonder(env, [ben.eposta], ben.ad, ben.rolAd || "Admin", url.origin, true, g.rol || ben.rol);
       return ok ? json({ basarili: true }) : json({ hata: "E-posta gönderilemedi." }, 500);
     }
     case "POST kullanici-sil": return sonuc(await d.kullaniciSil(g.eposta, ben));
@@ -900,15 +902,29 @@ function aboneSayfaGonder(env, a, link, kime) {
 }
 const slotlarYazi = (a) => (Array.isArray(a.slotlar) ? a.slotlar : []).map((x) => `${GUN_ADLARI[x.gun]} ${x.saat}`).join(", ");
 
-function kurallarGonder(env, kime, ad, rolAd, koken = "https://aysuhalisaha.com", ornek = false) {
+function kurallarGonder(env, kime, ad, rolAd, koken = "https://aysuhalisaha.com", ornek = false, rol = null) {
+  // Görev anahtarı (personel, temizlik, mudur_yrd, mudur, admin): kılavuz PDF'i eklenir
+  const r = rol || Object.entries({ personel: "Personel", temizlik: "Temizlik Şefi", mudur_yrd: "Müdür Yardımcısı", mudur: "Müdür", admin: "Admin" }).find(([, v]) => v === rolAd)?.[0] || "personel";
   return epostaYolla(env, {
-    kime, konu: `${ornek ? "[Örnek] " : ""}Aysu Halı Saha'ya hoş geldiniz — tesis kuralları ve görevler`,
-    giris: `Merhaba ${ad || ""}, hesabınız ${rolAd ? rolAd + " olarak " : ""}onaylandı. Aşağıdaki kurallar halı saha yönetimine aittir; lütfen dikkatle okuyun ve uygulayın.`,
-    satirlar: [["Panel", `${koken}/panel/`], ["İşe gelince", "Panelde GELDİM, çıkarken ÇIKTIM"], ["Görevler", "Panelde Görevler sayfası → işi bitirince Yaptım"]],
+    kime, konu: `${ornek ? "[Örnek] " : ""}Aysu Halı Saha'ya hoş geldiniz — tesis kuralları, görevler ve panel kılavuzu`,
+    giris: `Merhaba ${ad || ""}, hesabınız ${rolAd ? rolAd + " olarak " : ""}onaylandı. Aşağıdaki kurallar halı saha yönetimine aittir; lütfen dikkatle okuyun ve uygulayın. Görevinize göre hazırlanan panel kullanım kılavuzu ektedir (PDF).`,
+    satirlar: [["Panel", `${koken}/panel/`], ["İşe gelince", "Panelde GELDİM, çıkarken ÇIKTIM"], ["Görevler", "Panelde Görevler sayfası → işi bitirince Yaptım"], ["Kılavuz", `Ekte: ${KILAVUZ[r]?.ad || "Personel"} kılavuzu`]],
     bolumler: TESIS_KURALLARI,
     dugme: { yazi: "Panele gir", link: `${koken}/panel/` },
     alt: "HALISAHA YÖNETİMİNE AİTTİR · Aysu Halı Saha",
+    ekler: [{ ad: `aysu-panel-kilavuzu-${(KILAVUZ[r]?.ad || "personel").toLocaleLowerCase("tr").replace(/ı/g, "i").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, "-")}.pdf`, tur: "application/pdf", veri: kilavuzPdf(r, ad) }],
   }).catch((e) => { console.error("Kurallar e-postası", e); return false; });
+}
+
+/** Görevi değişen çalışana yeni görevinin kılavuzu */
+function kilavuzGonder(env, kime, ad, rol, koken = "https://aysuhalisaha.com") {
+  const k = KILAVUZ[rol]; if (!k) return Promise.resolve(false);
+  return epostaYolla(env, {
+    kime, konu: `Aysu Halı Saha panel kılavuzu — ${k.ad}`,
+    giris: `Merhaba ${ad || ""}, panelde göreviniz ${k.ad} olarak güncellendi. Yeni görevinize göre panel kullanım kılavuzu ektedir.`,
+    satirlar: [["Panel", `${koken}/panel/`]], dugme: { yazi: "Panele gir", link: `${koken}/panel/` },
+    ekler: [{ ad: `aysu-panel-kilavuzu-${rol}.pdf`, tur: "application/pdf", veri: kilavuzPdf(rol, ad) }],
+  }).catch(() => false);
 }
 
 export default {

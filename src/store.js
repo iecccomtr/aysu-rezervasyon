@@ -1218,7 +1218,7 @@ export class RezervasyonDeposu extends DurableObject {
       await this.st.put(`u:${e}`, yeni);
       if (yeni.durum !== "aktif" || yeni.rol !== u.rol) await this.oturumlariKapat(e);
       if (u.durum === "bekliyor" && yeni.durum !== "bekliyor") await this.onayBaglantilariniSil(e);
-      return { basarili: true, kullanici: kullaniciDisi(yeni), ...(u.durum === "bekliyor" && yeni.durum === "aktif" ? { ilkOnay: true } : {}) };
+      return { basarili: true, kullanici: kullaniciDisi(yeni), ...(u.durum === "bekliyor" && yeni.durum === "aktif" ? { ilkOnay: true } : u.rol !== yeni.rol ? { rolDegisti: true } : {}) };
     });
   }
 

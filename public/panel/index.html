@@ -188,7 +188,12 @@
   .urun { border: 1px solid var(--cizgi); border-radius: 10px; padding: 6px 8px; font-size: 13px; line-height: 1.2; }
   .urun.var { border-color: var(--cim); background: var(--cim-acik); }
   .urun.yok { opacity: .45; }
-  .video { margin-bottom: 12px; }
+  .video-sat { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; background: var(--kart); border: 1px solid var(--cizgi); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; cursor: pointer; font: inherit; color: inherit; }
+  .video-sat.acil { border-color: #f2c4c4; background: #fff8f8; }
+  .video-sat .oynat { flex: none; width: 38px; height: 38px; border-radius: 50%; background: var(--cim); color: #fff; display: grid; place-items: center; font-size: 15px; }
+  .video-sat.acil .oynat { background: #b42318; }
+  .video-sat small { display: block; color: var(--gri); }
+  .video { margin-bottom: 0; }
   .video .cerceve { position: relative; padding-top: 56.25%; background: #000; border-radius: 12px; overflow: hidden; }
   .video iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
   .video b { display: block; margin: 6px 0 2px; }
@@ -686,6 +691,8 @@
   }
 
   const dlg = $("dlg");
+  // Pencere kapanınca içindeki video da dursun
+  dlg.addEventListener("close", () => { if ($("dlg-ic").querySelector("iframe")) $("dlg-ic").innerHTML = ""; });
   function ac(baslik, html) {
     $("dlg-baslik").textContent = baslik;
     $("dlg-ic").innerHTML = html;
@@ -1922,12 +1929,17 @@
     const v = await api("videolar").catch(() => []);
     vdListe = Array.isArray(v) ? v : [];
     const KAT = [["acil", "🚨 Acil durum", "#b42318"], ["tesis", "Tesis kullanımı", "var(--murekkep)"], ["diger", "Diğer", "var(--murekkep)"]];
-    const kart = (x) => { const g = videoGom(x.link); return `<div class="kutu video" style="padding:10px${x.kategori === "acil" ? ";border-color:#f2c4c4;background:#fff8f8" : ""}">
-      ${g ? `<div class="cerceve"><iframe src="${kacis(g)}" title="${kacis(x.baslik)}" loading="lazy" allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe></div>` : ""}
-      <b>${kacis(x.baslik)}</b>${x.aciklama ? `<small class="soluk">${kacis(x.aciklama)}</small>` : ""}
-      ${g ? "" : `<a class="dugme ikincil kucuk" href="${kacis(x.link)}" target="_blank" rel="noopener">Videoyu aç</a>`}</div>`; };
+    // Kompakt liste: başlık + ▶; oynatıcı pencerede açılır
+    const kart = (x) => { const i = vdListe.indexOf(x); return `<button type="button" class="video-sat${x.kategori === "acil" ? " acil" : ""}" data-vd-ac="${i}">
+      <span class="oynat" aria-hidden="true">▶</span><span><b>${kacis(x.baslik)}</b>${x.aciklama ? `<small>${kacis(x.aciklama)}</small>` : ""}</span></button>`; };
     $("vd-liste").innerHTML = KAT.map(([k, ad, renk]) => { const l = vdListe.filter((x) => (x.kategori || "tesis") === k); return l.length ? `<h3 style="font-size:20px;margin:12px 0 8px;color:${renk}">${ad}</h3>${l.map(kart).join("")}` : ""; }).join("")
       || '<p class="soluk">Henüz video eklenmedi.</p>';
+    $("vd-liste").querySelectorAll("[data-vd-ac]").forEach((b) => b.addEventListener("click", () => {
+      const x = vdListe[b.dataset.vdAc], g = videoGom(x.link);
+      if (!g) return window.open(x.link, "_blank", "noopener");
+      ac(x.baslik, `<div class="video"><div class="cerceve"><iframe src="${kacis(g)}${g.includes("youtube") ? "&autoplay=1" : ""}" title="${kacis(x.baslik)}" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe></div>
+        ${x.aciklama ? `<p class="soluk" style="margin-top:8px">${kacis(x.aciklama)}</p>` : ""}</div>`);
+    }));
     $("vd-duzen-alan").hidden = !["admin", "mudur"].includes(ben.rol);
     vdSatirCiz();
   }

@@ -273,6 +273,9 @@ export const anlasmaUygula = (k, anlasmalar = {}) => {
 };
 const satirFiyat = (m, b, id) => (m?.ozelBirim?.[id] ?? b[id]?.satis ?? 0);
 
+/** Takvim maçı kasaya işlendi mi: maçın başlamasından 30 dk sonra (elle eklenen satırlar hemen) */
+export const macIslendi = (gun, m, simdiMs = Date.now()) =>
+  !gun || m?.kaynak !== "takvim" || !m?.saat || simdiMs >= macZamani(takvimTarihi(gun, m.saat), m.saat) + KURALLAR.kasaIslemeDakika * 60_000;
 /** Kantin satış fiyatı: alış × çarpan, 5 TL'nin katına yukarı yuvarlanır (12 × 2,5 = 30; 13 × 2,5 = 32,5 → 35) */
 export const kantinSatis = (alis, carpan) => (alis > 0 ? Math.ceil((alis * (carpan || 2.5)) / 5 - 1e-9) * 5 : 0);
 export const personelFiyat = (satis) => (satis > 0 ? Math.ceil((satis * (1 - KURALLAR.personelIndirim)) / 5) * 5 : 0);
@@ -341,6 +344,9 @@ export const kasaOzet = (k) => {
   const top = (l) => (l || []).reduce((t, x) => t + (Number(x.tutar) || 0), 0);
   const o = { mac: 0, vip: 0, kantin: 0, kantinKar: 0, kramponAdet: 0, eldivenAdet: 0, krampon: 0, eldiven: 0, onOdeme: 0, ikramDeger: 0, veresiyeKantin: 0 };
   o.maclar = (k.maclar || []).map((m) => {
+    // Takvimden gelen maçın ücreti maçın yarısında (başlangıç + 30 dk) kasaya işlenir; öncesinde toplamlara girmez
+    const islendi = macIslendi(k.gun, m);
+    if (!islendi) m = { ...m, ucret: 0, vip: 0, onOdeme: 0, iban: 0 };
     let kantin = 0;
     for (const [id, a] of Object.entries(m.kantin || {})) { kantin += a * satirFiyat(m, b, id); o.kantinKar += a * (satirFiyat(m, b, id) - (b[id]?.alis || 0)); }
     // Veresiye kantin: stoktan düşer, ciroya / kasaya girmez
@@ -355,7 +361,7 @@ export const kasaOzet = (k) => {
     kantin = Math.round(kantin); veresiye = Math.round(veresiye);
     o.mac += m.ucret || 0; o.vip += m.vip || 0; o.kantin += kantin; o.onOdeme += m.onOdeme || 0;
     o.kramponAdet += m.krampon || 0; o.eldivenAdet += m.eldiven || 0; o.krampon += krampon; o.eldiven += eldiven;
-    return { saat: m.saat, kantin, veresiye, ikram, toplam: (m.ucret || 0) + (m.vip || 0) + kantin + krampon + eldiven };
+    return { saat: m.saat, islendi, kantin, veresiye, ikram, toplam: (m.ucret || 0) + (m.vip || 0) + kantin + krampon + eldiven };
   });
   // Personel tüketimi ("p:<eposta>") ay sonu maaştan kesilir; kasaya nakit girmez (ikram gibi stoktan düşer)
   o.personelKantin = 0;
@@ -2332,7 +2338,8 @@ export class RezervasyonDeposu extends DurableObject {
   async kasaAy(ay) {
     if (!/^\d{4}-\d{2}$/.test(ay || "")) return { hata: "Geçersiz ay." };
     const m = await this.st.list({ start: `kasa:${ay}-01`, end: `kasa:${ay}-31~` });
-    const gunler = [...m.values()].map((k) => ({ gun: k.gun, gunAd: gunAdi(k.gun), ...k.ozet, guncelleyen: k.guncelleyen }));
+    // Özet yeniden hesaplanır: gece son kayıttan sonra başlayan maçlar da dahil olsun
+    const gunler = [...m.values()].map((k) => ({ gun: k.gun, gunAd: gunAdi(k.gun), ...kasaOzet(k), guncelleyen: k.guncelleyen }));
     const toplam = {};
     for (const a of ["mac", "vip", "kantin", "kantinKar", "krampon", "eldiven", "ciro", "giris", "gelenKapora", "ibanOdeme", "cikis", "veresiye", "veresiyeKantin", "onOdeme", "ikramDeger"]) {
       toplam[a] = gunler.reduce((t, x) => t + (x[a] || 0), 0);

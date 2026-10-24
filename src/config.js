@@ -67,6 +67,7 @@ export const ANKET_SORULARI = [
 ];
 
 export const KURALLAR = {
+  kasaIslemeDakika: 30,         // takvimden gelen maç ücreti maç başladıktan bu kadar dakika sonra kasaya işlenir
   uzunMesaiSaat: 8,             // yol yarım saati hariç bu kadar (ve fazla) çalışılan güne…
   uzunMesaiEk: 300,             // …maaşa otomatik eklenen yemek ücreti (TL)
   uzunMesaiBaslangic: "2026-10-25", // yemek ücreti bu günden itibaren

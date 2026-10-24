@@ -516,6 +516,7 @@ test("Kasa defteri: takvimden maçlar, kantin/krampon cirosu, stok farkı, yetki
   await d.panelRezEkle({ gunTarihi: "2026-10-19", saat: "23:00", ad: "Berat", telefon: "", kapora: "1200" });
   await d.aboneKaydet({ ad: "Ekip", telefon: "0545 123 01 23", gun: 0, saat: "21:00", no: 13 });
 
+  saatiAyarla("2026-10-20T03:00"); // maçlar başlamış ve kasaya işlenmiş olsun (maç + 30 dk)
   const k = await d.kasaGetir("2026-10-19", mudur);
   assert.equal(k.kayitli, false);
   // Berat'ın kaporası maç günü alındı: düşülmez, maç toplamına dahil
@@ -591,12 +592,17 @@ test("Kasa: alınan kapora otomatik gelir, sonradan girilen kapora da güncellen
   const d = demoDepo({ PANEL_KURULUM_KODU: "k" });
   const admin = await d.oturum((await d.panelKur({ kurulumKodu: "k", eposta: "admin@aysu.com", ad: "Admin", sifre: "aysu-2026!" })).token);
   const r = await d.panelRezEkle({ gunTarihi: "2026-10-19", saat: "20:00", ad: "Yusuf", telefon: "" });
+  saatiAyarla("2026-10-20T03:00"); // maçlar başlamış ve kasaya işlenmiş olsun (maç + 30 dk)
   const k = await d.kasaGetir("2026-10-19", admin);
   assert.equal(k.kayit.maclar[0].onOdeme, 0);
   assert.ok((await d.kasaKaydet({ ...k.kayit }, admin)).basarili);
   saatiAyarla("2026-10-18T15:00"); // kapora maçtan önceki gün alındı
   await d.panelRezGuncelle({ kayitNo: r.kayitNo, kapora: "500 + 700" });
   saatiAyarla("2026-10-19T10:00");
+  const k1 = await d.kasaGetir("2026-10-19", admin);
+  assert.equal(k1.kayit.ozet.olmasiGereken, 0, "maç başlamadan ücret kasaya işlenmez");
+  assert.equal(k1.kayit.ozet.maclar[0].islendi, false);
+  saatiAyarla("2026-10-19T20:30"); // maçın yarısı
   const k2 = await d.kasaGetir("2026-10-19", admin);
   assert.equal(k2.kayit.maclar[0].onOdeme, 1200);
   assert.equal(k2.kayit.ozet.olmasiGereken, 3700 - 1200);
@@ -612,6 +618,7 @@ test("Kasa: maçtaki veresiye kantin stoktan düşer, ciroya girmez (sadece izin
   const admin = await d.oturum((await d.panelKur({ kurulumKodu: "k", eposta: "admin@aysu.com", ad: "Admin", sifre: "aysu-2026!" })).token);
   await d.aboneKaydet({ ad: "Ekip", telefon: "0545 123 01 23", gun: 0, saat: "20:00", no: 1, ucret: "3700" });
   await d.panelRezEkle({ gunTarihi: "2026-10-19", saat: "22:00", ad: "Yusuf", telefon: "" });
+  saatiAyarla("2026-10-20T03:00"); // maçlar başlamış ve kasaya işlenmiş olsun (maç + 30 dk)
   const k = await d.kasaGetir("2026-10-19", admin);
   const su = k.urunler[22];
   k.kayit.maclar[0].kantin = { [su.id]: 2 };
@@ -896,6 +903,7 @@ test("Kasa: maç günü IBAN'a ödenen tutar ciroda kalır, kasada olması gerek
   const d = demoDepo({ PANEL_KURULUM_KODU: "k" });
   const admin = await d.oturum((await d.panelKur({ kurulumKodu: "k", eposta: "admin@aysu.com", ad: "Admin", sifre: "aysu-2026!" })).token);
   await d.panelRezEkle({ gunTarihi: "2026-10-19", saat: "20:00", ad: "Yusuf", telefon: "" });
+  saatiAyarla("2026-10-20T03:00"); // maçlar başlamış ve kasaya işlenmiş olsun (maç + 30 dk)
   const k = await d.kasaGetir("2026-10-19", admin);
   k.kayit.maclar[0].iban = "2500";
   const r = await d.kasaKaydet({ ...k.kayit }, admin);

@@ -2220,6 +2220,17 @@
   const birim = (id) => kk.birimler?.[id] || { satis: urunBul(id)?.satis || 0, alis: urunBul(id)?.alis || 0, ad: urunBul(id)?.ad || "?" };
   const kira = () => kk.kira || { krampon: kasa.fiyat.krampon, eldiven: kasa.fiyat.eldiven };
 
+  // Maç başlangıcı (İstanbul saati; 00:00–05:59 maçları işletme gününün ertesi takvim günü) + 30 dk
+  const macIslenmeMs = (m) => {
+    if (!m || m.kaynak !== "takvim" || !m.saat || !kasaGun) return 0;
+    const gece = Number(m.saat.slice(0, 2)) < 6;
+    const t = gece ? gunEkle(kasaGun, 1) : kasaGun;
+    return Date.parse(`${t}T${m.saat}:00+03:00`) + 30 * 60_000;
+  };
+  const macIslendi = (m) => Date.now() >= macIslenmeMs(m);
+  const macIslenmeSaati = (m) => { const t = macIslenmeMs(m); return t ? new Date(t + 3 * 3600e3).toISOString().slice(11, 16) : ""; };
+  // Saat ilerledikçe (maç + 30 dk) kasa toplamları kendiliğinden güncellensin
+  setInterval(() => { if (sekme === "kasa" && kk && document.visibilityState === "visible") kasaOzetCiz(); }, 60_000);
   function kasaOzetHesapla() {
     const o = { mac: 0, vip: 0, kantin: 0, kantinKar: 0, kramponAdet: 0, eldivenAdet: 0, krampon: 0, eldiven: 0, onOdeme: 0, ikramDeger: 0, veresiyeKantin: 0, maclar: [] };
     const kr = kira();
@@ -2233,7 +2244,10 @@
       const kd = [...(x.kademeler || [])].sort((p, q) => q.min - p.min).find((k) => n >= k.min);
       return (Math.max(0, n - (Number(x.ucretsiz) || 0)) * (kd ? kd.fiyat : normal)) / n;
     };
-    for (const m of kk.maclar) {
+    for (const m0 of kk.maclar) {
+      // Takvim maçının ücreti maç başladıktan 30 dk sonra kasaya işlenir (sabah toplamlar şişmesin)
+      const islendi = macIslendi(m0);
+      const m = islendi ? m0 : { ...m0, ucret: 0, vip: 0, onOdeme: 0, iban: 0 };
       let kantin = 0;
       for (const [id, a] of Object.entries(m.kantin || {})) { const b = birim(id); kantin += a * fiyat(m, id); o.kantinKar += a * (fiyat(m, id) - b.alis); }
       kantin = Math.round(kantin);
@@ -2252,7 +2266,7 @@
       o.mac += sayi(m.ucret); o.vip += sayi(m.vip); o.kantin += kantin; o.onOdeme += sayi(m.onOdeme);
       o.kramponAdet += m.krampon || 0; o.eldivenAdet += m.eldiven || 0; o.krampon += krampon; o.eldiven += eldiven;
       const toplam = sayi(m.ucret) + sayi(m.vip) + kantin + krampon + eldiven;
-      o.maclar.push({ kantin, odenmemis, veresiye, ikram, toplam, kapora: sayi(m.onOdeme), iban: sayi(m.iban), kalan: toplam - sayi(m.onOdeme) - sayi(m.iban) });
+      o.maclar.push({ islendi, islenme: macIslenmeSaati(m0), kantin, odenmemis, veresiye, ikram, toplam, kapora: sayi(m.onOdeme), iban: sayi(m.iban), kalan: toplam - sayi(m.onOdeme) - sayi(m.iban) });
     }
     o.personelKantin = 0;
     for (const [kim, v] of Object.entries(kk.ikram || {})) for (const [id, a] of Object.entries(v)) {
@@ -2393,7 +2407,7 @@
           ${(() => { const acik = (kasa.acikVeresiyeler || []).map((v, j) => [v, j]).filter(([v]) => m.aboneId && v.aboneId === m.aboneId && v.gun < kasaGun);
             return acik.length ? `<div class="mac-veresiye">⚠ <b>Açık veresiye</b> ${acik.map(([v, j]) => `<span>${tarihYazi(v.gun)} · ${para(v.tutar)} <button class="dugme kucuk" type="button" data-ode="${j}" style="background:#1a7f37;padding:4px 10px">Tahsil et</button></span>`).join(" ")}</div>` : ""; })()}
         </div>`; }).join("") || '<p class="soluk">Bu gün maç yok.</p>'}
-        <p class="soluk" style="font-size:13px;margin-top:8px">Maçlar o günün rezervasyon ve abone listesinden kendiliğinden gelir; kasaya maç eklemek ya da çıkarmak için Takvim'de rezervasyonu ekleyin / iptal edin. Krampon ${para(kr.krampon)}, eldiven ${para(kr.eldiven)}. Alınan kapora maçın toplamından düşülür; müşteriden kalan tahsil edilir.</p>
+        <p class="soluk" style="font-size:13px;margin-top:8px">Maçlar o günün rezervasyon ve abone listesinden kendiliğinden gelir; kasaya maç eklemek ya da çıkarmak için Takvim'de rezervasyonu ekleyin / iptal edin. Krampon ${para(kr.krampon)}, eldiven ${para(kr.eldiven)}. Alınan kapora maçın toplamından düşülür; müşteriden kalan tahsil edilir. Takvimden gelen maçın ücreti maç başladıktan 30 dakika sonra kasaya işlenir.</p>
       </div>
 
       <div class="kutu kasa-kart"><h3>Bugün gelen kaporalar <small class="soluk">(IBAN)</small><span class="sag">${para((kk.gelenKaporalar || []).reduce((t, x) => t + x.tutar, 0))}</span></h3>
@@ -2456,7 +2470,9 @@
           { ...m0, toplam: 0, kapora: 0, iban: 0, kalan: 0, kantin: 0, odenmemis: 0, ikram: 0, veresiye: 0 })
         : m0;
       const t = document.querySelector(`[data-mt="${i}"]`);
-      if (t) t.innerHTML = m.kapora || m.iban ? `<small>Toplam ${para(m.toplam)}${m.kapora ? ` − kapora ${para(m.kapora)}` : ""}${m.iban ? ` − IBAN ${para(m.iban)}` : ""}</small>Nakit ${para(m.kalan)}` : para(m.toplam);
+      if (t && !m.islendi && !(gr && gr.bas === i && !grupAcik.has(gr.anahtar) && o.maclar.slice(gr.bas, gr.son + 1).some((x) => x.islendi))) {
+        t.innerHTML = `<small>⏳ ${para(sayi(kk.maclar[i].ucret) + sayi(kk.maclar[i].vip))} maç ücreti ${m.islenme}'da kasaya işlenir</small>${m.toplam ? para(m.toplam) : '<span class="soluk">—</span>'}`;
+      } else if (t) t.innerHTML = m.kapora || m.iban ? `<small>Toplam ${para(m.toplam)}${m.kapora ? ` − kapora ${para(m.kapora)}` : ""}${m.iban ? ` − IBAN ${para(m.iban)}` : ""}</small>Nakit ${para(m.kalan)}` : para(m.toplam);
       const k = document.querySelector(`[data-mk="${i}"]`); if (k) k.textContent = m.kantin ? `· ${para(m.kantin)}` : "";
       const od = document.querySelector(`[data-mo="${i}"]`);
       if (od) od.innerHTML = m.odenmemis ? `<span class="odenmedi">Ödenmedi ${para(m.odenmemis)}</span><button class="dugme kucuk" type="button" data-tahsil="${i}" style="background:#1a7f37">Tahsil et</button>` : (m.kantin ? '<span class="rozet r-onayli">✓ kantin ödendi</span>' : "");

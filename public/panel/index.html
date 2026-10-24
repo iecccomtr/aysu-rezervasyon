@@ -188,6 +188,12 @@
   .urun { border: 1px solid var(--cizgi); border-radius: 10px; padding: 6px 8px; font-size: 13px; line-height: 1.2; }
   .urun.var { border-color: var(--cim); background: var(--cim-acik); }
   .urun.yok { opacity: .45; }
+  .gv-bolum { margin-top: 16px; }
+  .gv-bolum > summary { cursor: pointer; font: 700 22px/1.2 "Barlow Condensed", sans-serif; padding: 6px 0 8px; list-style: none; display: flex; align-items: center; gap: 8px; }
+  .gv-bolum.alt > summary { font-size: 18px; }
+  .gv-bolum > summary::-webkit-details-marker { display: none; }
+  .gv-bolum > summary::before { content: "▸"; color: var(--cim); transition: transform .15s; }
+  .gv-bolum[open] > summary::before { transform: rotate(90deg); }
   .video-grup { background: var(--kart); border: 1px solid var(--cizgi); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; }
   .video-grup.acil { border-color: #f2c4c4; background: #fff8f8; }
   .video-grup summary { cursor: pointer; font-weight: 700; font-size: 18px; }
@@ -509,34 +515,33 @@
           <span class="soluk" id="gv-aralik" style="font-size:14px;white-space:nowrap"></span>
           <button type="button" class="dugme ikincil kucuk" id="gv-ileri" aria-label="Sonraki hafta">›</button></span></div>
       <p class="soluk" style="margin-bottom:10px;font-size:14px">Her görevi o gün çalışan (GELDİM diyen) her personel ve temizlik şefi kendi vardiyasında ayrı yapar ve <b>Yaptım</b>'a basar; kimin yapıp kimin beklediği görünür. Onay yöneticiye e-postayla gider. Liste her Pazartesi sıfırlanır.</p>
-      <div class="kutu" id="gv-bugun"></div>
-      <h3 style="margin:20px 0 8px">Haftalık tablo</h3>
-      <div class="kutu gv-tablo-kap"><table class="gv-tablo" id="gv-tablo"></table></div>
-      <div id="gt-alan" hidden>
-        <div class="baslik-satir" style="margin-top:22px"><h2>Temizlik ürünleri stoğu</h2></div>
+      <details class="gv-bolum" data-bolum="bugun" open><summary>Bugünün görevleri</summary>
+        <div class="kutu" id="gv-bugun"></div></details>
+      <details class="gv-bolum" data-bolum="tablo" open><summary>Haftalık tablo</summary>
+        <div class="kutu gv-tablo-kap"><table class="gv-tablo" id="gv-tablo"></table></div></details>
+      <details id="gt-alan" class="gv-bolum" data-bolum="temizlik" open hidden><summary>Temizlik ürünleri stoğu</summary>
         <p class="soluk" style="margin-bottom:8px;font-size:14px">Gelen malı ve sayımı girmek için ürüne dokunun. Sipariş Kasa sayfasından WhatsApp ile verilir.</p>
         <div class="kutu" id="gt-liste"></div>
         <button type="button" class="dugme ikincil kucuk" id="gt-ekle" style="margin-top:8px">+ Temizlik ürünü ekle</button>
-      </div>
-      <div class="baslik-satir" style="margin-top:22px"><h2>Videolar</h2></div>
+      </details>
+      <details class="gv-bolum" data-bolum="videolar" open><summary>Videolar</summary>
       <div id="vd-liste"></div>
-      <div id="vd-duzen-alan" hidden>
-        <form class="kutu" id="vd-form" style="padding:14px;margin-top:10px" novalidate>
-          <b style="display:block;margin-bottom:4px">Videoları düzenle</b>
+      <details id="vd-duzen-alan" class="gv-bolum alt" hidden><summary>Videoları düzenle <small class="soluk">· sadece Admin</small></summary>
+        <form class="kutu" id="vd-form" style="padding:14px;margin-top:4px" novalidate>
           <small class="soluk" style="display:block;margin-bottom:8px">Videoyu YouTube'a <b>"Liste dışı"</b> olarak (ya da Google Drive'a "bağlantıya sahip herkes" ile) yükleyin, bağlantısını buraya yapıştırın.</small>
           <div id="vd-satirlar"></div>
           <button type="button" class="dugme ikincil kucuk" id="vd-ekle">+ Video ekle</button>
           <button type="submit" class="dugme" style="width:100%;margin-top:12px">Videoları kaydet</button>
         </form>
-      </div>
-      <div id="gv-duzen-alan" hidden>
-        <div class="baslik-satir" style="margin-top:22px"><h2>Görev listesi</h2><span class="soluk sag">Sadece Admin</span></div>
+      </details>
+      </details>
+      <details id="gv-duzen-alan" class="gv-bolum" data-bolum="liste" hidden><summary>Görev listesini düzenle <small class="soluk">· sadece Admin</small></summary>
         <form class="kutu" id="gv-form" style="padding:14px" novalidate>
           <div id="gv-satirlar"></div>
           <button type="button" class="dugme ikincil kucuk" id="gv-ekle">+ Görev ekle</button>
           <button type="submit" class="dugme" style="width:100%;margin-top:12px">Görev listesini kaydet</button>
         </form>
-      </div>
+      </details>
     </section>
     <!-- Kullanıcılar (Müdür / Müdür Yardımcısı) -->
     <section id="v-kullanicilar" data-gorunum hidden>
@@ -1978,7 +1983,20 @@
     $("gt-liste").querySelectorAll("[data-gt]").forEach((b) => b.addEventListener("click", () => temizlikDuzenle(tl[b.dataset.gt], temizlikGorevYukle)));
   }
   $("gt-ekle").addEventListener("click", () => temizlikDuzenle(null, temizlikGorevYukle));
+  // Görevler sayfasındaki bölümler açılır-kapanır: Admin'de "Bugün" dışındakiler kapalı başlar; seçim bu cihazda hatırlanır
+  let gvBolumKurulu = false;
+  function gvBolumKur() {
+    if (gvBolumKurulu) return; gvBolumKurulu = true;
+    document.querySelectorAll("#v-gorevler .gv-bolum").forEach((d) => {
+      d.dataset.bolum ||= d.id;
+      const k = `aysu-gv-${ben.rol}-${d.dataset.bolum}`;
+      let kayit = null; try { kayit = localStorage.getItem(k); } catch {}
+      d.open = kayit !== null ? kayit === "1" : (ben.rol === "admin" ? d.dataset.bolum === "bugun" : !["liste", "vd-duzen-alan"].includes(d.dataset.bolum));
+      d.addEventListener("toggle", () => { try { localStorage.setItem(k, d.open ? "1" : "0"); } catch {} });
+    });
+  }
   async function gorevYukle(bas) {
+    gvBolumKur();
     videoYukle(); temizlikGorevYukle();
     const v = await api("gorevler" + (bas ? `?bas=${bas}` : "")).catch(() => null);
     if (!v || v.hata) return bildir(v?.hata || "Görevler yüklenemedi");

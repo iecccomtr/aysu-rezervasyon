@@ -514,11 +514,12 @@ async function panel(request, env, ctx, yol) {
         kime: [ben.eposta], konu: `${k.ad} — ${ay} maaş dökümü: ödenecek ${tl(k.kalan)}`,
         satirlar: [
           ["Çalışan", `${k.ad} (${k.rol})`], ["Saatlik ücret", tl(k.saatlikUcret)],
-          ["Çalışılan", `${sa(k.saat)} (${k.gunler.length} gün, yarım saat yol dahil)`], ["Brüt", tl(k.brut)],
+          ["Çalışılan", `${sa(k.saat)} (${k.gunler.length} gün, yarım saat yol dahil)`],
+          ...(k.ekOdeme ? [[`${KURALLAR.uzunMesaiSaat} saat ve üzeri gün eki`, `+${tl(k.ekOdeme)} (${k.gunler.filter((x) => x.ek).length} gün)`]] : []), ["Brüt", tl(k.brut)],
           ...(k.kesinti ? [["Personel kantini", `−${tl(k.kesinti)}`]] : []),
           ...(k.avans ? [["Avans / ödemeler", `−${tl(k.avans)}`]] : []),
           ["ÖDENECEK", tl(k.kalan)],
-          ...k.gunler.map((x) => [tr(x.gun), `${x.giris || "—"} – ${x.cikis || "açık"} · ${sa(x.saat)}`]),
+          ...k.gunler.map((x) => [tr(x.gun), `${x.giris || "—"} – ${x.cikis || "açık"} · ${sa(x.saat)}${x.ek ? ` · +${tl(x.ek)}` : ""}`]),
           ...(k.kantinListe || []).map((x) => [`Kantin ${tr(x.gun)}`, `${tl(x.tutar)} · ${x.urunler || ""}`]),
           ...(k.avansListe || []).map((x) => [`Avans ${tr(x.gun)}`, `${tl(x.tutar)}${x.not ? " · " + x.not : ""}`]),
         ],
@@ -776,7 +777,8 @@ async function puantajOzetGonder(env, d, ben, r) {
     satirlar: [
       ["Geldim", gunK.giris], ["Çıktım", gunK.cikis], ["Çalışılan (yarım saate yuvarlı)", sa(calisilan)], ["Yol", sa(KURALLAR.puantajYolSaat)],
       ["Toplam", sa(gunK.saat)],
-      ...(kisi.saatlikUcret ? [["Bugünkü ücret", tl(gunK.saat * kisi.saatlikUcret)]] : []),
+      ...(gunK.ek ? [[`${KURALLAR.uzunMesaiSaat} saat ve üzeri çalışma`, `+${tl(gunK.ek)}`]] : []),
+      ...(kisi.saatlikUcret ? [["Bugünkü ücret", tl(gunK.saat * kisi.saatlikUcret + (gunK.ek || 0))]] : []),
       ["Bu ay toplam", `${sa(kisi.saat)}${kisi.saatlikUcret ? " · " + tl(kisi.brut) : ""}`],
       ...(kisi.kesinti ? [["Bu ay personel kantini", `${tl(kisi.kesinti)} (ay sonu maaştan düşülür)`]] : []),
     ],
@@ -794,7 +796,7 @@ async function kasaRaporuGonder(env, d, k, ilk) {
   const ay = await d.puantajAy(k.gun.slice(0, 7)).catch(() => null);
   const calisanlar = (ay?.kisiler || []).map((p) => {
     const g = p.gunler.find((x) => x.gun === k.gun);
-    return g ? { ad: p.ad, rol: p.rol, giris: g.giris, cikis: g.cikis, saat: g.saat, ucret: Math.round(g.saat * (p.saatlikUcret || 0)) } : null;
+    return g ? { ad: p.ad, rol: p.rol, giris: g.giris, cikis: g.cikis, saat: g.saat, ucret: Math.round(g.saat * (p.saatlikUcret || 0)) + (g.ek || 0) } : null;
   }).filter(Boolean);
   const maclar = (k.maclar || []).filter((m) => m.tur !== "bos");
   await epostaYolla(env, {

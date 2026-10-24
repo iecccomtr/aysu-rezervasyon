@@ -67,6 +67,8 @@ export const ANKET_SORULARI = [
 ];
 
 export const KURALLAR = {
+  uzunMesaiSaat: 8,             // yol yarım saati hariç bu kadar (ve fazla) çalışılan güne…
+  uzunMesaiEk: 300,             // …maaşa otomatik eklenen TL
   aboneCayIkram: 14,            // abonelere her maç günü ilk 14 çay ikram (online abone olanlara kendiliğinden tanımlanır)
   aboneGelmiyorSaat: 12,        // abone "bu hafta gelmiyoruz"u maçtan en geç bu kadar saat önce kendi sayfasından bildirir
   aboneEnAzAy: 3,               // yeni aboneler ilk maçtan itibaren bu kadar ay çıkamaz (çıkarsa depozito yanar)

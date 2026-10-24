@@ -1296,7 +1296,20 @@
         <div class="alan"><label for="t-saat">Yeni saat</label><select id="t-saat">${SAATLER.map((x) => `<option${x === s.saat ? " selected" : ""}>${x}</option>`).join("")}</select></div>
       </div>
       <button class="dugme ikincil tam" type="button" id="t-tasi">Abonenin saatini taşı</button>
-      <p class="soluk" style="margin-top:8px;font-size:14px">${g.gun} ${s.saat} saati her hafta için seçilen gün/saate taşınır. Sadece bu hafta gelmeyecekse yukarıdaki "gelmiyor" düğmesini kullanın.</p>`);
+      <p class="soluk" style="margin-top:8px;font-size:14px">${g.gun} ${s.saat} saati her hafta için seçilen gün/saate taşınır. Sadece bu hafta gelmeyecekse yukarıdaki "gelmiyor" düğmesini kullanın.</p>
+      <h3 style="font-size:20px;margin:18px 0 10px">Abonelik</h3>
+      <div style="display:grid;gap:8px">
+        <button class="dugme ikincil tam" type="button" id="t-duzenle">Aboneyi düzenle · abone sayfası</button>
+        <button class="dugme tehlike tam" type="button" id="t-sonlandir">Aboneliği sonlandır (iptal)</button>
+      </div>`);
+    // Takvimdeki abone bilgisi kısaltılmış: düzenleme / sonlandırma için tam kayıt alınır
+    const tamAbone = async () => { const l = await api("aboneler").catch(() => []); return (Array.isArray(l) ? l : []).find((x) => x.id === a.id); };
+    $("t-duzenle").addEventListener("click", async () => { const t = await tamAbone(); if (!t) return dlgUyari("Abone bulunamadı."); aboneForm(t); });
+    $("t-sonlandir").addEventListener("click", async () => {
+      const t = await tamAbone(); if (!t) return dlgUyari("Abone bulunamadı.");
+      aboneForm(t);
+      setTimeout(() => { const b = $("d-sil"); if (b) { b.click(); b.scrollIntoView({ block: "center" }); } }, 50);
+    });
     $("t-tasi").addEventListener("click", async () => {
       const yg = Number($("t-gun").value), ys = $("t-saat").value;
       if (!confirm(`${a.ad}: her hafta ${GUNLER[gunNo(g.tarih)]} ${s.saat} → ${GUNLER[yg]} ${ys} olarak değişsin mi?`)) return;

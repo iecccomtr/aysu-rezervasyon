@@ -1128,13 +1128,15 @@
           <div class="alan"><label for="d-kapora">Alınan kapora</label><input id="d-kapora" placeholder="ör. 1200"></div>
           <div class="alan"><label for="d-not">Not</label><input id="d-not"></div>
         </div>
-        <div class="alan"><label for="d-kod">Ücretsiz maç kodu <small class="soluk">(varsa — maç ücretsiz olur)</small></label><input id="d-kod" autocomplete="off" autocapitalize="characters"></div>
+        ${ben.rol === "admin" ? '<div class="alan"><label for="d-kod">Ücretsiz maç kodu <small class="soluk">(varsa — maç ücretsiz olur)</small></label><input id="d-kod" autocomplete="off" autocapitalize="characters"></div>' : ""}
         <div style="display:flex;gap:18px;flex-wrap:wrap;margin:-2px 0 14px">
           <label style="display:flex;gap:6px;align-items:center;font-weight:600"><input type="checkbox" data-ekstra="spiker"> VIP spiker (+${Number(hafta.fiyat?.spiker ?? 1600).toLocaleString("tr-TR")} TL)</label>
           <label style="display:flex;gap:6px;align-items:center;font-weight:600"><input type="checkbox" data-ekstra="hakem"> VIP hakem (+${Number(hafta.fiyat?.hakem ?? 1000).toLocaleString("tr-TR")} TL)</label>
         </div>
         <button class="dugme tam" type="submit">Rezervasyonu kaydet</button>
+        ${gelmiyor || s.gecmis ? "" : `<button class="dugme ikincil tam" type="button" id="d-abone-yap" style="margin-top:10px">⟳ Bu saate abone kaydet (her hafta ${GUNLER[gunNo(g.tarih)]} ${s.saat})</button>`}
       </form>`);
+    $("d-abone-yap")?.addEventListener("click", () => aboneForm(null, { ad: $("d-ad").value, telefon: $("d-tel").value, not: $("d-not").value, slotlar: [{ gun: gunNo(g.tarih), saat: s.saat }], baslangic: g.tarih }));
     ic.querySelector(".durum-sec").style.gridTemplateColumns = "1fr 1fr";
     const durumAl = durumSeciciBagla(ic);
     setTimeout(() => $("d-ad").focus(), 50);
@@ -1147,7 +1149,7 @@
       e.preventDefault();
       const btn = e.submitter; btn.disabled = true;
       try {
-        const r = await api("rez", { gun: g.tarih, saat: s.saat, ad: $("d-ad").value, telefon: $("d-tel").value, kapora: $("d-kapora").value, not: $("d-not").value, durum: durumAl(), kod: $("d-kod").value.trim() || undefined,
+        const r = await api("rez", { gun: g.tarih, saat: s.saat, ad: $("d-ad").value, telefon: $("d-tel").value, kapora: $("d-kapora").value, not: $("d-not").value, durum: durumAl(), kod: $("d-kod")?.value.trim() || undefined,
           ekstra: [...$("dlg-ic").querySelectorAll("[data-ekstra]:checked")].map((x) => x.dataset.ekstra) });
         if (r.hata) return dlgUyari(r.hata);
         dlg.close(); bildir(`${s.saat} kaydedildi`); haftaYukle();
@@ -1178,6 +1180,7 @@
         <a class="dugme ikincil kucuk" target="_blank" rel="noopener" href="${wa(r.telefon)}?text=${encodeURIComponent(`Merhaba ${r.ad}, Aysu Halı Saha ${tarihYazi(gun)} ${r.saat} rezervasyonunuz hakkında yazıyoruz.`)}">WhatsApp</a>
         <button class="dugme ikincil kucuk" type="button" id="d-musteri">Müşteri kartı</button>
       </div>` : ""}
+      ${r.aboneBasvuru ? `<p class="bilgi" style="background:#f3f6fd;border-color:#b9cdf2;color:#1d3f8a">⟳ <b>Abone başvurusu</b> (kurallar online onaylandı ${kacis(r.aboneBasvuru.kabul || "")}). ${r.aboneId ? "Abone kaydı açıldı." : "Kapora onaylanınca abone kaydı kendiliğinden açılır."} İlk maçta abone ücreti + ${Number(r.aboneBasvuru.depozito || 0).toLocaleString("tr-TR")} TL depozito alınır, kapora düşülür (kasaya kendiliğinden gelir).</p>` : ""}
       ${r.ucretsiz ? `<p class="bilgi" style="background:#e7f6ec;border-color:#9fd3a8;color:#11602a">✓ Ücretsiz maç: ${kacis(r.ucretsiz.neden)}${ben.rol === "admin" ? ` (${kacis(r.ucretsiz.kod)})` : ""}</p>`
         : ben.rol !== "admin" ? "" : `<div class="k-sat" style="grid-template-columns:1fr auto;margin-bottom:12px"><input id="d-kod-uygula" placeholder="Ücretsiz maç kodu" autocomplete="off" style="border:1px solid #b5c3cf;border-radius:8px;padding:8px;font-size:16px">
           <button class="dugme ikincil kucuk" type="button" id="d-kod-btn">Kodu uygula</button></div>`}
@@ -1300,7 +1303,11 @@
       dlg.close(); bildir(`Abone taşındı: her hafta ${GUNLER[yg]} ${ys}`); haftaYukle();
     });
     $("dlg-ic").querySelectorAll("[data-kapsam]").forEach((btn) => btn.addEventListener("click", async () => {
-      const r = await api("abone-atla", { id: a.id, gun: g.tarih, saat: s.saat, gelmiyor: true, kapsam: btn.dataset.kapsam });
+      let r = await api("abone-atla", { id: a.id, gun: g.tarih, saat: s.saat, gelmiyor: true, kapsam: btn.dataset.kapsam });
+      if (r.onayGerekli) {
+        if (!confirm(r.uyari)) return;
+        r = await api("abone-atla", { id: a.id, gun: g.tarih, saat: s.saat, gelmiyor: true, kapsam: btn.dataset.kapsam, zorla: true });
+      }
       if (r.hata) return dlgUyari(r.hata);
       dlg.close(); bildir(`${a.ad} gelmiyor: ${r.sayi} saat boşaldı`); haftaYukle();
     }));
@@ -1367,7 +1374,12 @@
 
   function aboneForm(a, on) {
     const yeni = !a;
-    a = a || { ad: on?.ad || "", telefon: on?.telefon || "", slotlar: [], baslangic: "", not: on?.not || "", ucret: "" };
+    a = a || { ad: on?.ad || "", telefon: on?.telefon || "", slotlar: on?.slotlar || [], baslangic: on?.baslangic || "", not: on?.not || "", ucret: "" };
+    // Yeni kurallar (3 ay taahhüt, ayda 1 iptal): yeni abonelerde açık, kuralsız eski abonelerde kapalı
+    const kuralAcik = yeni ? true : Boolean(a.kural?.yeni);
+    const bugunT = new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10);
+    const ucAySonu = a.kural?.ilkMac ? (() => { const d = new Date(a.kural.ilkMac + "T00:00:00Z"); d.setUTCMonth(d.getUTCMonth() + 3); return d.toISOString().slice(0, 10); })() : null;
+    const taahhutte = Boolean(a.kural?.yeni && ucAySonu && bugunT < ucAySonu);
     let satirlar = slotSatirlari(a.slotlar || []);
     if (!satirlar.length) satirlar = [{ gunler: [], bas: "20:00", son: "20:00" }];
     ac(yeni ? "Yeni abone" : a.ad, `
@@ -1387,6 +1399,12 @@
         </div>
         <div class="alan"><label for="d-depozito">Depozito</label><input id="d-depozito" value="${kacis(a.depozito || "")}" placeholder="ör. 3.200 TL alındı (01.10.2026)"></div>
         <div class="alan"><label for="d-not">Not</label><input id="d-not" value="${kacis(a.not || "")}"></div>
+        <div class="kutu" style="padding:10px;margin-bottom:12px;background:#f3f6fd;border-color:#b9cdf2">
+          <label style="display:flex;gap:8px;align-items:center;font-weight:600"><input type="checkbox" id="d-kural" style="width:20px;height:20px"${kuralAcik ? " checked" : ""}> Abonelik kuralları uygulansın</label>
+          <small class="soluk" style="display:block;margin:4px 0 6px">İlk maçtan itibaren 3 ay çıkamaz (çıkarsa depozito yanar), ayda 1 iptal hakkı. Eski abonelerde kapatabilirsiniz.</small>
+          <div class="alan" style="margin:0"><label for="d-ilk">İlk maç günü (kuralın başladığı gün)</label><input id="d-ilk" type="date" value="${kacis(a.kural?.ilkMac || a.baslangic || "")}"></div>
+          ${taahhutte ? `<small style="color:#b42318;display:block;margin-top:6px">3 aylık taahhüt ${tarihYazi(ucAySonu)} tarihinde doluyor.</small>` : ""}
+        </div>
         <label style="display:flex;gap:8px;align-items:center;font-weight:600;margin-bottom:14px"><input type="checkbox" id="d-veresiye" style="width:20px;height:20px"${(a.veresiye !== undefined ? a.veresiye : [1, 2].includes(Number(a.no))) ? " checked" : ""}> Kantinden veresiye alabilir</label>
         <button class="dugme tam" type="submit">${yeni ? "Aboneyi ekle" : "Kaydet"}</button>
         ${yeni ? "" : '<button class="dugme tehlike tam" type="button" id="d-sil" style="margin-top:10px">Aboneliği sonlandır</button>'}
@@ -1420,7 +1438,7 @@
       if (!slotlar.length) return dlgUyari("En az bir gün seçin.");
       const btn = e.submitter; btn.disabled = true;
       try {
-        const r = await api("abone", { id: yeni ? undefined : a.id, no: $("d-no").value, ad: $("d-ad").value, telefon: $("d-tel").value, slotlar, baslangic: $("d-bas").value, ucret: $("d-ucret").value, depozito: $("d-depozito").value, veresiye: $("d-veresiye").checked, not: $("d-not").value });
+        const r = await api("abone", { id: yeni ? undefined : a.id, no: $("d-no").value, ad: $("d-ad").value, telefon: $("d-tel").value, slotlar, baslangic: $("d-bas").value, ucret: $("d-ucret").value, depozito: $("d-depozito").value, veresiye: $("d-veresiye").checked, not: $("d-not").value, yeniKural: $("d-kural").checked, ilkMac: $("d-ilk").value || $("d-bas").value });
         if (r.hata) return dlgUyari(r.hata);
         dlg.close(); bildir(r.uyari || (yeni ? "Abone eklendi" : "Kaydedildi")); aboneYukle(); if (sekme === "musteriler") musteriYukle();
       } finally { btn.disabled = false; }
@@ -1430,8 +1448,9 @@
       let alan = $("d-sil-neden");
       if (!alan) {
         sil.insertAdjacentHTML("beforebegin", `<div class="alan" style="margin-top:10px;background:#fff1f1;border:1px solid #f2c4c4;border-radius:10px;padding:10px"><label for="d-sil-neden" style="color:#b42318">Sonlandırma açıklaması (zorunlu)</label><textarea id="d-sil-neden" placeholder="Ör. sezon bitti, takım dağıldı"></textarea>
-          <label style="display:flex;gap:8px;align-items:center;font-weight:600;margin-top:8px"><input type="checkbox" id="d-son-mac" style="width:20px;height:20px"${a.depozito ? " checked" : ""}> Son maçı depozito karşılığı ücretsiz oynasın</label>
-          <small class="soluk">İşaretliyse abonenin en yakın saatine ücretsiz, onaylı son maç yazılır.${a.depozito ? ` Depozito: ${kacis(a.depozito)}` : ""}</small></div>`);
+          ${taahhutte ? `<p style="color:#b42318;font-weight:700;margin:8px 0 0">İlk 3 ay dolmadı (${tarihYazi(ucAySonu)} tarihine kadar): kurala göre depozito yanar, ücretsiz son maç verilemez.</p>`
+            : `<label style="display:flex;gap:8px;align-items:center;font-weight:600;margin-top:8px"><input type="checkbox" id="d-son-mac" style="width:20px;height:20px"${a.depozito ? " checked" : ""}> Son maçı depozito karşılığı ücretsiz oynasın</label>
+          <small class="soluk">İşaretliyse abonenin en yakın saatine ücretsiz, onaylı son maç yazılır.${a.depozito ? ` Depozito: ${kacis(a.depozito)}` : ""}</small>`}</div>`);
         $("d-sil-neden").focus(); sil.textContent = "Açıklamayla aboneliği sonlandır"; return;
       }
       const neden = alan.value;

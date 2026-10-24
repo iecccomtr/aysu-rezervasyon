@@ -199,6 +199,12 @@
   .vip { border: 2px solid #f3c97a; background: #fff8ec; border-radius: 12px; padding: 10px 14px 12px; margin: 0 0 16px; }
   .vip legend { font-weight: 700; padding: 0 6px; }
   .vip legend small { font-weight: 400; color: var(--gri, #566270); }
+  .abone-kutu { border: 2px solid #b9cdf2; background: #f3f6fd; border-radius: 12px; padding: 10px 14px 12px; margin: 0 0 16px; }
+  .abone-kutu legend { font-weight: 700; padding: 0 6px; }
+  .abone-bilgi { font-size: 14px; margin: 4px 0 8px; color: var(--murekkep, #10202d); }
+  .abone-kurallar { font-size: 14px; margin: 0 0 8px; padding-left: 20px; color: #3b4a56; }
+  .abone-kurallar li { margin: 3px 0; }
+  .abone-onay { border-top: 1px dashed #b9cdf2; margin-top: 4px; }
   .vip-sec { display: flex; align-items: center; gap: 10px; padding: 8px 0; cursor: pointer; font-weight: 600; }
   .vip-sec input { width: 22px; height: 22px; accent-color: #ef7f1a; }
   .vip-sec span { flex: 1; }
@@ -317,6 +323,15 @@
             <label class="vip-sec"><input type="checkbox" id="vip-hakem" data-ekstra="hakem"><span>VIP hakem</span><b id="vip-hakem-ucret">+1.000 TL</b></label>
             <a href="https://www.kisa.link/tWitL" target="_blank" rel="noopener" style="font-size:14px;display:inline-block;margin-top:6px">▶ VIP maç nasıl oluyor? Örnek videoyu izleyin</a>
             <p class="vip-not">VIP sporcularımıza çaylarımız ve sular ikramımızdır.</p>
+          </fieldset>
+          <fieldset class="abone-kutu">
+            <legend>Abonelik <small>(isteğe bağlı)</small></legend>
+            <label class="vip-sec"><input type="checkbox" id="abone-ol"><span>Bu gün ve saatte <b>her hafta</b> oynamak istiyorum (abone ol)</span></label>
+            <div id="abone-ayrinti" hidden>
+              <p class="abone-bilgi" id="abone-bilgi"></p>
+              <ol class="abone-kurallar" id="abone-kurallar"></ol>
+              <label class="vip-sec abone-onay"><input type="checkbox" id="abone-kabul"><span>Abonelik kurallarını okudum ve kabul ediyorum.</span></label>
+            </div>
           </fieldset>
           <div class="alan">
             <label for="ad">Ad soyad</label>
@@ -530,8 +545,20 @@
     const g = veri.gunler[gunIdx], gn = new Date(g.tarih + "T00:00:00Z").getUTCDay();
     return veri.aboneFiyat && secilenSaat && gn >= 1 && gn <= 5 && !gece(secilenSaat) && secilenSaat < (veri.aboneSaati || "17:00") ? veri.aboneFiyat : veri.fiyat;
   };
-  const toplamUcret = () => sahaUcreti() + seciliEkstralar().reduce((t, x) => t + ((veri.ekstralar || {})[x]?.ucret || 0), 0);
+  const aboneSecili = () => Boolean($("abone-ol")?.checked);
+  const toplamUcret = () => (aboneSecili() ? veri.aboneFiyat : sahaUcreti()) + seciliEkstralar().reduce((t, x) => t + ((veri.ekstralar || {})[x]?.ucret || 0), 0);
   document.querySelectorAll("[data-ekstra]").forEach((x) => x.addEventListener("change", () => { $("ozet-ucret").textContent = tl(toplamUcret()); }));
+  function aboneCiz() {
+    const ac = aboneSecili();
+    $("abone-ayrinti").hidden = !ac;
+    if (ac && veri) {
+      const g = veri.gunler[gunIdx];
+      $("abone-bilgi").innerHTML = `Her hafta <b>${g.gun}${gece(secilenSaat || "08:00") ? " gecesi" : ""} ${secilenSaat || ""}</b> saati size ayrılır. Abone maç ücreti <b>${tl(veri.aboneFiyat)}</b>. İlk maçta 1 maç bedeli <b>${tl(veri.aboneFiyat)} depozito</b> alınır; şimdi ödeyeceğiniz <b>${tl(veri.kapora)} kapora</b> ilk maçın ücreti ve depozitodan düşülür.`;
+      $("abone-kurallar").innerHTML = (veri.aboneKurallari || []).map((k) => `<li>${k.replace(/[<&>]/g, "")}</li>`).join("");
+    }
+    $("ozet-ucret").textContent = tl(toplamUcret());
+  }
+  $("abone-ol").addEventListener("change", aboneCiz);
 
   function formuGuncelle(kaydir) {
     const g = veri.gunler[gunIdx];
@@ -539,7 +566,7 @@
     $("form-uyari").hidden = true;
     if (!secilenSaat) return;
     $("ozet-zaman").textContent = `${g.gun} ${tarihYazi(g.tarih)}${gece(secilenSaat) ? " gecesi" : ""}, ${secilenSaat}`;
-    $("ozet-ucret").textContent = tl(toplamUcret());
+    aboneCiz();
     $("ozet-kapora").textContent = `${tl(veri.kapora)} kapora · kaporaların iadesi yoktur`;
     if (kaydir) $("form-adim").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
   }
@@ -662,6 +689,7 @@
     if (!telefonGecerli(tSade)) return uyar(uyari, "Cep telefonunuzu 05XX XXX XX XX biçiminde, eksiksiz ve doğru yazın.");
     if (tSade !== telefonSade($("telefon2").value)) return uyar(uyari, "İki telefon numarası aynı değil. Lütfen kontrol edin.");
     if (!$("kvkk").checked) return uyar(uyari, "Devam etmek için onay kutusunu işaretleyin.");
+    if (aboneSecili() && !$("abone-kabul").checked) return uyar(uyari, "Abone olmak için abonelik kurallarını okuyup onay kutusunu işaretleyin.");
 
     const g = veri.gunler[gunIdx];
     const btn = $("gonder");
@@ -671,7 +699,7 @@
       if (dogrulamaToken === "") return uyar(uyari, "Güvenlik doğrulamasını tamamlayın, ardından tekrar deneyin.");
       const r = await fetch("/api/rezervasyon", {
         method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ tarih: g.tarih, saat: secilenSaat, ad, telefon, not: $("not").value.trim(), kvkk: true, web: $("web").value, dogrulama: dogrulamaToken, ekstra: seciliEkstralar(), kod: $("kod").value.trim() || undefined }),
+        body: JSON.stringify({ tarih: g.tarih, saat: secilenSaat, ad, telefon, not: $("not").value.trim(), kvkk: true, web: $("web").value, dogrulama: dogrulamaToken, ekstra: seciliEkstralar(), kod: $("kod").value.trim() || undefined, abone: aboneSecili() || undefined, kurallarKabul: aboneSecili() ? $("abone-kabul").checked : undefined }),
       });
       dogrulamaYenile();
       const v = await r.json().catch(() => ({}));
@@ -682,6 +710,7 @@
       }
       ["ad", "telefon", "telefon2", "not", "kod"].forEach((id) => { $(id).value = ""; }); $("kvkk").checked = false; telefonKontrol(); // formu sıfırla
       document.querySelectorAll("[data-ekstra]").forEach((x) => { x.checked = false; });
+      $("abone-ol").checked = false; $("abone-kabul").checked = false; aboneCiz();
       sonRez = { kayitNo: v.kayitNo, telefon };
       window.aysuOlay?.("generate_lead", { currency: "TRY", value: v.ucret || 0, saat: v.saat });
       basariGoster(v, g);
@@ -893,6 +922,7 @@
     // Yeni rezervasyon ekranı: başlangıç hâli
     $("t-baslik").textContent = "Yeriniz opsiyonlandı";
     $("t-aciklama").innerHTML = "Yeriniz kapora gönderimi için <b>15 dakika</b> süreyle adınıza opsiyonlandı; bu sürede saat başkasına verilmez. Kaporayı gönderip dekontu yüklediğinizde rezervasyonunuz kesinleşir. Süre içinde dekont gelmezse yer boşa çıkar.";
+    if (v.abone) $("t-aciklama").innerHTML += " <b>Abonelik:</b> kapora onaylanınca aboneliğiniz açılır ve bu saat her hafta size ayrılır. İlk maçta abone ücreti ve depozitodan kapora düşülerek kalan tutar alınır.";
     $("t-yukleme").hidden = false;
     sayacBaslat(v.opsiyonKalan != null ? Date.now() + v.opsiyonKalan : v.opsiyonBitis);
     durumIzle();

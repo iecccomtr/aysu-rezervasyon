@@ -43,7 +43,19 @@ export const EKSTRALAR = {
   hakem: { ad: "VIP hakem", ucret: 1000 },
 };
 
+/** Abone olurken müşteriye onaylatılan kurallar (yeni aboneler için). Metni buradan güncelleyin. */
+export const ABONE_KURALLARI = [
+  "Abone olurken 1 maç bedeli depozito alınır. Depozito ilk maç günü ödenebilir.",
+  "İlk kez gelen abone adayından rezervasyon için kapora alınır; kapora ilk maçın saha ücreti ve depozitodan düşülür.",
+  "Abonelik ilk maç gününden itibaren başlar. İlk 3 ay içinde abonelikten çıkılamaz; çıkılırsa depozito yanar.",
+  "Her ay en fazla 1 kez, önceden haber vermek koşuluyla maç iptal / erteleme yapılabilir. Fazlasında depozito yanar.",
+  "3 ayı dolduran aboneler, içerideki depozito karşılığında aynı gün ve saatte ücretsiz son maçlarını oynayabilir.",
+  "Kapora iadesi yapılmaz; saat veya gün ertelemesi yapılabilir.",
+];
+
 export const KURALLAR = {
+  aboneEnAzAy: 3,               // yeni aboneler ilk maçtan itibaren bu kadar ay çıkamaz (çıkarsa depozito yanar)
+  aboneAylikIptal: 1,           // yeni aboneler ayda en fazla bu kadar "gelmiyor" (fazlasında depozito yanar)
   enFazlaGunSonra: 27,          // en fazla kaç gün sonrasına rezervasyon alınır (bugün + 27 gün = 4 hafta)
   // Dekont tarihi kontrolü (eski dekontla onay engeli). ŞİMDİLİK KAPALI: denemeler eski dekontla yapılıyor.
   // Canlı kullanıma geçerken true yapın.

@@ -1059,3 +1059,44 @@ test("Kasa gönderilince o günün açık girişlerine ÇIKTIM yazılır", async
   const k = (await d.puantajAy("2026-10")).kisiler.find((x) => x.eposta === "p1@a.com").gunler[0];
   assert.equal(k.cikis, "23:30"); assert.equal(k.acik, false);
 });
+
+test("Online abone başvurusu: kurallar onayı, abone ücreti, kapora onayında abone kaydı, ilk maçta depozito kasada", async () => {
+  const d = demoDepo();
+  saatiAyarla("2026-10-20T10:00");
+  assert.match((await d.olustur({ gunTarihi: "2026-10-22", saat: "21:00", ad: "Yeni Takım", telefon: "05330000021", abone: true })).hata, /kurallar/);
+  const r = await d.olustur({ gunTarihi: "2026-10-22", saat: "21:00", ad: "Yeni Takım", telefon: "05330000021", abone: true, kurallarKabul: true });
+  assert.ok(r.basarili); assert.equal(r.ucret, 3200); assert.ok(r.aboneBasvuru);
+  // kapora onayı
+  await d.dekontSonuc(r.kayitNo, "ozet-abone", { nedenler: [], tutar: 1200, okunan: {} });
+  await d.panelRezGuncelle({ kayitNo: r.kayitNo, kapora: "1200" });
+  const k = await d.aboneBasvuruKabul(r.kayitNo);
+  assert.ok(k.basarili); assert.equal(k.abone.kural.ilkMac, "2026-10-22"); assert.equal(k.abone.baslangic, "2026-10-23");
+  assert.equal(await d.aboneBasvuruKabul(r.kayitNo), null, "ikinci kez açılmaz");
+  // ilk maç günü kasa: abone ücreti + depozito − kapora
+  saatiAyarla("2026-10-22T22:00");
+  const ks = await d.kasaGetir("2026-10-22", { ad: "Admin", rol: "admin", eposta: "a@a.com" });
+  const m = ks.kayit.maclar.find((x) => x.saat === "21:00");
+  assert.equal(m.ucret, 3200 + 3200); assert.equal(m.onOdeme, 1200); assert.equal(m.tur, "abone");
+  // sonraki hafta abone slotu
+  assert.equal(await tur(d, "2026-10-29", "21:00"), "abone");
+});
+
+test("Yeni abone kuralları: 3 ay dolmadan ücretsiz son maç yok; ayda 1 iptal, fazlası onay ister", async () => {
+  const d = demoDepo();
+  saatiAyarla("2026-10-20T10:00");
+  const a = (await d.aboneKaydet({ ad: "Kurallı", telefon: "05330000022", gun: 3, saat: "20:00", yeniKural: true, ilkMac: "2026-10-22" })).abone;
+  const r1 = await d.aboneAtla({ id: a.id, gun: "2026-10-22", saat: "20:00", gelmiyor: true });
+  assert.ok(r1.basarili);
+  const r2 = await d.aboneAtla({ id: a.id, gun: "2026-10-29", saat: "20:00", gelmiyor: true });
+  assert.ok(r2.onayGerekli);
+  const r3 = await d.aboneAtla({ id: a.id, gun: "2026-10-29", saat: "20:00", gelmiyor: true, zorla: true });
+  assert.ok(r3.basarili && r3.hakAsildi);
+  assert.ok((await d.aboneAtla({ id: a.id, gun: "2026-11-05", saat: "20:00", gelmiyor: true })).basarili, "yeni ay yeni hak");
+  assert.match((await d.aboneSil(a.id, { sonMacUcretsiz: true })).hata, /3 ay/);
+  const s = await d.aboneSil(a.id, {});
+  assert.ok(s.basarili && s.depozitoYandi);
+  // eski abone (kuralsız): sınır yok
+  const e = (await d.aboneKaydet({ ad: "Eski", gun: 4, saat: "20:00" })).abone;
+  await d.aboneAtla({ id: e.id, gun: "2026-10-23", saat: "20:00", gelmiyor: true });
+  assert.ok((await d.aboneAtla({ id: e.id, gun: "2026-10-30", saat: "20:00", gelmiyor: true })).basarili);
+});

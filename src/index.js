@@ -2,7 +2,7 @@
 // Statik sayfalar /public klasöründen sunulur; /api/* istekleri burada işlenir.
 
 import { simdi, isletmeGunu, gunEkle, haftaBasi } from "./time.js";
-import { KURALLAR, FIYATLAR, IBAN, ISLETME, EKSTRALAR } from "./config.js";
+import { KURALLAR, FIYATLAR, IBAN, ISLETME, EKSTRALAR, ABONE_KURALLARI } from "./config.js";
 import { bildir, epostaYolla, epostaKurulu } from "./bildirim.js";
 import * as bildirimModulu from "./bildirim.js";
 import { TESIS_KURALLARI } from "./tesis-kurallari.js";
@@ -278,7 +278,8 @@ async function panel(request, env, ctx, yol) {
     const g = (await govdeOku(request)) || {};
     const r = await d.gorevYap(g.id, g.not, ben);
     if (r.hata) return json(r, 400);
-    const kime = (await d.rolEpostalari(["admin", "mudur", "mudur_yrd"])).filter((e) => e !== ben.eposta);
+    // Görev bilgisi o gün çalışan (GELDİM diyen) yöneticiye gider; Admin'e gitmez
+    const kime = (await d.gununYoneticileri(r.gun)).filter((e) => e !== ben.eposta);
     ctx.waitUntil(epostaYolla(env, {
       kime, konu: `Görev yapıldı: ${r.gorev.ad} — ${r.kayit.ad}`,
       satirlar: [["Görev", r.gorev.ad], ["Yapan", `${r.kayit.ad}${r.kayit.rol ? " (" + r.kayit.rol + ")" : ""}`],
@@ -323,7 +324,7 @@ async function panel(request, env, ctx, yol) {
   switch (`${request.method} ${yol}`) {
     case "POST rez": {
       const r = await d.panelRezEkle({
-        gunTarihi: g.gun, saat: g.saat, ad: g.ad, telefon: g.telefon, not: g.not, durum: g.durum, kapora: g.kapora, ekstra: g.ekstra, kod: g.kod,
+        gunTarihi: g.gun, saat: g.saat, ad: g.ad, telefon: g.telefon, not: g.not, durum: g.durum, kapora: g.kapora, ekstra: g.ekstra, kod: ben.rol === "admin" ? g.kod : "", // ücretsiz kod sadece Admin
       });
       // Panelden (telefonla) alınan maç: Admin + Müdür + Müdür Yardımcısı'na bilgi
       if (r.basarili) yoneticiBildir(`Yeni maç kaydı: ${r.gun} ${trTarih(r.tarih)} ${r.saat} — ${r.ad}`, [
@@ -337,6 +338,7 @@ async function panel(request, env, ctx, yol) {
       return degisti(await d.rezKodUygula(g, ben));
     case "POST rez-guncelle": {
       const r = await d.panelRezGuncelle(g);
+      if (r.basarili && r.rez?.aboneBasvuru && r.rez.durum === "Onaylı" && !r.rez.aboneId) ctx.waitUntil(aboneBasvuruIsle(env, d, r.rez.kayitNo).catch(() => {}));
       if (r.basarili && (r.degisen || []).some((x) => x.startsWith("Durum: Onaylı → İptal"))) {
         ctx.waitUntil(iptalBildir(env, d, { ...r.rez, kimden: `${ben.ad} (${ROLLER[ben.rol]?.ad || ""}, panel)` }));
       }
@@ -357,7 +359,7 @@ async function panel(request, env, ctx, yol) {
       const ad = ab ? `${ab.no ? "Abone " + ab.no + " · " : ""}${ab.ad}` : g.id;
       if (r && r.basarili) aboneBildir(`Abonelik sonlandırıldı: ${ad}`, [["Abone", ad], ["Açıklama", String(g.neden).slice(0, 300)],
         ["Son maç", r.sonMac?.kayitNo ? `${trTarih(r.sonMac.g)} ${r.sonMac.saat} — depozito karşılığı ücretsiz` : r.sonMac?.hata ? `yazılamadı: ${r.sonMac.hata}` : "yok (saatleri boşa çıktı)"],
-        ...(ab?.depozito ? [["Depozito", ab.depozito]] : [])]);
+        ...(ab?.depozito ? [["Depozito", `${ab.depozito}${r.depozitoYandi ? " — ilk 3 ay dolmadığı için YANDI" : ""}`]] : r.depozitoYandi ? [["Depozito", "İlk 3 ay dolmadığı için yandı"]] : [])]);
       return degisti(r && r.basarili ? { ...r, ad } : r);
     }
     case "POST abone-atla": {
@@ -366,7 +368,8 @@ async function panel(request, env, ctx, yol) {
         const ad = `${r.no ? "Abone " + r.no + " · " : ""}${r.ad}`;
         aboneBildir(g.gelmiyor ? `${ad} bu hafta gelmiyor` : `${ad} yine geliyor (gelmiyor işareti kaldırıldı)`, [
           ["Abone", ad], [g.gelmiyor ? "Gelmeyeceği maç" : "Geleceği maç", r.tarihler.map((t) => `${trTarih(t.slice(0, 10))} ${t.slice(11)}`).join(", ")],
-          ["Durum", g.gelmiyor ? "Saat boşa çıktı, rezervasyona açık" : "Saat yeniden aboneye ayrıldı"]]);
+          ["Durum", g.gelmiyor ? "Saat boşa çıktı, rezervasyona açık" : "Saat yeniden aboneye ayrıldı"],
+          ...(r.hakAsildi ? [["Kural", "Bu ay iptal hakkı aşıldı — kurala göre depozito yanar"]] : [])]);
       }
       return degisti(r);
     }
@@ -609,7 +612,7 @@ async function guvenliIban(env, d, ctx, nereden = "") {
 }
 
 const rezCevap = (r, ib) => ({
-  basarili: true, kayitNo: r.kayitNo, tarih: r.tarih, gun: r.gun, saat: r.saat, durum: r.durum, ucretsiz: Boolean(r.ucretsiz),
+  basarili: true, kayitNo: r.kayitNo, tarih: r.tarih, gun: r.gun, saat: r.saat, durum: r.durum, ucretsiz: Boolean(r.ucretsiz), abone: Boolean(r.aboneBasvuru),
   ucret: r.ucret, kapora: r.ucretsiz ? 0 : r.kaporaTutar ?? FIYATLAR.kapora, kalan: r.ucret - (r.ucretsiz ? 0 : r.kaporaTutar ?? FIYATLAR.kapora),
   iban: ib?.no || null, alici: ib?.alici || null, opsiyonBitis: r.opsiyonBitis || null, dekont: Boolean(r.dekont),
   // Telefon saati yanlış olabilir: kalan süre sunucudan milisaniye olarak
@@ -628,7 +631,25 @@ async function dekontKontrolEt(env, d, rez, veri) {
   const okunan = await dekontOku(env, { tur: rez.dekont.tur, veri }, { yeterli: (o) => dekontDegerlendir(o, kurallar).onay });
   const deger = dekontDegerlendir(okunan, kurallar);
   const k = await d.dekontSonuc(rez.kayitNo, await ozet(veri), deger);
+  if (k.onay && k.rez?.aboneBasvuru) await aboneBasvuruIsle(env, d, rez.kayitNo).catch((e) => console.error("Abone başvurusu", e));
   return { okunan, k, deger };
+}
+
+/** Kaporası onaylanan abone başvurusu → abone kaydı + yöneticilere e-posta */
+async function aboneBasvuruIsle(env, d, kayitNo) {
+  const r = await d.aboneBasvuruKabul(kayitNo);
+  if (!r) return;
+  const kime = await d.rolEpostalari(["admin", "mudur", "mudur_yrd"]);
+  const rz = r.rez || {};
+  await epostaYolla(env, {
+    kime, konu: r.basarili ? `Yeni abone (online): ${rz.ad} — her hafta ${rz.gun} ${rz.saat}` : `Abone başvurusu kaydedilemedi: ${rz.ad}`,
+    satirlar: [["Abone", `${r.abone ? "Abone " + r.abone.no + " · " : ""}${rz.ad}`], ["Telefon", rz.telefon || "—"],
+      ["İlk maç", `${trTarih(r.ilkMac || rz.isletmeGunu)} ${rz.saat}`], ["Her hafta", `${rz.gun} ${rz.saat}`],
+      ["Kapora", rz.kapora || "—"], ["İlk maçta alınacak", `Abone ücreti + ${Number(rz.aboneBasvuru?.depozito || 0).toLocaleString("tr-TR")} TL depozito − kapora`],
+      ["Kurallar", "Müşteri abonelik kurallarını online onayladı (" + (rz.aboneBasvuru?.kabul || "") + ")"],
+      ...(r.uyari ? [["Uyarı", r.uyari]] : []), ...(r.hata ? [["Hata", r.hata]] : [])],
+    alt: "Aysu Halı Saha · abone bildirimi",
+  });
 }
 
 /** Yeni kayıt: Admin ve Müdür(ler)e tek tıkla onay bağlantısı. */
@@ -794,7 +815,7 @@ export default {
         try {
           const f = await depo(env).fiyatAyar();
           return json({
-            gunler: await gunleriGetir(env), fiyat: f.mac, aboneFiyat: f.abone, aboneSaati: KURALLAR.aboneUcretSaati, kapora: f.kapora,
+            gunler: await gunleriGetir(env), fiyat: f.mac, aboneFiyat: f.abone, aboneSaati: KURALLAR.aboneUcretSaati, aboneKurallari: ABONE_KURALLARI, kapora: f.kapora,
             ekstralar: { spiker: { ad: EKSTRALAR.spiker.ad, ucret: f.spiker }, hakem: { ad: EKSTRALAR.hakem.ad, ucret: f.hakem } },
             dogrulama: env.TURNSTILE_SITE_KEY || null,
           });
@@ -827,7 +848,7 @@ export default {
       if (g.kvkk !== true) return json({ hata: "Devam etmek için aydınlatma metnini onaylayın." }, 400);
       if (!(await insanMi(env, request, g.dogrulama))) return robotHatasi();
       try {
-        const r = await depo(env).olustur({ gunTarihi: g.tarih, saat: g.saat, ad: g.ad, telefon: g.telefon, not: g.not || "", ekstra: g.ekstra, kod: g.kod });
+        const r = await depo(env).olustur({ gunTarihi: g.tarih, saat: g.saat, ad: g.ad, telefon: g.telefon, not: g.not || "", ekstra: g.ekstra, kod: g.abone ? "" : g.kod, abone: Boolean(g.abone), kurallarKabul: Boolean(g.kurallarKabul) });
         if (!r.basarili) return json(r, 409);
         onbellegiTemizle(request, ctx);
         // Ücretsiz kodla yapılan rezervasyon hemen kesinleşir: yöneticilere bilgi

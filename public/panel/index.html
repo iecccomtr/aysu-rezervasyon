@@ -216,6 +216,7 @@
   .gv-tablo tr.bugun th { background: #fff3e0; }
   .gv-tablo td.ok { background: #e7f6ec; color: #1a7f37; font-weight: 700; }
   .gv-tablo td.eksik { background: #fdecec; }
+  .gv-tablo td.kismi { background: #fff6c2; color: #6b5900; font-weight: 700; }
   .gv-tablo td small { display: block; font-weight: 400; color: #3d5a45; }
   .gv-tablo .x-sil { width: 20px; height: 20px; font-size: 13px; line-height: 1; margin-top: 2px; }
   .ipucu { position: fixed; z-index: 50; background: #062a45; color: #fff; padding: 8px 10px; border-radius: 10px; font-size: 13px; line-height: 1.4; white-space: pre-line; pointer-events: none; box-shadow: 0 6px 20px rgba(0,0,0,.25); }
@@ -507,7 +508,7 @@
           <button type="button" class="dugme ikincil kucuk" id="gv-geri" aria-label="Önceki hafta">‹</button>
           <span class="soluk" id="gv-aralik" style="font-size:14px;white-space:nowrap"></span>
           <button type="button" class="dugme ikincil kucuk" id="gv-ileri" aria-label="Sonraki hafta">›</button></span></div>
-      <p class="soluk" style="margin-bottom:10px;font-size:14px">Personel ve temizlik şefi işi bitirince <b>Yaptım</b>'a basar; onay saatiyle yöneticilere e-postayla gider. Müdür ve Müdür Yardımcısı sadece izler. Liste her Pazartesi sıfırlanır.</p>
+      <p class="soluk" style="margin-bottom:10px;font-size:14px">Her görevi o gün çalışan (GELDİM diyen) her personel ve temizlik şefi kendi vardiyasında ayrı yapar ve <b>Yaptım</b>'a basar; kimin yapıp kimin beklediği görünür. Onay yöneticiye e-postayla gider. Liste her Pazartesi sıfırlanır.</p>
       <div class="kutu" id="gv-bugun"></div>
       <h3 style="margin:20px 0 8px">Haftalık tablo</h3>
       <div class="kutu gv-tablo-kap"><table class="gv-tablo" id="gv-tablo"></table></div>
@@ -1990,15 +1991,27 @@
     const tr = (t) => t.slice(8) + "." + t.slice(5, 7);
     $("gv-aralik").textContent = `${tr(gv.gunler[0])} – ${tr(gv.gunler[6])}`;
     const bugun = gv.yapilan[gv.bugun];
-    $("gv-bugun").innerHTML = bugun ? `<div class="gv-sat" style="background:#062a45;color:#fff"><b>Bugün · ${GUNLER[gv.gunler.indexOf(gv.bugun)]} ${tr(gv.bugun)}</b><span></span><b>${Object.keys(bugun).length}/${gv.gorevler.length}</b></div>` +
-      gv.gorevler.map((g) => { const y = bugun[g.id]; return `<div class="gv-sat${y ? " tamam" : ""}">
-        <span><b>${kacis(g.ad)}</b>${g.aciklama ? `<small>${kacis(g.aciklama)}</small>` : ""}${g.rol !== "hepsi" ? `<small>Sorumlu: ${GV_ROL[g.rol]}</small>` : ""}</span>
-        ${y ? `<span class="gv-ok" style="flex:none">✓ ${kacis(y.ad.split(" ")[0])}<small>${y.saat}</small></span>`
-            : gvYapabilir() ? `<button type="button" class="dugme kucuk" data-gv-yap="${kacis(g.id)}" style="flex:none">Yaptım ✓</button>` : '<span class="soluk" style="flex:none;font-size:13px">Bekliyor</span>'}</div>`; }).join("")
+    // Her görev o gün çalışan her personel / temizlik şefi için ayrı: kim yaptı, kim bekliyor
+    const ilkAd = (x) => kacis(String(x || "").split(" ")[0]);
+    const gerekenler = (gun, g) => (gv.calisanlar?.[gun] || []).filter((c) => g.rol === "hepsi" || g.rol === c.rol);
+    const durum = (gun, g) => {
+      const yap = gv.yapilan[gun]?.[g.id] || [], ger = gerekenler(gun, g);
+      const bekleyen = ger.filter((c) => !yap.some((y) => y.eposta === c.eposta));
+      return { yap, ger, bekleyen };
+    };
+    const benimki = (g) => (bugun?.[g.id] || []).find((y) => y.eposta === ben.eposta);
+    const tamamSay = bugun ? gv.gorevler.filter((g) => { const d = durum(gv.bugun, g); return d.yap.length && !d.bekleyen.length; }).length : 0;
+    $("gv-bugun").innerHTML = bugun ? `<div class="gv-sat" style="background:#062a45;color:#fff"><b>Bugün · ${GUNLER[gv.gunler.indexOf(gv.bugun)]} ${tr(gv.bugun)}</b><span></span><b>${tamamSay}/${gv.gorevler.length}</b></div>` +
+      gv.gorevler.map((g) => { const d = durum(gv.bugun, g), m = benimki(g); return `<div class="gv-sat${d.yap.length && !d.bekleyen.length ? " tamam" : ""}">
+        <span><b>${kacis(g.ad)}</b>${g.aciklama ? `<small>${kacis(g.aciklama)}</small>` : ""}${g.rol !== "hepsi" ? `<small>Sorumlu: ${GV_ROL[g.rol]}</small>` : ""}
+          ${d.yap.length ? `<small style="color:#1a7f37">✓ ${d.yap.map((y) => `${ilkAd(y.ad)} ${y.saat}`).join(", ")}</small>` : ""}
+          ${d.bekleyen.length ? `<small style="color:#b42318">Bekleyen: ${d.bekleyen.map((c) => ilkAd(c.ad)).join(", ")}</small>` : ""}</span>
+        ${m ? `<span class="gv-ok" style="flex:none">✓ Yaptınız<small>${m.saat}</small></span>`
+            : gvYapabilir() ? `<button type="button" class="dugme kucuk" data-gv-yap="${kacis(g.id)}" style="flex:none">Yaptım ✓</button>` : '<span class="soluk" style="flex:none;font-size:13px">İzleme</span>'}</div>`; }).join("")
       : '<p class="soluk" style="padding:14px">Bugünü görmek için bu haftaya dönün.</p>';
     $("gv-bugun").querySelectorAll("[data-gv-yap]").forEach((b) => b.addEventListener("click", async () => {
       const g = gv.gorevler.find((x) => x.id === b.dataset.gvYap);
-      if (!confirm(`"${g.ad}" yapıldı olarak onaylansın mı? Yöneticilere e-posta gider.`)) return;
+      if (!confirm(`"${g.ad}" görevini yaptığınızı onaylıyor musunuz? Yöneticiye e-posta gider.`)) return;
       b.disabled = true;
       const r = await api("gorev", { id: g.id });
       if (r.hata) { b.disabled = false; bildir(r.hata); return gorevYukle(gvBas); }
@@ -2008,14 +2021,16 @@
     $("gv-geri").hidden = $("gv-ileri").hidden = !y;
     $("gv-tablo").innerHTML = `<thead><tr><th>Gün</th>${gv.gorevler.map((g) => `<th>${kacis(g.ad)}</th>`).join("")}</tr></thead><tbody>${
       gv.gunler.map((gun, i) => `<tr${gun === gv.bugun ? ' class="bugun"' : ""}><th>${KISA[i]} ${tr(gun)}</th>${gv.gorevler.map((g) => {
-        const x = gv.yapilan[gun]?.[g.id];
-        if (x) return `<td class="ok" title="${kacis(x.ad)} ${x.saat}">✓<small>${kacis(x.ad.split(" ")[0])} ${x.saat}</small>${y ? `<button type="button" class="x-sil" data-gv-geri="${gun}|${kacis(g.id)}" aria-label="Geri al">×</button>` : ""}</td>`;
-        return `<td class="${gun < gv.bugun ? "eksik" : ""}">${gun < gv.bugun ? "—" : ""}</td>`;
+        const d = durum(gun, g);
+        if (!d.yap.length && !d.ger.length) return `<td class="${gun < gv.bugun ? "eksik" : ""}">${gun < gv.bugun ? "—" : ""}</td>`;
+        const tam = d.yap.length && !d.bekleyen.length;
+        return `<td class="${tam ? "ok" : d.yap.length ? "kismi" : gun <= gv.bugun ? "eksik" : ""}">${tam ? "✓" : `${d.yap.length}/${Math.max(d.ger.length, d.yap.length)}`}
+          ${d.yap.map((x) => `<small>${ilkAd(x.ad)} ${x.saat}${y ? ` <button type="button" class="x-sil" data-gv-geri="${kacis(x.anahtar)}" aria-label="Geri al">×</button>` : ""}</small>`).join("")}
+          ${d.bekleyen.map((c) => `<small style="color:#b42318">${ilkAd(c.ad)} —</small>`).join("")}</td>`;
       }).join("")}</tr>`).join("")}</tbody>`;
     $("gv-tablo").querySelectorAll("[data-gv-geri]").forEach((b) => b.addEventListener("click", async () => {
-      const [gun, id] = b.dataset.gvGeri.split("|");
       if (!confirm("Bu onay geri alınsın mı?")) return;
-      const r = await api("gorev/geri", { gun, id });
+      const r = await api("gorev/geri", { anahtar: b.dataset.gvGeri });
       bildir(r.hata || "Geri alındı"); gorevYukle(gvBas);
     }));
   }

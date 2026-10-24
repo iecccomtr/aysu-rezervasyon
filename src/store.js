@@ -1901,40 +1901,55 @@ export class RezervasyonDeposu extends DurableObject {
     });
   }
 
+  /**
+   * Haftalık görev tablosu. Her görev o gün çalışan (GELDİM diyen) her personel / temizlik şefi için ayrı yapılır:
+   *   gv:<gün>:<görev>:<eposta>  (eski kayıtlar gv:<gün>:<görev>)
+   */
   async gorevHafta(bas) {
     const b = haftaBasi(/^\d{4}-\d{2}-\d{2}$/.test(bas || "") ? bas : bugunIsletme());
     const gunler = Array.from({ length: 7 }, (_, i) => gunEkle(b, i));
-    const yapilan = {};
+    const kullanicilar = await this.kullaniciListesi();
+    const yapilan = {}, calisanlar = {};
     for (const gun of gunler) {
       const m = await this.st.list({ prefix: `gv:${gun}:` });
       yapilan[gun] = {};
-      for (const [k, v] of m) yapilan[gun][k.split(":")[2]] = { ...v, saat: zamanYazi(v.zaman) };
+      for (const [k, v] of m) {
+        const id = k.split(":")[2];
+        (yapilan[gun][id] ||= []).push({ ...v, saat: zamanYazi(v.zaman), anahtar: k });
+      }
+      // O gün GELDİM diyen personel / temizlik şefi (görevleri yapması gerekenler)
+      const p = await this.st.list({ prefix: `p:${gun}:` });
+      calisanlar[gun] = [...p.entries()].map(([k, v]) => {
+        const e = k.split(":").slice(2).join(":"), u = kullanicilar.find((x) => x.eposta === e);
+        return u && ["personel", "temizlik"].includes(u.rol) && v.giris ? { eposta: e, ad: u.ad, rol: u.rol } : null;
+      }).filter(Boolean);
     }
-    return { bas: b, bugun: bugunIsletme(), gunler, gorevler: await this.gorevler(), yapilan };
+    return { bas: b, bugun: bugunIsletme(), gunler, gorevler: await this.gorevler(), yapilan, calisanlar };
   }
 
-  /** Bugünün görevini "yaptım" olarak işaretler (sadece bugün; geçmişi Admin/Müdür düzeltir). */
+  /** Bugünün görevini kişi kendi adına "yaptım" olarak işaretler (her çalışan kendi vardiyasında ayrı yapar). */
   async gorevYap(id, not, yapan) {
     return this.kilitli(async () => {
       if (!["admin", "temizlik", "personel"].includes(yapan?.rol)) return { hata: "Görevleri personel ve temizlik şefi onaylar; Müdür ve Müdür Yardımcısı sadece görür." };
       const g = (await this.gorevler()).find((x) => x.id === id);
       if (!g) return { hata: "Görev bulunamadı." };
-      const gun = bugunIsletme(), k = `gv:${gun}:${id}`;
-      const onceki = await this.st.get(k);
-      if (onceki) return { hata: `${g.ad} bugün zaten ${onceki.ad} tarafından onaylandı (${zamanYazi(onceki.zaman)}).` };
+      const gun = bugunIsletme(), k = `gv:${gun}:${id}:${yapan.eposta}`;
+      const onceki = (await this.st.get(k)) || (await this.st.get(`gv:${gun}:${id}`).then((v) => (v?.eposta === yapan.eposta ? v : null)));
+      if (onceki) return { hata: `${g.ad} görevini bugün zaten onayladınız (${zamanYazi(onceki.zaman)}).` };
       const kayit = { eposta: yapan.eposta, ad: yapan.ad, rol: ROLLER[yapan.rol]?.ad || "", zaman: Date.now(), not: kirp(not, 200) };
       await this.st.put(k, kayit);
       return { basarili: true, gun, gorev: g, kayit: { ...kayit, saat: zamanYazi(kayit.zaman) } };
     });
   }
 
-  async gorevGeriAl(gun, id, yapan) {
+  async gorevGeriAl(anahtar, yapan) {
     return this.kilitli(async () => {
       if (yapan?.rol !== "admin") return { hata: "Onayı sadece Admin geri alabilir." };
-      const k = `gv:${gun}:${id}`, v = await this.st.get(k);
+      if (!/^gv:\d{4}-\d{2}-\d{2}:/.test(String(anahtar || ""))) return { hata: "Kayıt yok." };
+      const v = await this.st.get(anahtar);
       if (!v) return { hata: "Kayıt yok." };
-      await this.st.delete(k);
-      await this.kayitTut(yapan, "Görev onayını geri aldı", `${gun} ${id} (${v.ad})`);
+      await this.st.delete(anahtar);
+      await this.kayitTut(yapan, "Görev onayını geri aldı", `${anahtar.split(":").slice(1, 3).join(" ")} (${v.ad})`);
       return { basarili: true };
     });
   }

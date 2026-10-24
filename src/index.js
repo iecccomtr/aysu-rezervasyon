@@ -547,7 +547,7 @@ async function panel(request, env, ctx, yol) {
     case "POST videolar": { const r = await d.videolarKaydet(g.liste, ben); return json(r, r.hata ? 400 : 200); }
     case "POST gorevler": { const r = await d.gorevlerKaydet(g.liste, ben); return json(r, r.hata ? 400 : 200); }
     case "POST gorev/geri": // sadece Admin (depo kontrol eder)
-      { const r = await d.gorevGeriAl(g.gun, g.id, ben); return json(r, r.hata ? 400 : 200); }
+      { const r = await d.gorevGeriAl(g.anahtar || `gv:${g.gun}:${g.id}`, ben); return json(r, r.hata ? 400 : 200); }
     case "GET rehber": return json(await d.rehber());
     case "POST rehber": { const r = await d.rehberKaydet(g.liste, ben); return json(r, r.hata ? 400 : 200); }
     case "GET urunler": return json(alisGizle({ urunler: await d.urunlerGorunum() }, ben).urunler);

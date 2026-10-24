@@ -202,6 +202,7 @@
   .aciklama-not { background: #fff8ec; border: 1px solid #f3c97a; border-radius: 10px; padding: 8px 10px; font-size: 14px; }
   .t-mac { font: 700 22px/1.2 "Barlow Condensed", sans-serif; color: var(--cim); background: #eaf3fb; border: 1px solid #b9d6ee; border-radius: 12px; padding: 8px 12px; margin: 6px 0 10px; display: inline-block; }
   .t-mac:empty { display: none; }
+  .abone-bant { background: #f3f6fd; border: 2px solid #b9cdf2; color: #1d3f8a; border-radius: 12px; padding: 10px 14px; margin: 0 0 12px; font-size: 15px; }
   .abone-kutu { border: 2px solid #b9cdf2; background: #f3f6fd; border-radius: 12px; padding: 10px 14px 12px; margin: 0 0 16px; }
   .abone-kutu legend { font-weight: 700; padding: 0 6px; }
   .abone-bilgi { font-size: 14px; margin: 4px 0 8px; color: var(--murekkep, #10202d); }
@@ -308,6 +309,7 @@
       </section>
 
       <section class="adim" aria-labelledby="b-saat">
+        <div class="abone-bant" id="abone-bant" hidden>⟳ <b>Abone kaydı:</b> her hafta oynamak istediğiniz gün ve saati seçin. Bilgilerinizi yazarken abonelik kurallarını onaylayacaksınız.</div>
         <div class="adim-baslik"><h2 id="b-saat">Saat seçin</h2><span id="fiyat-not"></span></div>
         <div class="tabela" id="tabela" aria-live="polite">
           <p class="bos-mesaj">Yükleniyor…</p>
@@ -577,7 +579,11 @@
   $("abone-ol").addEventListener("change", aboneCiz);
   $("abone-dep").addEventListener("change", aboneCiz);
 
+  // aysuhalisaha.com/abone-ol (duvardaki QR): abonelik seçili gelir
+  const aboneModu = new URLSearchParams(location.search).get("abone") === "1";
+  if (aboneModu) { $("abone-bant").hidden = false; }
   function formuGuncelle(kaydir) {
+    if (aboneModu && !$("abone-ol").dataset.ilk) { $("abone-ol").checked = true; $("abone-ol").dataset.ilk = "1"; }
     const g = veri.gunler[gunIdx];
     $("form-adim").hidden = !secilenSaat;
     $("form-uyari").hidden = true;

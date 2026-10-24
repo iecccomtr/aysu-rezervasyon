@@ -1143,6 +1143,8 @@ export default {
     if (yol === "/rezervasyon") return Response.redirect(url.origin + "/rezervasyon/", 301);
     // SMS için kısa bağlantı: aysuhalisaha.com/r
     if (yol === "/r" || yol === "/r/") return Response.redirect(url.origin + "/rezervasyon/", 302);
+    // Duvardaki "Abone kayıt" QR'ı: rezervasyon sayfası abonelik seçili açılır
+    if (yol === "/abone-ol" || yol === "/abone-ol/") return Response.redirect(url.origin + "/rezervasyon/?abone=1", 302);
     // Rezervasyon kontrol sayfası: temiz adres /rezervasyon/kontrol (eski ?kontrol / ?iptal adresleri yönlenir)
     if (yol === "/rezervasyon/" && (url.searchParams.has("kontrol") || url.searchParams.has("iptal"))) {
       return Response.redirect(url.origin + "/rezervasyon/kontrol", 301);

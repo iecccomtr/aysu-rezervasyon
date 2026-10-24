@@ -209,6 +209,7 @@
   .abone-kurallar { font-size: 14px; margin: 0 0 8px; padding-left: 20px; color: #3b4a56; }
   .abone-kurallar li { margin: 3px 0; }
   .abone-dep { border-top: 1px dashed #b9cdf2; margin-top: 4px; }
+  .odeme-simdi { display: block; font-size: 17px; color: #8a4b00; background: #fff3e0; border-radius: 8px; padding: 6px 8px; margin-bottom: 6px; }
   .abone-odeme { background: #fff; border: 1px solid #b9cdf2; border-radius: 10px; padding: 8px 10px; }
   .abone-onay { border-top: 1px dashed #b9cdf2; margin-top: 4px; }
   .vip-sec { display: flex; align-items: center; gap: 10px; padding: 8px 0; cursor: pointer; font-weight: 600; }
@@ -571,8 +572,8 @@
       const dep = veri.aboneFiyat, vip = toplamUcret() - veri.aboneFiyat;
       $("abone-dep-tutar").textContent = tl(dep);
       $("abone-odeme").innerHTML = $("abone-dep").checked
-        ? `<b>Şimdi IBAN'a:</b> ${tl(dep)} depozito<br><b>Maç günü sahada:</b> ${tl(veri.aboneFiyat + vip)} maç ücreti`
-        : `<b>Şimdi IBAN'a:</b> ${tl(veri.kapora)} kapora<br><b>Maç günü sahada:</b> kalan ${tl(veri.aboneFiyat + vip - veri.kapora)} maç ücreti + ${tl(dep)} depozito = <b>${tl(veri.aboneFiyat + vip - veri.kapora + dep)}</b>`;
+        ? `<span class="odeme-simdi">Şimdi IBAN'a <b>${tl(dep)} depozito</b> gönderin</span><b>Maç günü sahada:</b> ${tl(veri.aboneFiyat + vip)} maç ücreti`
+        : `<span class="odeme-simdi">Şimdi IBAN'a <b>${tl(veri.kapora)} kapora</b> gönderin</span><b>Maç günü sahada:</b> kalan ${tl(veri.aboneFiyat + vip - veri.kapora)} maç ücreti + ${tl(dep)} depozito = <b>${tl(veri.aboneFiyat + vip - veri.kapora + dep)}</b>`;
     }
     $("ozet-ucret").textContent = tl(toplamUcret());
   }

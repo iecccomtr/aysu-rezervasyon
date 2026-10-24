@@ -45,12 +45,14 @@ export const EKSTRALAR = {
 
 /** Abone olurken müşteriye onaylatılan kurallar (yeni aboneler için). Metni buradan güncelleyin. */
 export const ABONE_KURALLARI = [
-  "Abone olurken 1 maç bedeli depozito alınır. Depozito ilk maç günü ödenebilir.",
-  "İlk kez gelen abone adayından rezervasyon için kapora alınır; kapora ilk maçın saha ücreti ve depozitodan düşülür.",
-  "Abonelik ilk maç gününden itibaren başlar. İlk 3 ay içinde abonelikten çıkılamaz; çıkılırsa depozito yanar.",
-  "Her ay en fazla 1 kez, önceden haber vermek koşuluyla maç iptal / erteleme yapılabilir. Fazlasında depozito yanar.",
-  "3 ayı dolduran aboneler, içerideki depozito karşılığında aynı gün ve saatte ücretsiz son maçlarını oynayabilir.",
-  "Kapora iadesi yapılmaz; saat veya gün ertelemesi yapılabilir.",
+  "Aboneler kayıt tarihlerinde 1 maç bedeli depozitoyu kayıt esnasında ödemeleri gerekmektedir.",
+  "Aboneler olası ertelemeleri ayda sadece 1 kez yapabilmektedir.",
+  "Aboneler 3 ay dolmadan abonelikleri iptal edemezler.",
+  "Aboneler herhangi bir erteleme veya gün değişikliğini erken bildirmesi zorunludur.",
+  "Aboneler 3 ay sonunda aboneliklerini iptal etmek isterlerse içerdeki depozito bedeli kadar aynı gün aynı saatte 1 saat ücretsiz oynayabilirler. (İlk maç günü abone başlangıç tarihidir.)",
+  "Şehit aileleri, öksüz ve yetim çocuklar ücretsiz olarak kiralama yapabilirler.",
+  "Sahamıza dışarıdan yiyecek ve içecek getirip saha içi, tribünlerde ve kantinde tüketmek yasaktır. Otopark ve soyunma odalarında tüketebilirsiniz. Aksi durumda aboneliğiniz iptal edilir.",
+  "Saha personelleri ile hiçbir şekilde ticari ilişkiye girmeyiniz.",
 ];
 
 export const KURALLAR = {

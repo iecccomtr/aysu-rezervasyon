@@ -1187,3 +1187,25 @@ test("Kantin kâr çarpanı: alış değişince satış = alış × çarpan (5'e
   assert.equal((await d.urunler()).find((x) => x.id === u.id).satis, 45);
   assert.equal((await d.fiyatAyar()).kantinCarpan, 3);
 });
+
+test("Abone kantin anlaşması: ilk 14 çay ikram, adede göre kademeli fiyat (o gün toplam)", async () => {
+  const { anlasmaBirim } = await import("../src/store.js");
+  const anl = { urunId: "c", ucretsiz: 14, kademeler: [{ min: 15, fiyat: 25 }, { min: 30, fiyat: 15 }, { min: 60, fiyat: 10 }] };
+  assert.equal(anlasmaBirim(anl, 10, 25) * 10, 0);
+  assert.equal(Math.round(anlasmaBirim(anl, 20, 25) * 20), 6 * 25);
+  assert.equal(Math.round(anlasmaBirim(anl, 40, 25) * 40), 26 * 15);
+  assert.equal(Math.round(anlasmaBirim(anl, 70, 25) * 70), 56 * 10);
+  const d = demoDepo();
+  saatiAyarla("2026-10-21T19:00");
+  const admin = { eposta: "a@a.com", ad: "Admin", rol: "admin" };
+  const cay = (await d.urunler()).find((u) => u.ad.startsWith("ÇAY"));
+  const a = (await d.aboneKaydet({ ad: "Abone Onbeş", gun: 2, saat: "20:00", no: 15, slotlar: [{ gun: 2, saat: "20:00" }, { gun: 2, saat: "21:00" }], baslangic: "2026-10-19",
+    anlasma: [{ urunId: cay.id, ad: cay.ad, ucretsiz: 14, kademeler: [{ min: 15, fiyat: 25 }, { min: 30, fiyat: 15 }, { min: 60, fiyat: 10 }], not: "çaylar taze" }] })).abone;
+  assert.equal(a.anlasma[0].kademeler.length, 3);
+  const k = await d.kasaGetir("2026-10-21", admin);
+  const g = { ...k.kayit }; const s = g.maclar.filter((m) => m.aboneId === a.id);
+  s[0].kantin = { [cay.id]: 20 }; s[1].kantin = { [cay.id]: 20 }; // o gün toplam 40 çay → 26 × 15 = 390
+  const r = await d.kasaKaydet(g, admin);
+  assert.ok(r.basarili);
+  assert.equal(r.kayit.ozet.kantin, 26 * 15);
+});

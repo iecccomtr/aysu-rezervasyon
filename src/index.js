@@ -396,6 +396,7 @@ async function panel(request, env, ctx, yol) {
       if (r.basarili && r.fiyatFark?.length) fiyatBildir(r.fiyatFark);
       return json(r, r.hata ? 400 : 200);
     }
+    case "POST abone-not": { const r = await d.aboneNotKaydet(g.id, g.not, ben); return degisti(r); }
     case "POST abone-talep-red": { const r = await d.aboneIptalTalebiReddet(g.id, ben); return json(r, r.hata ? 400 : 200); }
     case "POST abone-link": {
       // Aboneye özel sayfa bağlantısı; istenirse abonenin e-postasına gönderilir

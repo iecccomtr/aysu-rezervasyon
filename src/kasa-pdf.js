@@ -49,7 +49,7 @@ export function kasaPdf(k, ek = {}) {
   const maclar = (k.maclar || []).filter((m) => m.tur !== "bos");
   // Önceki günlerde alınan kapora maçın tutarından düşülmüş gösterilir (o para o gün kasaya girmişti); toplamlar böylece tutar
   baslik(`Oynanan maçlar (${maclar.length} maç)`, para(o.mac + o.vip - o.onOdeme));
-  for (const m of maclar) satir(`${m.saat}  ${m.ad || "—"}${m.tur === "abone" ? "  (abone)" : ""}${m.ucretsiz ? "  (ücretsiz)" : ""}${m.onOdeme ? `  · ${para(m.onOdeme)} kapora önceden alındı` : ""}`, para((m.ucret || 0) + (m.vip || 0) - (m.onOdeme || 0)), { kucuk: true });
+  for (const m of maclar) satir(`${m.saat}  ${m.ad || "—"}${m.tur === "abone" ? "  (abone)" : ""}${m.ucretsiz ? "  (ücretsiz)" : ""}${m.onOdeme ? `  · ${para(m.onOdeme)} ${m.tur === "abone" ? "ön ödeme" : "kapora"} önceden alındı` : ""}`, para((m.ucret || 0) + (m.vip || 0) - (m.onOdeme || 0)), { kucuk: true });
   if (!maclar.length) satir("Bu gün maç yok.", "", { renk: GRI });
 
   baslik("Kantin", para(o.kantin));

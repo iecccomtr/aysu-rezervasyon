@@ -94,6 +94,8 @@
         <p class="not" style="margin:8px 0 0">Gelemeyeceğiniz haftayı maçtan en geç <b>${v.bildirimSaat} saat</b> önce bildirin. Daha sonrası için arayın: <a href="tel:+905555102626">0 555 510 26 26</a></p>
       </div>
 
+      ${(v.anlasma || []).length ? `<h2>Kantin anlaşmanız</h2><div class="kutu">${v.anlasma.map((x) => `<div class="satir" style="display:block"><b>${kacis(x.ad)}</b>: ${x.ucretsiz ? `her maç günü ilk ${x.ucretsiz} adet ikramımızdır` : ""}${(x.kademeler || []).slice().sort((p, q) => p.min - q.min).map((k) => ` · ${k.min} adet ve üzeri ${tl(k.fiyat)}`).join("")}${x.not ? ` <small>(${kacis(x.not)})</small>` : ""}</div>`).join("")}</div>` : ""}
+
       ${v.veresiye.length ? `<h2>Açık veresiye</h2><div class="kutu">${v.veresiye.map((x) => `<div class="satir"><span>${tarih(x.gun)} ${kacis(x.saat)} <small>· ${kacis(x.urunler)}</small></span><b>${tl(x.tutar)}</b></div>`).join("")}
         <div class="satir" style="border-top:1px solid var(--cizgi);margin-top:6px;padding-top:6px"><b>Toplam</b><b>${tl(v.veresiye.reduce((t, x) => t + x.tutar, 0))}</b></div>
         <p class="not" style="margin:6px 0 0">Bir sonraki maçınızda sahada ödeyebilirsiniz.</p></div>` : ""}

@@ -566,7 +566,7 @@
     $("abone-ayrinti").hidden = !ac;
     if (ac && veri) {
       const g = veri.gunler[gunIdx];
-      $("abone-bilgi").innerHTML = `Her hafta <b>${g.gun}${gece(secilenSaat || "08:00") ? " gecesi" : ""} ${secilenSaat || ""}</b> saati size ayrılır. Abone maç ücreti <b>${tl(veri.aboneFiyat)}</b>. İlk maçta 1 maç bedeli <b>${tl(veri.aboneFiyat)} depozito</b> alınır; şimdi ödeyeceğiniz <b>${tl(veri.kapora)} kapora</b> ilk maçın ücreti ve depozitodan düşülür.`;
+      $("abone-bilgi").innerHTML = `Her hafta <b>${g.gun}${gece(secilenSaat || "08:00") ? " gecesi" : ""} ${secilenSaat || ""}</b> saati size ayrılır. Abone maç ücreti <b>${tl(veri.aboneFiyat)}</b>. İlk maçta 1 maç bedeli <b>${tl(veri.aboneFiyat)} depozito</b> alınır; şimdi ödeyeceğiniz <b>${tl(veri.kapora)} kapora</b> ilk maçın ücreti ve depozitodan düşülür.<br>☕ <b>Abonelerimize her maçta ilk 14 çay ikramımızdır.</b>`;
       $("abone-kurallar").innerHTML = (veri.aboneKurallari || []).map((k) => `<li>${k.replace(/[<&>]/g, "")}</li>`).join("");
       const dep = veri.aboneFiyat, vip = toplamUcret() - veri.aboneFiyat;
       $("abone-dep-tutar").textContent = tl(dep);

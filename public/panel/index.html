@@ -1007,6 +1007,8 @@
   // ---------- Hafta tablosu ----------
   const kisaAd = (ad) => String(ad || "").trim();
   /** Tabloda abonenin adı yerine numarası yazılır: "Abone 3" */
+  /** Kantin anlaşması özeti: "ÇAY: ilk 14 ikram · 15+ 25 ₺ · 30+ 15 ₺ · 60+ 10 ₺" */
+  const anlasmaYazi = (l) => (l || []).map((x) => `${x.ad || "Ürün"}: ${x.ucretsiz ? `ilk ${x.ucretsiz} ikram` : ""}${(x.kademeler || []).slice().sort((p, q) => p.min - q.min).map((k) => ` · ${k.min}+ adet ${k.fiyat} ₺`).join("")}${x.not ? ` (${x.not})` : ""}`).join(" / ");
   /** Abonenin notları: açıklama + depozito */
   const aboneNot = (a) => [a?.not, a?.depozito ? `Depozito: ${a.depozito}` : ""].filter(Boolean).join("\n");
   // Notlu abone hücresinin üstüne gelince (telefonda dokununca değil, basılı tutunca) not balonu
@@ -1286,11 +1288,13 @@
         <div><span>Abone</span><b>${kacis(a.ad)}</b></div>
         <div><span>Saatleri</span>${kacis(slotOzet(a.slotlar || []))}</div>
         <div><span>Telefon</span>${a.telefon ? `<a href="tel:${a.telefon}">${telYazi(a.telefon)}</a>` : "—"}</div>
-        ${a.not ? `<div><span>Not</span>${kacis(a.not)}</div>` : ""}
+        ${(a.anlasma || []).length ? `<div><span>Kantin anlaşması</span><b style="color:#8a5a00">${kacis(anlasmaYazi(a.anlasma))}</b></div>` : ""}
         <div><span>Depozito</span>${a.depozito ? kacis(a.depozito) : '<span class="soluk">girilmemiş</span>'}</div>
       </div>
       ${a.telefon ? `<div class="eylemler"><a class="dugme ikincil kucuk" href="tel:${a.telefon}">Ara</a>
         <a class="dugme ikincil kucuk" target="_blank" rel="noopener" href="${wa(a.telefon)}">WhatsApp</a></div>` : ""}
+      <div class="alan"><label for="t-not">Not</label><textarea id="t-not" maxlength="500" style="min-height:60px" placeholder="Abone ile ilgili not (anlaşmalar, özel istekler…)">${kacis(a.not || "")}</textarea>
+        <button type="button" class="dugme ikincil kucuk" id="t-not-kaydet" style="margin-top:6px">Notu kaydet</button></div>
       <h3 style="font-size:20px;margin:4px 0 10px">Gelmiyor olarak işaretle</h3>
       <div style="display:grid;gap:8px">
         <button class="dugme tam" type="button" data-kapsam="saat">Sadece ${g.gun} ${s.saat} gelmiyor</button>
@@ -1318,6 +1322,11 @@
       const t = await tamAbone(); if (!t) return dlgUyari("Abone bulunamadı.");
       aboneForm(t);
       setTimeout(() => { const b = $("d-sil"); if (b) { b.click(); b.scrollIntoView({ block: "center" }); } }, 50);
+    });
+    $("t-not-kaydet").addEventListener("click", async () => {
+      const r = await api("abone-not", { id: a.id, not: $("t-not").value });
+      if (r.hata) return dlgUyari(r.hata);
+      a.not = $("t-not").value; bildir("Not kaydedildi"); haftaYukle();
     });
     $("t-tasi").addEventListener("click", async () => {
       const yg = Number($("t-gun").value), ys = $("t-saat").value;
@@ -1435,7 +1444,13 @@
           <div class="alan"><label for="d-ucret">Maç ücreti</label><input id="d-ucret" value="${kacis(a.ucret || "")}" placeholder="ör. 3200"></div>
         </div>
         <div class="alan"><label for="d-depozito">Depozito</label><input id="d-depozito" value="${kacis(a.depozito || "")}" placeholder="ör. 3.200 TL alındı (01.10.2026)"></div>
-        <div class="alan"><label for="d-not">Not</label><input id="d-not" value="${kacis(a.not || "")}"></div>
+        <div class="alan"><label for="d-not">Not</label><textarea id="d-not" maxlength="500" style="min-height:60px">${kacis(a.not || "")}</textarea></div>
+        <div class="kutu" style="padding:10px;margin-bottom:12px;background:#fffbe6;border-color:#ecd97a">
+          <b style="display:block">Kantin anlaşması <small class="soluk" style="font-weight:400">(isteğe bağlı)</small></b>
+          <small class="soluk" style="display:block;margin-bottom:6px">Ör. çay: ilk 14 ikram, 15+ adet 25 ₺, 30+ adet 15 ₺, 60+ adet 10 ₺. Adet, o gün o abonenin toplamıdır; kasada fiyat kendiliğinden uygulanır.</small>
+          <div id="d-anlasma"></div>
+          <button type="button" class="dugme ikincil kucuk" id="d-anlasma-ekle">+ Anlaşma ekle</button>
+        </div>
         <div class="kutu" style="padding:10px;margin-bottom:12px;background:#f3f6fd;border-color:#b9cdf2">
           <label style="display:flex;gap:8px;align-items:center;font-weight:600"><input type="checkbox" id="d-kural" style="width:20px;height:20px"${kuralAcik ? " checked" : ""}> Abonelik kuralları uygulansın</label>
           <small class="soluk" style="display:block;margin:4px 0 6px">İlk maçtan itibaren 3 ay çıkamaz (çıkarsa depozito yanar), ayda 1 iptal hakkı. Eski abonelerde kapatabilirsiniz.</small>
@@ -1463,6 +1478,40 @@
     };
     ciz();
     $("d-satir-ekle").addEventListener("click", () => { satirlar = oku(); satirlar.push({ gunler: [], bas: "20:00", son: "20:00" }); ciz(); });
+    // Kantin anlaşması düzenleyici
+    let anlasma = JSON.parse(JSON.stringify(a.anlasma || []));
+    let urunListe = [];
+    const anlasmaCiz = () => {
+      $("d-anlasma").innerHTML = anlasma.map((x, i) => `<div class="kutu" data-anl="${i}" style="padding:8px;margin-bottom:8px">
+        <div class="k-sat" style="grid-template-columns:1fr 90px 28px;margin-bottom:0"><label>Ürün</label><label>İlk kaç adet ikram</label><span></span></div>
+        <div class="k-sat" style="grid-template-columns:1fr 90px 28px"><select data-anl-urun aria-label="Ürün" style="border:1px solid #b5c3cf;border-radius:8px;padding:8px;font-size:15px;min-width:0">${urunListe.map((u) => `<option value="${u.id}"${u.id === x.urunId ? " selected" : ""}>${kacis(u.ad)} (${u.satis} ₺)</option>`).join("")}</select>
+          <input data-anl-ucretsiz inputmode="numeric" value="${x.ucretsiz || ""}" placeholder="İlk … ikram" title="İlk kaç adet ücretsiz (ikram)"><button class="x-sil" type="button" data-anl-sil aria-label="Sil">×</button></div>
+        ${(x.kademeler || []).length ? '<div class="k-sat" style="grid-template-columns:1fr 1fr 28px;margin-bottom:0"><label>Toplam adet (en az)</label><label>Birim fiyat ₺</label><span></span></div>' : ""}
+        ${(x.kademeler || []).map((k, j) => `<div class="k-sat" style="grid-template-columns:1fr 1fr 28px"><input data-kd-min="${j}" inputmode="numeric" value="${k.min}" placeholder="En az adet"><input data-kd-fiyat="${j}" inputmode="numeric" value="${k.fiyat}" placeholder="Birim ₺"><button class="x-sil" type="button" data-kd-sil="${j}" aria-label="Sil">×</button></div>`).join("")}
+        <button type="button" class="baglanti" data-kd-ekle>+ kademe (adet → fiyat)</button>
+        <input data-anl-not value="${kacis(x.not || "")}" placeholder="Not (ör. çaylar taze olacak)" style="width:100%;border:1px solid #b5c3cf;border-radius:8px;padding:8px;font-size:15px;margin-top:6px"></div>`).join("");
+      $("d-anlasma").querySelectorAll("[data-anl]").forEach((el) => {
+        const i = Number(el.dataset.anl);
+        el.querySelector("[data-anl-sil]").addEventListener("click", () => { anlasma = anlasmaOku(); anlasma.splice(i, 1); anlasmaCiz(); });
+        el.querySelector("[data-kd-ekle]").addEventListener("click", () => { anlasma = anlasmaOku(); anlasma[i].kademeler.push({ min: "", fiyat: "" }); anlasmaCiz(); });
+        el.querySelectorAll("[data-kd-sil]").forEach((b) => b.addEventListener("click", () => { anlasma = anlasmaOku(); anlasma[i].kademeler.splice(Number(b.dataset.kdSil), 1); anlasmaCiz(); }));
+      });
+    };
+    function anlasmaOku() {
+      if (!$("d-anlasma")) return anlasma;
+      return [...$("d-anlasma").querySelectorAll("[data-anl]")].map((el) => {
+        const sel = el.querySelector("[data-anl-urun]"), u = urunListe.find((x) => x.id === sel.value);
+        return { urunId: sel.value, ad: u?.ad || "", ucretsiz: Number(el.querySelector("[data-anl-ucretsiz]").value) || 0, not: el.querySelector("[data-anl-not]").value,
+          kademeler: [...el.querySelectorAll("[data-kd-min]")].map((m, j) => ({ min: Number(m.value) || 0, fiyat: Number(el.querySelector(`[data-kd-fiyat="${j}"]`).value) || 0 })).filter((k) => k.min > 0) };
+      });
+    }
+    api("urunler").then((l) => { urunListe = Array.isArray(l) ? l.filter((u) => u.aktif !== false) : []; anlasmaCiz(); }).catch(() => {});
+    $("d-anlasma-ekle").addEventListener("click", () => {
+      anlasma = anlasmaOku();
+      const cay = urunListe.find((u) => /ÇAY/.test(u.ad)) || urunListe[0];
+      anlasma.push({ urunId: cay?.id || "", ad: cay?.ad || "", ucretsiz: 0, kademeler: [{ min: "", fiyat: "" }], not: "" });
+      anlasmaCiz();
+    });
 
     $("d-form").addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -1475,7 +1524,7 @@
       if (!slotlar.length) return dlgUyari("En az bir gün seçin.");
       const btn = e.submitter; btn.disabled = true;
       try {
-        const r = await api("abone", { id: yeni ? undefined : a.id, no: $("d-no").value, ad: $("d-ad").value, telefon: $("d-tel").value, slotlar, baslangic: $("d-bas").value, ucret: $("d-ucret").value, depozito: $("d-depozito").value, veresiye: $("d-veresiye").checked, not: $("d-not").value, yeniKural: $("d-kural").checked, ilkMac: $("d-ilk").value || $("d-bas").value, eposta: $("d-eposta").value });
+        const r = await api("abone", { id: yeni ? undefined : a.id, no: $("d-no").value, ad: $("d-ad").value, telefon: $("d-tel").value, slotlar, baslangic: $("d-bas").value, ucret: $("d-ucret").value, depozito: $("d-depozito").value, veresiye: $("d-veresiye").checked, not: $("d-not").value, yeniKural: $("d-kural").checked, ilkMac: $("d-ilk").value || $("d-bas").value, eposta: $("d-eposta").value, anlasma: anlasmaOku() });
         if (r.hata) return dlgUyari(r.hata);
         dlg.close(); bildir(r.uyari || `${yeni ? "Abone eklendi" : "Kaydedildi"}${r.epostaDegisti ? ` · abone sayfası ${r.abone.eposta} adresine gönderildi` : ""}`); aboneYukle(); if (sekme === "musteriler") musteriYukle();
       } finally { btn.disabled = false; }
@@ -2065,14 +2114,27 @@
   function kasaOzetHesapla() {
     const o = { mac: 0, vip: 0, kantin: 0, kantinKar: 0, kramponAdet: 0, eldivenAdet: 0, krampon: 0, eldiven: 0, onOdeme: 0, ikramDeger: 0, veresiyeKantin: 0, maclar: [] };
     const kr = kira();
+    // Abone kantin anlaşması (ör. çay: ilk 14 ikram, sonra adede göre kademeli fiyat): o gün o abonenin toplam adedine göre
+    const anl = kasa.anlasmalar || {}, topAdet = {};
+    for (const m of kk.maclar) if (m.aboneId && anl[m.aboneId]) for (const ob of [m.kantin, m.veresiyeKantin]) for (const [id, a] of Object.entries(ob || {})) topAdet[`${m.aboneId}|${id}`] = (topAdet[`${m.aboneId}|${id}`] || 0) + (Number(a) || 0);
+    const fiyat = (m, id) => {
+      const x = m.aboneId && (anl[m.aboneId] || []).find((y) => y.urunId === id);
+      const normal = birim(id).satis, n = x ? topAdet[`${m.aboneId}|${id}`] : 0;
+      if (!x || !n) return normal;
+      const kd = [...(x.kademeler || [])].sort((p, q) => q.min - p.min).find((k) => n >= k.min);
+      return (Math.max(0, n - (Number(x.ucretsiz) || 0)) * (kd ? kd.fiyat : normal)) / n;
+    };
     for (const m of kk.maclar) {
       let kantin = 0;
-      for (const [id, a] of Object.entries(m.kantin || {})) { const b = birim(id); kantin += a * b.satis; o.kantinKar += a * (b.satis - b.alis); }
+      for (const [id, a] of Object.entries(m.kantin || {})) { const b = birim(id); kantin += a * fiyat(m, id); o.kantinKar += a * (fiyat(m, id) - b.alis); }
+      kantin = Math.round(kantin);
       let odenmemis = 0;
-      for (const [id, a] of Object.entries(m.kantin || {})) odenmemis += Math.max(0, a - (m.kantinOdenen?.[id] || 0)) * birim(id).satis;
+      for (const [id, a] of Object.entries(m.kantin || {})) odenmemis += Math.max(0, a - (m.kantinOdenen?.[id] || 0)) * fiyat(m, id);
+      odenmemis = Math.round(odenmemis);
       o.odenmemis = (o.odenmemis || 0) + odenmemis;
       let veresiye = 0;
-      for (const [id, a] of Object.entries(m.veresiyeKantin || {})) veresiye += a * birim(id).satis;
+      for (const [id, a] of Object.entries(m.veresiyeKantin || {})) veresiye += a * fiyat(m, id);
+      veresiye = Math.round(veresiye);
       o.veresiyeKantin += veresiye;
       let ikram = 0;
       for (const [id, a] of Object.entries(m.ikramKantin || {})) ikram += a * birim(id).satis;
@@ -2202,9 +2264,10 @@
           ${gr ? `<small class="depozito" style="margin:-2px 0 6px">${grupKart ? `${gr.son - gr.bas + 1} saat × ${para(m.ucret || 0)} = <b>${para(kk.maclar.slice(gr.bas, gr.son + 1).reduce((t, x) => t + (Number(x.ucret) || 0), 0))}</b> · ` : ""}<button type="button" class="baglanti" data-grup="${kacis(gr.anahtar)}">${grupKart ? "Saatleri ayrı göster" : "Saatleri tek kartta topla"}</button></small>` : ""}
           ${m.depozito ? `<small class="depozito" style="margin:-2px 0 6px">Depozito: ${kacis(m.depozito)}</small>` : ""}
           ${m.ucretsiz ? `<small class="depozito" style="color:#1a7f37;margin:-2px 0 6px">✓ Ücretsiz maç: ${kacis(m.ucretsiz)}</small>` : ""}
+          ${m.aboneId && (kasa.anlasmalar || {})[m.aboneId] ? `<small class="depozito" style="color:#8a5a00;margin:-2px 0 6px">🤝 Anlaşma: ${kacis(anlasmaYazi(kasa.anlasmalar[m.aboneId]))}</small>` : ""}
           <div class="k-ic">
             <div><label>${grupKart ? "Saat ücreti (ilk saat)" : "Maç ücreti"}</label><input data-yol="maclar.${i}.ucret" value="${m.ucret || ""}" inputmode="numeric" placeholder="0"></div>
-            <div><label title="Önceden alınan kapora">Alınan kapora</label><input data-yol="maclar.${i}.onOdeme" value="${m.onOdeme || ""}" inputmode="numeric" placeholder="0"></div>
+            <div><label title="Önceden alınan kapora / ön ödeme">${m.tur === "abone" ? "Alınan ön ödeme" : "Alınan kapora"}</label><input data-yol="maclar.${i}.onOdeme" value="${m.onOdeme || ""}" inputmode="numeric" placeholder="0"></div>
             <div><label title="Maç günü kalan tutarın IBAN'a yatırılan kısmı (kasaya nakit girmez)">IBAN'a ödenen</label><input data-yol="maclar.${i}.iban" value="${m.iban || ""}" inputmode="numeric" placeholder="0"></div>
           </div>
           <div class="vip-sec">${[["spiker", "VIP spiker"], ["hakem", "VIP hakem"]].map(([x, ad]) => `<label><input type="checkbox" data-vip="${i}" value="${x}"${(m.ekstra || []).includes(x) ? " checked" : ""}> ${ad} <small>+${para(kasa.fiyat[x])}</small></label>`).join("")}

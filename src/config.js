@@ -67,6 +67,7 @@ export const ANKET_SORULARI = [
 ];
 
 export const KURALLAR = {
+  aboneCayIkram: 14,            // abonelere her maç günü ilk 14 çay ikram (online abone olanlara kendiliğinden tanımlanır)
   aboneGelmiyorSaat: 12,        // abone "bu hafta gelmiyoruz"u maçtan en geç bu kadar saat önce kendi sayfasından bildirir
   aboneEnAzAy: 3,               // yeni aboneler ilk maçtan itibaren bu kadar ay çıkamaz (çıkarsa depozito yanar)
   aboneAylikIptal: 1,           // yeni aboneler ayda en fazla bu kadar "gelmiyor" (fazlasında depozito yanar)

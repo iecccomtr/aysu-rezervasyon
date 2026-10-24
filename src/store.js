@@ -233,6 +233,40 @@ export const kasaTuketim = (k) => {
   return t;
 };
 /** Personel birim fiyatı: %40 indirimli (KURALLAR.personelIndirim), 5 TL'nin katına yukarı yuvarlanmış (25 → 15; 95 → 57 → 60) */
+/**
+ * Abone kantin anlaşması (ör. çay): ilk N adet ücretsiz (ikram), kalanlar toplam adede göre kademeli fiyattan.
+ * anlasma: { urunId, ucretsiz, kademeler: [{ min, fiyat }] }  → n adet için ortalama birim fiyat
+ */
+export const anlasmaBirim = (anl, n, normal) => {
+  if (!anl || !(n > 0)) return normal;
+  const kademe = [...(anl.kademeler || [])].sort((a, c) => c.min - a.min).find((k) => n >= k.min);
+  const fiyat = kademe ? kademe.fiyat : normal;
+  const ucretli = Math.max(0, n - (Number(anl.ucretsiz) || 0));
+  return (ucretli * fiyat) / n;
+};
+/** Kasa günündeki abone satırlarına anlaşmalı birim fiyatları yazar (m.ozelBirim) — adet o gün o abonenin toplamıdır */
+export const anlasmaUygula = (k, anlasmalar = {}) => {
+  const b = k.birimler || {};
+  const toplam = {}; // aboneId|urunId → adet
+  for (const m of k.maclar || []) {
+    if (!m.aboneId || !anlasmalar[m.aboneId]) continue;
+    for (const o of [m.kantin, m.veresiyeKantin]) for (const [id, a] of Object.entries(o || {})) toplam[`${m.aboneId}|${id}`] = (toplam[`${m.aboneId}|${id}`] || 0) + (Number(a) || 0);
+  }
+  for (const m of k.maclar || []) {
+    delete m.ozelBirim;
+    const l = anlasmalar[m.aboneId];
+    if (!l) continue;
+    const ozel = {};
+    for (const anl of l) {
+      const n = toplam[`${m.aboneId}|${anl.urunId}`];
+      if (n) ozel[anl.urunId] = anlasmaBirim(anl, n, b[anl.urunId]?.satis || 0);
+    }
+    if (Object.keys(ozel).length) m.ozelBirim = ozel;
+  }
+  return k;
+};
+const satirFiyat = (m, b, id) => (m?.ozelBirim?.[id] ?? b[id]?.satis ?? 0);
+
 /** Kantin satış fiyatı: alış × çarpan, 5 TL'nin katına yukarı yuvarlanır (12 × 2,5 = 30; 13 × 2,5 = 32,5 → 35) */
 export const kantinSatis = (alis, carpan) => (alis > 0 ? Math.ceil((alis * (carpan || 2.5)) / 5 - 1e-9) * 5 : 0);
 export const personelFiyat = (satis) => (satis > 0 ? Math.ceil((satis * (1 - KURALLAR.personelIndirim)) / 5) * 5 : 0);
@@ -302,16 +336,17 @@ export const kasaOzet = (k) => {
   const o = { mac: 0, vip: 0, kantin: 0, kantinKar: 0, kramponAdet: 0, eldivenAdet: 0, krampon: 0, eldiven: 0, onOdeme: 0, ikramDeger: 0, veresiyeKantin: 0 };
   o.maclar = (k.maclar || []).map((m) => {
     let kantin = 0;
-    for (const [id, a] of Object.entries(m.kantin || {})) { kantin += a * (b[id]?.satis || 0); o.kantinKar += a * ((b[id]?.satis || 0) - (b[id]?.alis || 0)); }
+    for (const [id, a] of Object.entries(m.kantin || {})) { kantin += a * satirFiyat(m, b, id); o.kantinKar += a * (satirFiyat(m, b, id) - (b[id]?.alis || 0)); }
     // Veresiye kantin: stoktan düşer, ciroya / kasaya girmez
     let veresiye = 0;
-    for (const [id, a] of Object.entries(m.veresiyeKantin || {})) veresiye += a * (b[id]?.satis || 0);
+    for (const [id, a] of Object.entries(m.veresiyeKantin || {})) veresiye += a * satirFiyat(m, b, id);
     o.veresiyeKantin += veresiye;
     // Maçtaki ikram (ör. aboneye ücretsiz): stoktan düşer, ciroya girmez
     let ikram = 0;
     for (const [id, a] of Object.entries(m.ikramKantin || {})) ikram += a * (b[id]?.satis || 0);
     o.ikramDeger += ikram;
     const krampon = (m.krampon || 0) * kira.krampon, eldiven = (m.eldiven || 0) * kira.eldiven;
+    kantin = Math.round(kantin); veresiye = Math.round(veresiye);
     o.mac += m.ucret || 0; o.vip += m.vip || 0; o.kantin += kantin; o.onOdeme += m.onOdeme || 0;
     o.kramponAdet += m.krampon || 0; o.eldivenAdet += m.eldiven || 0; o.krampon += krampon; o.eldiven += eldiven;
     return { saat: m.saat, kantin, veresiye, ikram, toplam: (m.ucret || 0) + (m.vip || 0) + kantin + krampon + eldiven };
@@ -577,7 +612,7 @@ export class RezervasyonDeposu extends DurableObject {
       const b = k.birimler || {};
       for (const m of k.maclar || []) {
         if (m.aboneId !== a.id) continue;
-        const liste = (o, tur) => Object.entries(o || {}).filter(([, n]) => n > 0).map(([id, n]) => ({ ad: b[id]?.ad || "Ürün", adet: n, tutar: n * (b[id]?.satis || 0), tur }));
+        const liste = (o, tur) => Object.entries(o || {}).filter(([, n]) => n > 0).map(([id, n]) => ({ ad: b[id]?.ad || "Ürün", adet: n, tutar: Math.round(n * (tur === "ikram" ? b[id]?.satis || 0 : satirFiyat(m, b, id))), tur }));
         const kalemler = [...liste(m.kantin, "kantin"), ...liste(m.veresiyeKantin, "veresiye"), ...liste(m.ikramKantin, "ikram")];
         if (m.krampon) kalemler.push({ ad: "Krampon kirası", adet: m.krampon, tutar: m.krampon * (k.kira?.krampon || 0), tur: "kira" });
         if (m.eldiven) kalemler.push({ ad: "Eldiven kirası", adet: m.eldiven, tutar: m.eldiven * (k.kira?.eldiven || 0), tur: "kira" });
@@ -593,7 +628,8 @@ export class RezervasyonDeposu extends DurableObject {
       taahhutBitis: a.kural?.yeni && a.kural.ilkMac ? ayEkle(a.kural.ilkMac, KURALLAR.aboneEnAzAy) : null,
       iptalHakki: a.kural?.yeni ? Math.max(0, KURALLAR.aboneAylikIptal - iptalAy) : null,
       bildirimSaat: KURALLAR.aboneGelmiyorSaat, maclar, kantin, veresiye, kurallar: ABONE_KURALLARI,
-      iptalTalebi: a.iptalTalebi || null,
+      iptalTalebi: a.iptalTalebi || null, not: a.not || "",
+      anlasma: (a.anlasma || []).map((x) => ({ ad: x.ad, ucretsiz: x.ucretsiz, kademeler: x.kademeler, not: x.not })),
     };
   }
 
@@ -625,6 +661,17 @@ export class RezervasyonDeposu extends DurableObject {
     });
   }
 
+  /** Takvimden hızlı: abone notu */
+  async aboneNotKaydet(id, not, yapan) {
+    return this.kilitli(async () => {
+      const a = await this.st.get(`a:${id}`);
+      if (!a) return { hata: "Abone bulunamadı." };
+      await this.st.put(`a:${id}`, { ...a, not: kirp(not, 500) });
+      await this.kayitTut(yapan, "Abone notunu güncelledi", `${a.ad}: ${kirp(not, 120)}`);
+      return { basarili: true };
+    });
+  }
+
   /** Yönetici abonenin iptal talebini geri çevirir (abonelik devam eder) */
   async aboneIptalTalebiReddet(id, yapan) {
     return this.kilitli(async () => {
@@ -642,6 +689,7 @@ export class RezervasyonDeposu extends DurableObject {
    * her hafta), rezervasyon aboneye bağlanır. Depozito ilk maç günü kasada alınır.
    */
   async aboneBasvuruKabul(kayitNo) {
+    this._urunOnbellek = await this.urunler();
     const b = await this.kayitBul(kayitNo);
     const r = b?.kayit;
     if (!r?.aboneBasvuru || r.aboneId || r.durum !== DURUM.onayli) return null;
@@ -651,6 +699,8 @@ export class RezervasyonDeposu extends DurableObject {
       depozito: r.aboneBasvuru.depozitoIban ? `${r.aboneBasvuru.depozito.toLocaleString("tr-TR")} TL (IBAN ile ödendi ${String(r.kaporaGunu || "").split("-").reverse().join(".")})`
         : `${r.aboneBasvuru.depozito.toLocaleString("tr-TR")} TL (ilk maçta alınacak)`,
       not: "Online abone başvurusu", yeniKural: true, ilkMac: ilk, eposta: r.aboneBasvuru.eposta || "",
+      // Abonelere ilk 14 çay ikram (kayıt formunda yazan söz): kasada kendiliğinden uygulanır
+      anlasma: (() => { const cay = (this._urunOnbellek || []).find((u) => bardakKurali(u.ad).bardakUrunu); return cay ? [{ urunId: cay.id, ad: cay.ad, ucretsiz: KURALLAR.aboneCayIkram, kademeler: [], not: "Abone ikramı" }] : []; })(),
     });
     if (!sonuc.basarili) return sonuc;
     await this.kilitli(async () => {
@@ -2002,12 +2052,13 @@ export class RezervasyonDeposu extends DurableObject {
       return { eposta: e, ad: u?.ad || v.ad, rol: ROLLER[u?.rol]?.ad || "", saat, kesinti, ucret: Math.round(saat * (u?.saatlikUcret || 0)) - kesinti, acik: Boolean(v.giris && !v.cikis) };
     });
     const tahsil = await this.veresiyeTahsilleri(gun);
-    if (kayit) { kayit.veresiyeTahsil = tahsil; kayit.ozet = kasaOzet(kayit); }
+    const anlasmalar = Object.fromEntries((await this.aboneler()).filter((a) => !a.bitis && a.anlasma?.length).map((a) => [a.id, a.anlasma]));
+    if (kayit) { kayit.veresiyeTahsil = tahsil; anlasmaUygula(kayit, anlasmalar); kayit.ozet = kasaOzet(kayit); }
     return {
       gun, gunAd: gunAdi(gun), bugun: isletmeGunu(n.tarih, n.saat), kayitli: Boolean(kayit),
       kayit: kayit || { gun, veresiyeTahsil: tahsil, gelenKaporalar: await this.gelenKaporalar(gun), devir: oncekiKasa?.birakilan ?? 0, maclar: takvim.map((x) => ({ ...x, krampon: 0, eldiven: 0, kantin: {} })), girisler: [], cikislar: [], veresiye: [], ikram: {}, birakilan: null, sayilan: null, not: "" },
       oncekiDevir: oncekiKasa ? { gun: oncekiKasa.gun, tutar: oncekiKasa.birakilan ?? 0 } : null,
-      takvim, urunler: bardakGorunum(urunler), fiyat, calisanlar, ikramKimler: IKRAM_KIMLER, temizlik: await this.temizlikUrunleri(), rehber: await this.rehber(), personelIndirim: KURALLAR.personelIndirim,
+      takvim, urunler: bardakGorunum(urunler), fiyat, calisanlar, anlasmalar, ikramKimler: IKRAM_KIMLER, temizlik: await this.temizlikUrunleri(), rehber: await this.rehber(), personelIndirim: KURALLAR.personelIndirim,
       personel: kullanicilar.filter((u) => u.durum === "aktif" && u.rol !== "admin" && ROLLER[u.rol])
         .map((u) => ({ eposta: u.eposta, ad: u.ad, calisiyor: puantaj.has(`p:${gun}:${u.eposta}`) })), acikVeresiyeler: await this.veresiyeSonrakiMac(await this.acikVeresiyeler()),
     };
@@ -2078,6 +2129,7 @@ export class RezervasyonDeposu extends DurableObject {
       for (const id of Object.keys(kasaTuketim(kayit))) {
         if (kayit.birimler[id] === undefined) kayit.birimler[id] = { satis: urunMap.get(id)?.satis || 0, alis: urunMap.get(id)?.alis || 0, ad: urunMap.get(id)?.ad || id };
       }
+      anlasmaUygula(kayit, Object.fromEntries([...aboneMap.values()].filter((a) => a.anlasma?.length).map((a) => [a.id, a.anlasma])));
       kayit.ozet = kasaOzet(kayit);
       // Stok: önceki kayda göre fark kadar düşülür (aynı günü tekrar kaydetmek stoğu iki kez düşmez)
       const once = stokTuketimi(kasaTuketim(eski || {}), urunler), simdiT = stokTuketimi(kasaTuketim(kayit), urunler);
@@ -2114,7 +2166,7 @@ export class RezervasyonDeposu extends DurableObject {
       const eski = mevcut.get(anahtar) || {};
       yeni.set(anahtar, {
         ...eski, gun: k.gun, saat: m.saat, ad: m.ad, kim: m.veresiyeKim || m.ad, aboneId: m.aboneId || null,
-        tutar: Object.entries(v).reduce((t, [id, a]) => t + a * (b[id]?.satis || 0), 0),
+        tutar: Math.round(Object.entries(v).reduce((t, [id, a]) => t + a * satirFiyat(m, b, id), 0)),
         urunler: Object.entries(v).map(([id, a]) => `${b[id]?.ad || id} ×${a}`).join(", "),
         odendi: eski.odendi || false, hatirlatilan: eski.hatirlatilan || [],
       });
@@ -2255,7 +2307,7 @@ export class RezervasyonDeposu extends DurableObject {
               ...(SAATLER.includes(saat) ? {} : { ozel: true }),
               // Abone başvurusunun ilk maçı (rezervasyon) da "Abone N" olarak görünsün
               ...(s.rez ? { rez: s.rez.aboneId ? { ...s.rez, aboneNo: aboneNo(d.abone.find((a) => a.id === s.rez.aboneId)) } : s.rez } : {}),
-              ...(s.abone ? { abone: { id: s.abone.id, no: aboneNo(s.abone), ad: s.abone.ad, telefon: s.abone.telefon, not: s.abone.not, depozito: s.abone.depozito || "", slotlar: slotlarOf(s.abone) } } : {}),
+              ...(s.abone ? { abone: { id: s.abone.id, no: aboneNo(s.abone), ad: s.abone.ad, telefon: s.abone.telefon, not: s.abone.not, depozito: s.abone.depozito || "", slotlar: slotlarOf(s.abone), anlasma: s.abone.anlasma || [] } } : {}),
             };
           }),
         });
@@ -2322,7 +2374,7 @@ export class RezervasyonDeposu extends DurableObject {
   }
 
   /** slotlar: [{gun, saat}] — ya da eski biçimde tek gun + saat */
-  async aboneKaydet({ id, ad, telefon, slotlar, gun, saat, baslangic, not = "", ucret = "", depozito, veresiye, no, yeniKural, ilkMac, eposta, epostaZorunlu }) {
+  async aboneKaydet({ id, ad, telefon, slotlar, gun, saat, baslangic, not = "", ucret = "", depozito, veresiye, no, yeniKural, ilkMac, eposta, epostaZorunlu, anlasma }) {
     return this.kilitli(async () => {
       if (epostaZorunlu && !epostaNormalize(eposta)) return { hata: "Abonenin e-posta adresi zorunludur (abone sayfası ve bildirimler için)." };
       let liste = Array.isArray(slotlar) ? slotlar : [{ gun, saat }];
@@ -2356,10 +2408,15 @@ export class RezervasyonDeposu extends DurableObject {
         no: numara,
         id: eski?.id || rastgele(8, "abcdefghjkmnpqrstuvwxyz23456789"),
         ad: kirp(ad, 60), telefon: tel, slotlar: liste, baslangic: bas, bitis: null,
-        not: kirp(not, 200), ucret: kirp(ucret, 40), depozito: depozito === undefined ? (eski?.depozito || "") : kirp(depozito, 120),
+        not: kirp(not, 500), ucret: kirp(ucret, 40), depozito: depozito === undefined ? (eski?.depozito || "") : kirp(depozito, 120),
         olusturma: eski?.olusturma || simdiYazi(),
         ...(veresiye !== undefined ? { veresiye: Boolean(veresiye) } : eski?.veresiye !== undefined ? { veresiye: eski.veresiye } : {}),
         eposta: eposta === undefined ? (eski?.eposta || "") : (epostaNormalize(eposta) || ""),
+        // Kantin anlaşması: [{ urunId, ad, ucretsiz, kademeler: [{ min, fiyat }], not }]
+        anlasma: anlasma === undefined ? (eski?.anlasma || []) : (Array.isArray(anlasma) ? anlasma : []).slice(0, 10).map((x) => ({
+          urunId: kirp(x?.urunId, 30), ad: kirp(x?.ad, 40), ucretsiz: Math.max(0, Math.round(Number(x?.ucretsiz) || 0)), not: kirp(x?.not, 200),
+          kademeler: (Array.isArray(x?.kademeler) ? x.kademeler : []).slice(0, 6).map((k) => ({ min: Math.max(1, Math.round(Number(k?.min) || 0)), fiyat: tutar(k?.fiyat) })).filter((k) => k.min > 0),
+        })).filter((x) => x.urunId),
         ...(eski?.erisim ? { erisim: eski.erisim } : {}),
         ...(eski?.iptalTalebi ? { iptalTalebi: eski.iptalTalebi } : {}),
         // Yeni abone kuralları (3 ay taahhüt, ayda 1 iptal): eski abonelerde uygulanmaz

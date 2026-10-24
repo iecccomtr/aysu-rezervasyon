@@ -342,7 +342,12 @@ async function panel(request, env, ctx, yol) {
       const r = await d.panelRezGuncelle(g);
       if (r.basarili && r.rez?.aboneBasvuru && r.rez.durum === "Onaylı" && !r.rez.aboneId) ctx.waitUntil(aboneBasvuruIsle(env, d, r.rez.kayitNo).catch(() => {}));
       if (r.basarili && (r.degisen || []).some((x) => x.startsWith("Durum: Onaylı → İptal"))) {
-        ctx.waitUntil(iptalBildir(env, d, { ...r.rez, kimden: `${ben.ad} (${ROLLER[ben.rol]?.ad || ""}, panel)` }));
+        // Abone başvurusunun ilk maçı iptal edildi: başvuruyla açılan abonelik de kapanır (henüz başlamamış)
+        if (r.rez.aboneBasvuru && r.rez.aboneId) {
+          const ab = (await d.aboneListe()).find((x) => x.id === r.rez.aboneId);
+          if (ab && ab.kural?.ilkMac === (r.rez.isletmeGunu || r.rez.tarih)) { await d.aboneSil(ab.id, {}); r.aboneKapandi = true; }
+        }
+        ctx.waitUntil(iptalBildir(env, d, { ...r.rez, kimden: `${ben.ad} (${ROLLER[ben.rol]?.ad || ""}, panel)`, aboneKapandi: r.aboneKapandi }));
       }
       return degisti(r);
     }
@@ -592,9 +597,10 @@ async function iptalBildir(env, d, r) {
   // Rolü o an Admin / Müdür / Müdür Yardımcısı olan herkes (yeni atananlar dahil)
   const kime = await d.rolEpostalari(["admin", "mudur", "mudur_yrd"]);
   const ileti = {
-    konu: `Rezervasyon iptal edildi: ${r.gun || ""} ${r.tarih} ${r.saat}`.replace(/\s+/g, " "),
+    konu: `${r.aboneBasvuru ? "Abonelik başvurusu iptal edildi" : "Rezervasyon iptal edildi"}: ${r.gun || ""} ${r.tarih} ${r.saat}`.replace(/\s+/g, " "),
     satirlar: [["Maç", `${r.gun ? r.gun + ", " : ""}${r.tarih} saat ${r.saat}`], ["Ad soyad", r.ad || "-"], ["Telefon", r.telefon || "-"],
-      ["Kayıt no", r.kayitNo], ["İptal eden", r.kimden], ...(r.iptalNedeni ? [["Açıklama", r.iptalNedeni]] : []), ["Kapora", r.kapora ? `${r.kapora} (iade yok)` : "-"]],
+      ["Kayıt no", r.kayitNo], ["İptal eden", r.kimden], ...(r.iptalNedeni ? [["Açıklama", r.iptalNedeni]] : []), ["Kapora", r.kapora ? `${r.kapora} (iade yok)` : "-"],
+      ...(r.aboneBasvuru ? [["Abonelik", r.aboneKapandi ? "Başvuruyla açılan abonelik de kapatıldı" : "Abone başvurusuydu"]] : [])],
   };
   if (kime.length) await epostaYolla(env, { kime, ...ileti });
   else await bildir(env, ileti);

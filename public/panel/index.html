@@ -1252,9 +1252,11 @@
   function iptalWhatsApp(r) {
     const gun = r.isletmeGunu || r.tarih;
     const zaman = `${GUNLER[gunNo(gun)]} ${tarihYazi(gun)}${gece(r.saat) ? " gecesi" : ""} saat ${r.saat}`;
-    const metin = `Merhaba ${r.ad}, Aysu Halı Saha'daki ${zaman} rezervasyonunuz iptal edilmiştir. Bilginize sunarız. Sorunuz olursa bu numaradan bize yazabilir ya da 0 555 510 26 26'yı arayabilirsiniz.`;
+    // Abone başvurusunun ilk maçı iptal edildiyse mesaj abonelik başvurusu üzerinden yazılır
+    const neyi = r.aboneBasvuru ? `${zaman} başlayacak abonelik başvurunuz` : `${zaman} rezervasyonunuz`;
+    const metin = `Merhaba ${r.ad}, Aysu Halı Saha'daki ${neyi} iptal edilmiştir. Bilginize sunarız. Sorunuz olursa bu numaradan bize yazabilir ya da 0 555 510 26 26'yı arayabilirsiniz.`;
     ac("Müşteriye haber verin", `
-      <div class="bilgi" style="margin-bottom:12px">Rezervasyon iptal edildi, saat boşaldı. <b>${kacis(r.ad)}</b> (${telYazi(r.telefon)}) kişisine haber verin:</div>
+      <div class="bilgi" style="margin-bottom:12px">${r.aboneBasvuru ? "Abonelik başvurusu iptal edildi, saat boşaldı (başvuruyla açılan abonelik de kapatıldı)." : "Rezervasyon iptal edildi, saat boşaldı."} <b>${kacis(r.ad)}</b> (${telYazi(r.telefon)}) kişisine haber verin:</div>
       <div class="alan"><label for="d-wa-metin">Mesaj (düzenleyebilirsiniz)</label><textarea id="d-wa-metin" rows="5">${kacis(metin)}</textarea></div>
       <a class="dugme wp tam" id="d-wa-gonder" target="_blank" rel="noopener" href="#">WhatsApp'tan müşteriye gönder</a>
       <button class="dugme ikincil tam" type="button" id="d-wa-kapat" style="margin-top:8px">Kapat</button>`);

@@ -683,7 +683,7 @@
       method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(govde),
     });
     const v = await r.json().catch(() => ({ hata: "Sunucuya ulaşılamadı." }));
-    if (r.status === 401 && v.giris) { girisGoster(); throw new Error(v.hata); }
+    if (r.status === 401 && v.giris) { girisGoster(); if (/ÇIKTIM/.test(v.hata || "")) girisUyari(v.hata); throw new Error(v.hata); }
     return v;
   }
 
@@ -2064,10 +2064,12 @@
       const r = await api(yol, {});
       if (r.hata) return bildir(r.hata);
       bildir(yol.endsWith("giris") ? "GELDİM kaydedildi" : "ÇIKTIM kaydedildi");
+      // Müdür / Müdür Yardımcısı çıkış yaptı: panel kapanır (ertesi iş gününe kadar)
+      if (r.oturumKapandi) { ben = null; girisGoster("giris"); girisUyari("ÇIKTIM kaydedildi. İyi akşamlar! Panel bir sonraki iş gününe kadar kapalı."); return; }
       puantajKartYukle();
     };
     el.querySelector("#p-giris")?.addEventListener("click", () => confirm("Sahaya geldiğinizi şimdi onaylıyor musunuz?") && isle("puantaj/giris"));
-    el.querySelector("#p-cikis")?.addEventListener("click", () => confirm("İşten çıktığınızı şimdi onaylıyor musunuz? Günün özeti e-postanıza gelecek.") && isle("puantaj/cikis"));
+    el.querySelector("#p-cikis")?.addEventListener("click", () => confirm(`İşten çıktığınızı şimdi onaylıyor musunuz? Günün özeti e-postanıza gelecek.${["mudur", "mudur_yrd"].includes(ben.rol) ? "\n\nÇıkıştan sonra panel bir sonraki iş gününe kadar kapanır." : ""}`) && isle("puantaj/cikis"));
     // Panele girişte (bir kez) sor: bugün maç var ve henüz GELDİM demediniz
     const dk = (x) => { const [h, m] = x.split(":").map(Number); return (h < 6 ? h + 24 : h) * 60 + m; };
     const simdiDk = dk(new Date(Date.now() + 3 * 3600000).toISOString().slice(11, 16));

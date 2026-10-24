@@ -1239,3 +1239,20 @@ test("Kantin sayımı sistem stoğundan farklıysa fark bilgisi döner (Admin'e 
   assert.deepEqual([r.sayimFark.beklenen, r.sayimFark.sayilan, r.sayimFark.fark], [u.stok, u.stok - 3, -3]);
   assert.ok(!(await d.urunKaydet({ id: u.id, stokEkle: 10 }, m)).sayimFark, "gelen mal fark değildir");
 });
+
+test("Müdür ÇIKTIM dedikten sonra aynı iş günü panele giremez; ertesi gün girer", async () => {
+  const d = demoDepo({ PANEL_KURULUM_KODU: "k" });
+  const admin = await d.oturum((await d.panelKur({ kurulumKodu: "k", eposta: "admin@aysu.com", ad: "Admin", sifre: "aysu-2026!" })).token);
+  await d.kayitOl({ eposta: "mudur@aysu.com", ad: "Müdür Bey", sifre: "mudur-2026!", rol: "mudur" });
+  await d.kullaniciGuncelle({ eposta: "mudur@aysu.com", rol: "mudur", durum: "aktif" }, admin);
+  saatiAyarla("2026-10-21T18:00");
+  const m = await d.oturum((await d.panelGiris({ eposta: "mudur@aysu.com", sifre: "mudur-2026!" })).token);
+  await d.puantajGiris(m);
+  saatiAyarla("2026-10-21T23:30");
+  await d.puantajCikis(m);
+  assert.ok(await d.vardiyaBitti(m));
+  assert.match((await d.panelGiris({ eposta: "mudur@aysu.com", sifre: "mudur-2026!" })).hata, /ÇIKTIM/);
+  assert.ok((await d.panelGiris({ eposta: "admin@aysu.com", sifre: "aysu-2026!" })).basarili, "Admin etkilenmez");
+  saatiAyarla("2026-10-22T10:00");
+  assert.ok((await d.panelGiris({ eposta: "mudur@aysu.com", sifre: "mudur-2026!" })).basarili, "ertesi gün açılır");
+});

@@ -7,7 +7,7 @@ import { bildir, epostaYolla, epostaKurulu } from "./bildirim.js";
 import * as bildirimModulu from "./bildirim.js";
 import { TESIS_KURALLARI } from "./tesis-kurallari.js";
 import { dekontOku, dekontDegerlendir, ozet } from "./dekont-kontrol.js";
-import { ROLLER, ibanGecerli } from "./store.js";
+import { ROLLER, ibanGecerli, VARDIYA_BITTI } from "./store.js";
 import { kasaPdf, kasaPdfDetayli } from "./kasa-pdf.js";
 import { takvimPdf } from "./takvim-pdf.js";
 export { RezervasyonDeposu } from "./store.js";
@@ -218,7 +218,12 @@ async function panel(request, env, ctx, yol) {
     return json({ basarili: true }, 200, { "set-cookie": `${OTURUM_CEREZ}=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0` });
   }
 
-  const ben = await d.oturum(token);
+  let ben = await d.oturum(token);
+  // Yönetici (Müdür / Müdür Yardımcısı) bugün ÇIKTIM dediyse oturumu kapanır, panel ertesi iş gününe kadar açılmaz
+  if (ben && ["mudur", "mudur_yrd"].includes(ben.rol) && !(yol === "puantaj/cikis" && post) && (await d.vardiyaBitti(ben))) {
+    await d.cikis(token);
+    return json({ hata: VARDIYA_BITTI, giris: true }, 401, { "set-cookie": `${OTURUM_CEREZ}=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0` });
+  }
   const yonetici = Boolean(ben && ROLLER[ben.rol]?.yonetici);
 
   // Tablodan toplu aktarım: yönetici oturumu ya da kurulum kodu (x-kurulum-kodu başlığı) ile
@@ -269,6 +274,11 @@ async function panel(request, env, ctx, yol) {
     const r = await d.puantajCikis(ben);
     // Gün sonu: çalışana o günün özeti (yarım saat yol dahil) e-postayla
     if (r.basarili) ctx.waitUntil(puantajOzetGonder(env, d, ben, r).catch((e) => console.error("Puantaj e-postası", e)));
+    // Yönetici çıkış yaptı: panel oturumu kapanır (ertesi iş gününe kadar giriş yok)
+    if (r.basarili && ["mudur", "mudur_yrd"].includes(ben.rol)) {
+      await d.cikis(token);
+      return json({ ...r, oturumKapandi: true }, 200, { "set-cookie": `${OTURUM_CEREZ}=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0` });
+    }
     return json(r, r.hata ? 400 : 200);
   }
 

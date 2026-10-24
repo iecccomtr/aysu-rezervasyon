@@ -73,6 +73,7 @@ export const macFiyati = (f, gun, saat) => {
   const g = new Date(gun + "T00:00:00Z").getUTCDay();
   return g >= 1 && g <= 5 && !geceSaati(saat) && saat < KURALLAR.aboneUcretSaati ? f.abone : f.mac;
 };
+export const VARDIYA_BITTI = "Bugün ÇIKTIM dediniz; panel bir sonraki iş gününe kadar kapalı. Yanlışlıkla çıkış yaptıysanız Admin puantajdan düzeltebilir.";
 /** Nottaki "Kayıt 24.09.2026" → "2026-09-24" */
 const notKayitTarihi = (not) => {
   const x = String(not || "").match(/kay[ıi]t\s*:?\s*(\d{1,2})[./-](\d{1,2})[./-](\d{4})/i);
@@ -1031,9 +1032,17 @@ export class RezervasyonDeposu extends DurableObject {
       if (!u || !esitMi(hash, u.hash)) return { hata: "E-posta veya şifre hatalı." };
       if (u.durum === "bekliyor") return { hata: "Hesabınız Müdür onayı bekliyor. Onaylanınca giriş yapabilirsiniz." };
       if (u.durum !== "aktif" || !ROLLER[u.rol]) return { hata: "Hesabınız kapalı. Müdürle görüşün." };
+      if (await this.vardiyaBitti(u)) return { hata: VARDIYA_BITTI };
       await this.kayitTut(u, "Giriş yaptı");
       return this.oturumAc(e);
     });
+  }
+
+  /** Müdür / Müdür Yardımcısı bugün ÇIKTIM dediyse panel ertesi iş gününe kadar kapalı (Admin hariç) */
+  async vardiyaBitti(u) {
+    if (!["mudur", "mudur_yrd"].includes(u?.rol)) return false;
+    const k = await this.st.get(`p:${bugunIsletme()}:${u.eposta}`);
+    return Boolean(k?.giris && k?.cikis);
   }
 
   async oturumAc(eposta) {

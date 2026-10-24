@@ -73,6 +73,11 @@ export const macFiyati = (f, gun, saat) => {
   const g = new Date(gun + "T00:00:00Z").getUTCDay();
   return g >= 1 && g <= 5 && !geceSaati(saat) && saat < KURALLAR.aboneUcretSaati ? f.abone : f.mac;
 };
+/** Nottaki "Kayıt 24.09.2026" → "2026-09-24" */
+const notKayitTarihi = (not) => {
+  const x = String(not || "").match(/kay[ıi]t\s*:?\s*(\d{1,2})[./-](\d{1,2})[./-](\d{4})/i);
+  return x ? tarihNormalize(`${x[3]}-${x[2].padStart(2, "0")}-${x[1].padStart(2, "0")}`) : null;
+};
 /** "2026-10-24" + 3 ay → "2027-01-24" */
 const ayEkle = (gun, n) => { const d = new Date(gun + "T00:00:00Z"); d.setUTCMonth(d.getUTCMonth() + n); return d.toISOString().slice(0, 10); };
 /** Yeni kurallı abone ilk 3 ayını doldurmadı mı? (eski abonelerde kural yok) */
@@ -400,7 +405,19 @@ export class RezervasyonDeposu extends DurableObject {
   }
 
   async aboneler() {
-    return [...(await this.st.list({ prefix: "a:" })).values()];
+    const m = await this.st.list({ prefix: "a:" });
+    // Bir kez: eski abonelerin notundaki "Kayıt 24.09.2026" kayıt (başlangıç) tarihi olarak alınır
+    if (!this._kayitTasindi && !(await this.st.get("ayar:aboneKayitTarihi"))) {
+      const yaz = { "ayar:aboneKayitTarihi": true };
+      for (const [k, a] of m) {
+        if (a.kayitTarihi) continue;
+        const t = notKayitTarihi(a.not);
+        if (t) { yaz[k] = { ...a, kayitTarihi: t }; m.set(k, yaz[k]); }
+      }
+      await this.st.put(yaz);
+    }
+    this._kayitTasindi = true;
+    return [...m.values()];
   }
 
   async atlananlar(ilkGun, sonGun) {
@@ -624,7 +641,7 @@ export class RezervasyonDeposu extends DurableObject {
     const iptalAy = new Set([...(await this.st.list({ start: `x:${ay}-01`, end: `x:${ay}-31~` })).keys()].filter((k) => k.endsWith(`:${a.id}`)).map((k) => k.split(":")[1])).size;
     return {
       basarili: true, no: aboneNo(a), ad: a.ad, slotlar: slotSirala(slotlarOf(a)).map((x) => `${GUNLER[x.gun]} ${x.saat}`),
-      baslangic: a.kural?.ilkMac || a.baslangic, depozito: a.depozito || "", kural: Boolean(a.kural?.yeni),
+      baslangic: a.kural?.ilkMac || a.kayitTarihi || a.baslangic, depozito: a.depozito || "", kural: Boolean(a.kural?.yeni),
       taahhutBitis: a.kural?.yeni && a.kural.ilkMac ? ayEkle(a.kural.ilkMac, KURALLAR.aboneEnAzAy) : null,
       iptalHakki: a.kural?.yeni ? Math.max(0, KURALLAR.aboneAylikIptal - iptalAy) : null,
       bildirimSaat: KURALLAR.aboneGelmiyorSaat, maclar, kantin, veresiye, kurallar: ABONE_KURALLARI,
@@ -2374,7 +2391,7 @@ export class RezervasyonDeposu extends DurableObject {
   }
 
   /** slotlar: [{gun, saat}] — ya da eski biçimde tek gun + saat */
-  async aboneKaydet({ id, ad, telefon, slotlar, gun, saat, baslangic, not = "", ucret = "", depozito, veresiye, no, yeniKural, ilkMac, eposta, epostaZorunlu, anlasma }) {
+  async aboneKaydet({ id, ad, telefon, slotlar, gun, saat, baslangic, not = "", ucret = "", depozito, veresiye, no, yeniKural, ilkMac, eposta, epostaZorunlu, anlasma, kayitTarihi }) {
     return this.kilitli(async () => {
       if (epostaZorunlu && !epostaNormalize(eposta)) return { hata: "Abonenin e-posta adresi zorunludur (abone sayfası ve bildirimler için)." };
       let liste = Array.isArray(slotlar) ? slotlar : [{ gun, saat }];
@@ -2412,6 +2429,8 @@ export class RezervasyonDeposu extends DurableObject {
         olusturma: eski?.olusturma || simdiYazi(),
         ...(veresiye !== undefined ? { veresiye: Boolean(veresiye) } : eski?.veresiye !== undefined ? { veresiye: eski.veresiye } : {}),
         eposta: eposta === undefined ? (eski?.eposta || "") : (epostaNormalize(eposta) || ""),
+        // Kayıt (abonelik başlangıcı / ilk maç) tarihi: 3 ay ve ücretsiz son maç kuralları buna göre
+        kayitTarihi: tarihNormalize(kayitTarihi) || tarihNormalize(ilkMac) || eski?.kayitTarihi || notKayitTarihi(not) || (eski ? null : bas),
         // Kantin anlaşması: [{ urunId, ad, ucretsiz, kademeler: [{ min, fiyat }], not }]
         anlasma: anlasma === undefined ? (eski?.anlasma || []) : (Array.isArray(anlasma) ? anlasma : []).slice(0, 10).map((x) => ({
           urunId: kirp(x?.urunId, 30), ad: kirp(x?.ad, 40), ucretsiz: Math.max(0, Math.round(Number(x?.ucretsiz) || 0)), not: kirp(x?.not, 200),
@@ -2421,7 +2440,7 @@ export class RezervasyonDeposu extends DurableObject {
         ...(eski?.iptalTalebi ? { iptalTalebi: eski.iptalTalebi } : {}),
         // Yeni abone kuralları (3 ay taahhüt, ayda 1 iptal): eski abonelerde uygulanmaz
         kural: yeniKural === undefined ? (eski?.kural || null)
-          : yeniKural ? { yeni: true, ilkMac: tarihNormalize(ilkMac) || eski?.kural?.ilkMac || bas } : null,
+          : yeniKural ? { yeni: true, ilkMac: tarihNormalize(kayitTarihi) || tarihNormalize(ilkMac) || eski?.kural?.ilkMac || eski?.kayitTarihi || bas } : null,
       };
       await this.st.put(`a:${abone.id}`, abone);
       // Uyarı: abonenin saatlerine denk gelen ileri tarihli aktif rezervasyonlar

@@ -1387,7 +1387,7 @@
         <span class="i"><b>${aboneEtiket(a)} · ${kacis(a.ad)}</b>
         <small><span style="color:var(--murekkep);font-weight:600">${kacis(slotOzet(a.slotlar || []))}</span>
         · ${telYazi(a.telefon) || "telefon yok"}${a.ucret ? " · " + kacis(a.ucret) : ""}${a.not ? " · " + kacis(a.not) : ""}</small>
-        <small class="depozito">${a.depozito ? `Depozito: ${kacis(a.depozito)}` : "Depozito: girilmemiş"}</small>
+        <small class="depozito">${a.depozito ? `Depozito: ${kacis(a.depozito)}` : "Depozito: girilmemiş"} · ${a.kayitTarihi ? `Kayıt: ${tarihYazi(a.kayitTarihi)}` : '<span style="color:#b42318">Kayıt tarihi girilmemiş</span>'}</small>
         ${a.iptalTalebi ? `<small style="color:#b42318;font-weight:700;display:block">⚠ İptal talebi (${kacis(a.iptalTalebi.zaman)})</small>` : ""}</span>
         <span class="rozet r-abone">${(a.slotlar || []).length} saat</span></button>`).join("");
     $("abone-liste").querySelectorAll("[data-abone]").forEach((el) => el.addEventListener("click", () => aboneForm(aboneler.find((a) => a.id === el.dataset.abone))));
@@ -1412,8 +1412,10 @@
     // Yeni kurallar (3 ay taahhüt, ayda 1 iptal): yeni abonelerde açık, kuralsız eski abonelerde kapalı
     const kuralAcik = yeni ? true : Boolean(a.kural?.yeni);
     const bugunT = new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10);
-    const ucAySonu = a.kural?.ilkMac ? (() => { const d = new Date(a.kural.ilkMac + "T00:00:00Z"); d.setUTCMonth(d.getUTCMonth() + 3); return d.toISOString().slice(0, 10); })() : null;
+    const basT = a.kural?.ilkMac || a.kayitTarihi;
+    const ucAySonu = basT ? (() => { const d = new Date(basT + "T00:00:00Z"); d.setUTCMonth(d.getUTCMonth() + 3); return d.toISOString().slice(0, 10); })() : null;
     const taahhutte = Boolean(a.kural?.yeni && ucAySonu && bugunT < ucAySonu);
+    const ucAyDolmadi = Boolean(ucAySonu && bugunT < ucAySonu); // kuralsız eski abonede uyarı olarak
     let satirlar = slotSatirlari(a.slotlar || []);
     if (!satirlar.length) satirlar = [{ gunler: [], bas: "20:00", son: "20:00" }];
     ac(yeni ? "Yeni abone" : a.ad, `
@@ -1439,8 +1441,9 @@
         <p class="soluk" style="font-size:14px;margin-bottom:8px">Günleri seçin, ilk ve son maç saatini girin (tek saatse ikisi aynı). Farklı günlerde farklı saatler için satır ekleyin. 00:00–02:00 seçilen günün gecesidir.</p>
         <div id="d-satirlar"></div>
         <button type="button" class="dugme ikincil kucuk" id="d-satir-ekle" style="margin-bottom:14px">+ Gün/saat satırı ekle</button>
+        <div class="alan"><label for="d-ilk">Kayıt tarihi <small class="soluk">(abonelik başlangıcı / ilk maç — 3 ay ve ücretsiz son maç buna göre)</small></label><input id="d-ilk" type="date" value="${kacis(a.kayitTarihi || a.kural?.ilkMac || (yeni ? (on?.baslangic || "") : ""))}"></div>
         <div class="iki-alan">
-          <div class="alan"><label for="d-bas">Başlangıç</label><input id="d-bas" type="date" value="${kacis(a.baslangic || "")}"></div>
+          <div class="alan"><label for="d-bas">Takvimde başlangıç</label><input id="d-bas" type="date" value="${kacis(a.baslangic || "")}"></div>
           <div class="alan"><label for="d-ucret">Maç ücreti</label><input id="d-ucret" value="${kacis(a.ucret || "")}" placeholder="ör. 3200"></div>
         </div>
         <div class="alan"><label for="d-depozito">Depozito</label><input id="d-depozito" value="${kacis(a.depozito || "")}" placeholder="ör. 3.200 TL alındı (01.10.2026)"></div>
@@ -1454,7 +1457,6 @@
         <div class="kutu" style="padding:10px;margin-bottom:12px;background:#f3f6fd;border-color:#b9cdf2">
           <label style="display:flex;gap:8px;align-items:center;font-weight:600"><input type="checkbox" id="d-kural" style="width:20px;height:20px"${kuralAcik ? " checked" : ""}> Abonelik kuralları uygulansın</label>
           <small class="soluk" style="display:block;margin:4px 0 6px">İlk maçtan itibaren 3 ay çıkamaz (çıkarsa depozito yanar), ayda 1 iptal hakkı. Eski abonelerde kapatabilirsiniz.</small>
-          <div class="alan" style="margin:0"><label for="d-ilk">İlk maç günü (kuralın başladığı gün)</label><input id="d-ilk" type="date" value="${kacis(a.kural?.ilkMac || a.baslangic || "")}"></div>
           ${taahhutte ? `<small style="color:#b42318;display:block;margin-top:6px">3 aylık taahhüt ${tarihYazi(ucAySonu)} tarihinde doluyor.</small>` : ""}
         </div>
         <label style="display:flex;gap:8px;align-items:center;font-weight:600;margin-bottom:14px"><input type="checkbox" id="d-veresiye" style="width:20px;height:20px"${(a.veresiye !== undefined ? a.veresiye : [1, 2].includes(Number(a.no))) ? " checked" : ""}> Kantinden veresiye alabilir</label>
@@ -1524,7 +1526,7 @@
       if (!slotlar.length) return dlgUyari("En az bir gün seçin.");
       const btn = e.submitter; btn.disabled = true;
       try {
-        const r = await api("abone", { id: yeni ? undefined : a.id, no: $("d-no").value, ad: $("d-ad").value, telefon: $("d-tel").value, slotlar, baslangic: $("d-bas").value, ucret: $("d-ucret").value, depozito: $("d-depozito").value, veresiye: $("d-veresiye").checked, not: $("d-not").value, yeniKural: $("d-kural").checked, ilkMac: $("d-ilk").value || $("d-bas").value, eposta: $("d-eposta").value, anlasma: anlasmaOku() });
+        const r = await api("abone", { id: yeni ? undefined : a.id, no: $("d-no").value, ad: $("d-ad").value, telefon: $("d-tel").value, slotlar, baslangic: $("d-bas").value, ucret: $("d-ucret").value, depozito: $("d-depozito").value, veresiye: $("d-veresiye").checked, not: $("d-not").value, yeniKural: $("d-kural").checked, ilkMac: $("d-ilk").value || $("d-bas").value, kayitTarihi: $("d-ilk").value || undefined, eposta: $("d-eposta").value, anlasma: anlasmaOku() });
         if (r.hata) return dlgUyari(r.hata);
         dlg.close(); bildir(r.uyari || `${yeni ? "Abone eklendi" : "Kaydedildi"}${r.epostaDegisti ? ` · abone sayfası ${r.abone.eposta} adresine gönderildi` : ""}`); aboneYukle(); if (sekme === "musteriler") musteriYukle();
       } finally { btn.disabled = false; }
@@ -1557,7 +1559,7 @@
       if (!alan) {
         sil.insertAdjacentHTML("beforebegin", `<div class="alan" style="margin-top:10px;background:#fff1f1;border:1px solid #f2c4c4;border-radius:10px;padding:10px"><label for="d-sil-neden" style="color:#b42318">Sonlandırma açıklaması (zorunlu)</label><textarea id="d-sil-neden" placeholder="Ör. sezon bitti, takım dağıldı"></textarea>
           ${taahhutte ? `<p style="color:#b42318;font-weight:700;margin:8px 0 0">İlk 3 ay dolmadı (${tarihYazi(ucAySonu)} tarihine kadar): kurala göre depozito yanar, ücretsiz son maç verilemez.</p>`
-            : `<label style="display:flex;gap:8px;align-items:center;font-weight:600;margin-top:8px"><input type="checkbox" id="d-son-mac" style="width:20px;height:20px"${a.depozito ? " checked" : ""}> Son maçı depozito karşılığı ücretsiz oynasın</label>
+            : `${ucAyDolmadi ? `<p style="color:#b42318;margin:8px 0 0">Dikkat: kayıt tarihinden (${tarihYazi(basT)}) itibaren 3 ay dolmadı (${tarihYazi(ucAySonu)}). Kurala göre ücretsiz son maç hakkı yok.</p>` : ""}<label style="display:flex;gap:8px;align-items:center;font-weight:600;margin-top:8px"><input type="checkbox" id="d-son-mac" style="width:20px;height:20px"${a.depozito && !ucAyDolmadi ? " checked" : ""}> Son maçı depozito karşılığı ücretsiz oynasın</label>
           <small class="soluk">İşaretliyse abonenin en yakın saatine ücretsiz, onaylı son maç yazılır.${a.depozito ? ` Depozito: ${kacis(a.depozito)}` : ""}</small>`}</div>`);
         $("d-sil-neden").focus(); sil.textContent = "Açıklamayla aboneliği sonlandır"; return;
       }

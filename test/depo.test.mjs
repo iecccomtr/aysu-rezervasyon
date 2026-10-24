@@ -1209,3 +1209,12 @@ test("Abone kantin anlaşması: ilk 14 çay ikram, adede göre kademeli fiyat (o
   assert.ok(r.basarili);
   assert.equal(r.kayit.ozet.kantin, 26 * 15);
 });
+
+test("Eski abonelerin notundaki 'Kayıt 24.09.2026' kayıt tarihi olarak alınır", async () => {
+  const d = demoDepo();
+  await d.st.put("a:eski1", { id: "eski1", no: 8, ad: "Gökhan", slotlar: [{ gun: 3, saat: "21:00" }], baslangic: "2026-01-01", not: "Abone 8 · Kayıt 24.09.2026" });
+  const l = await d.aboneler();
+  assert.equal(l.find((a) => a.id === "eski1").kayitTarihi, "2026-09-24");
+  const yeni = (await d.aboneKaydet({ ad: "Yeni", gun: 1, saat: "20:00", kayitTarihi: "2026-10-20" })).abone;
+  assert.equal(yeni.kayitTarihi, "2026-10-20");
+});

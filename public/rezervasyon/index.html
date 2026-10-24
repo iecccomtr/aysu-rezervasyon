@@ -199,6 +199,8 @@
   .vip { border: 2px solid #f3c97a; background: #fff8ec; border-radius: 12px; padding: 10px 14px 12px; margin: 0 0 16px; }
   .vip legend { font-weight: 700; padding: 0 6px; }
   .vip legend small { font-weight: 400; color: var(--gri, #566270); }
+  .t-mac { font: 700 22px/1.2 "Barlow Condensed", sans-serif; color: var(--cim); background: #eaf3fb; border: 1px solid #b9d6ee; border-radius: 12px; padding: 8px 12px; margin: 6px 0 10px; display: inline-block; }
+  .t-mac:empty { display: none; }
   .abone-kutu { border: 2px solid #b9cdf2; background: #f3f6fd; border-radius: 12px; padding: 10px 14px 12px; margin: 0 0 16px; }
   .abone-kutu legend { font-weight: 700; padding: 0 6px; }
   .abone-bilgi { font-size: 14px; margin: 4px 0 8px; color: var(--murekkep, #10202d); }
@@ -379,6 +381,7 @@
     <section class="tamam" id="tamam" hidden aria-live="polite">
       <div class="isaret"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
       <h2 id="t-baslik">Yeriniz opsiyonlandı</h2>
+      <p class="t-mac" id="t-mac"></p>
       <p class="alt" id="t-aciklama">Yeriniz kapora gönderimi için <b>15 dakika</b> süreyle adınıza opsiyonlandı; bu sürede saat başkasına verilmez. Kaporayı gönderip dekontu yüklediğinizde rezervasyonunuz kesinleşir. Süre içinde dekont gelmezse yer boşa çıkar.</p>
       <p class="sayac" id="t-sayac" role="timer" aria-live="off"></p>
 
@@ -947,6 +950,7 @@
     if (sonRez) sonRez.yazi = `${g.gun} ${tarihYazi(g.tarih)}, ${v.saat}`;
     const zaman = `${g.gun} ${tarihYazi(g.tarih)}${gece(v.saat) ? " gecesi" : ""}, ${v.saat}`;
     $("t-zaman").textContent = zaman;
+    $("t-mac").textContent = `📅 ${zaman}`;
     $("t-kayit").textContent = v.kayitNo;
     const k = $("t-kapora");
     if (v.iban) sonIban = { no: v.iban, alici: v.alici };

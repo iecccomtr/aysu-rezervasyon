@@ -757,9 +757,18 @@ export class RezervasyonDeposu extends DurableObject {
       // (Önceki yükleme onaylanmadıysa aynı dosya yeniden değerlendirilir: ilk denemede okuma takılmış olabilir)
       const ayniDosya = onceki && onceki.kayitNo === b.kayit.kayitNo && (b.kayit.dekontlar || []).length > 1
         && (b.kayit.dekontlar || []).slice(0, -1).some((x) => x.kontrol?.onay);
-      if (KURALLAR.dekontTekrarKontrol && onceki && onceki.kayitNo !== b.kayit.kayitNo) nedenler.unshift("Bu dekont daha önce başka bir rezervasyon için kullanılmış.");
+      // Dekont başka rezervasyonda kullanılmışsa reddedilir; ancak o rezervasyon İPTAL edildiyse (yönetici iptal etmiş,
+      // para gelmiş olabilir) dekont yeni rezervasyona aktarılır: kapora parası tek sefer sayılır
+      let aktarilan = null;
+      if (KURALLAR.dekontTekrarKontrol && onceki && onceki.kayitNo !== b.kayit.kayitNo) {
+        const eskiB = await this.kayitBul(onceki.kayitNo);
+        if (eskiB && iptalMi(eskiB.kayit.durum) && !eskiB.kayit.kaporaAktarildi) aktarilan = eskiB;
+        else nedenler.unshift("Bu dekont daha önce başka bir rezervasyon için kullanılmış.");
+      }
+      const baskasinda = KURALLAR.dekontTekrarKontrol && onceki && onceki.kayitNo !== b.kayit.kayitNo && !aktarilan;
+      if (baskasinda) { /* neden yukarıda eklendi */ }
       else if (ayniDosya) nedenler.unshift("Bu dekontu zaten yüklediniz.");
-      else await this.st.put(`dh:${dosyaOzeti}`, { kayitNo: b.kayit.kayitNo, tarih: simdi().tarih });
+      else await this.st.put(`dh:${dosyaOzeti}`, { kayitNo: b.kayit.kayitNo, tarih: simdi().tarih, ...(aktarilan ? { onceki: aktarilan.kayit.kayitNo } : {}) });
       const onay = nedenler.length === 0;
       const o = deger.okunan || {};
       const kontrol = {
@@ -785,10 +794,17 @@ export class RezervasyonDeposu extends DurableObject {
         const gereken = kayit.kaporaTutar ?? (await this.fiyatAyar()).kapora;
         kayit.eksikKapora = tutarlar.length !== parcalar.length || kayit.kaporaToplam < gereken;
       }
+      if (onay && aktarilan) {
+        // Para iptal edilen rezervasyonun dekontuyla geldiği gün kasaya girmişti: yeni rezervasyonda tekrar "bugün gelen kapora" sayılmaz
+        kayit.kaporaGunu = aktarilan.kayit.kaporaGunu || kayit.kaporaGunu;
+        kayit.kaporaAktarim = { kayitNo: aktarilan.kayit.kayitNo, zaman: simdiYazi() };
+        await this.st.put(aktarilan.anahtar, { ...aktarilan.kayit, kaporaAktarildi: kayit.kayitNo });
+      }
       await this.st.put(b.anahtar, kayit);
+      if (onay && aktarilan) await this.kayitTut(null, "Dekont iptal edilen rezervasyondan aktarıldı", `${aktarilan.kayit.kayitNo} (${aktarilan.kayit.ad}, iptal) → ${kayit.kayitNo} (${kayit.ad})`);
       await this.kayitTut(null, onay ? "Dekont otomatik onaylandı" : "Dekont kontrol gerekiyor",
         `${kayit.kayitNo} · ${kayit.ad} · ${onay ? deger.tutar + " TL" : nedenler.join(" ")}`);
-      return { basarili: true, onay, nedenler, rez: kayit, eksik: Boolean(kayit.eksikKapora), tutar: deger.tutar,
+      return { basarili: true, onay, nedenler, rez: kayit, ...(aktarilan ? { aktarilan: aktarilan.kayit.kayitNo } : {}), eksik: Boolean(kayit.eksikKapora), tutar: deger.tutar,
         toplam: kayit.kaporaToplam ?? null, gereken: kayit.kaporaTutar ?? null };
     });
   }
@@ -1852,6 +1868,7 @@ export class RezervasyonDeposu extends DurableObject {
     const [l, haric] = await Promise.all([this.rezervasyonlar(gunEkle(gun, -2), gunEkle(gun, KURALLAR.enFazlaGunSonra + 3)), this.st.get(`kh:${gun}`)]);
     return l.filter((r) => r.kaporaGunu === gun && (r.isletmeGunu || r.tarih) !== gun) // aynı gün maçın kaporası maç toplamında
       .filter((r) => !(haric || []).includes(r.kayitNo)) // Admin'in kasadan çıkardıkları
+      .filter((r) => !r.kaporaAktarildi) // dekontu yeni rezervasyona aktarılan iptal kaydı (para yeni kayıtta sayılır)
       .map((r) => ({ kayitNo: r.kayitNo, mac: `${(r.isletmeGunu || r.tarih).split("-").reverse().slice(0, 2).join(".")} ${r.saat}`, ad: r.ad,
         tutar: kaporaTutari(r), yol: r.kaynak === "Online" ? "IBAN (dekont)" : (r.kaynak || "Panel"), iptal: iptalMi(r.durum) }))
       .filter((x) => x.tutar > 0);

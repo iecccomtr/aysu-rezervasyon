@@ -1151,3 +1151,23 @@ test("Abone sayfası: özel bağlantı, maçlar, kantin geçmişi, kendi 'gelmiy
   const t = await d.aboneIptalTalebi(e.anahtar, { neden: "Sezon bitti" });
   assert.ok(t.basarili); assert.match((await d.aboneIptalTalebi(e.anahtar, {})).hata, /zaten/);
 });
+
+test("İptal edilen rezervasyonun dekontu yeni rezervasyonda kabul edilir; kapora tek sefer sayılır", async () => {
+  const d = demoDepo();
+  saatiAyarla("2026-10-20T10:00");
+  const r1 = await d.olustur({ gunTarihi: "2026-10-23", saat: "21:00", ad: "Ali Can", telefon: "05330000051" });
+  await d.dekontSonuc(r1.kayitNo, "ozet-x", { nedenler: [], tutar: 1200, okunan: {} });
+  await d.panelRezGuncelle({ kayitNo: r1.kayitNo, kapora: "1200" });
+  // başka (iptal edilmemiş) rezervasyonda aynı dekont reddedilir
+  const r2 = await d.olustur({ gunTarihi: "2026-10-24", saat: "21:00", ad: "Ali Can", telefon: "05330000052" });
+  assert.ok(!(await d.dekontSonuc(r2.kayitNo, "ozet-x", { nedenler: [], tutar: 1200, okunan: {} })).onay);
+  // yönetici ilkini iptal eder → aynı dekont yeni rezervasyonda kabul
+  await d.panelRezGuncelle({ kayitNo: r1.kayitNo, durum: "İptal", iptalNedeni: "müşteri saat değiştirdi" });
+  saatiAyarla("2026-10-21T10:00");
+  const r3 = await d.olustur({ gunTarihi: "2026-10-25", saat: "20:00", ad: "Ali Can", telefon: "05330000053" });
+  const k = await d.dekontSonuc(r3.kayitNo, "ozet-x", { nedenler: [], tutar: 1200, okunan: {} });
+  assert.ok(k.onay, JSON.stringify(k.nedenler)); assert.equal(k.aktarilan, r1.kayitNo);
+  assert.equal(k.rez.kaporaGunu, "2026-10-20");
+  const gk = await d.gelenKaporalar("2026-10-20");
+  assert.equal(gk.filter((x) => x.kayitNo === r1.kayitNo).length, 0, "iptal kaydı artık sayılmaz");
+});
